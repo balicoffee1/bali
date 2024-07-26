@@ -111,8 +111,19 @@ WSGI_APPLICATION = "island_bali.wsgi.application"
 # }
 
 DATABASES = {
-    'default': env.db()
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'island_bali',
+        'USER': 'postgres',
+        'PASSWORD': '12345',
+        'HOST': 'localhost',
+        'PORT': '5432',
+    }
 }
+
+# DATABASES = {
+#     'default': env.db()
+# }
 
 EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587

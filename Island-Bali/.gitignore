@@ -16,3 +16,4 @@ identifier.sqlite
 images/
 pgdata/
 qr_codes/
+.env
