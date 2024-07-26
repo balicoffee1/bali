@@ -140,17 +140,13 @@ def check_registration(request):
     method='post',
     request_body=openapi.Schema(
         type=openapi.TYPE_OBJECT,
-        required=['first_name', 'last_name', 'photo', 'email', 'phone',
-                  'login', 'fcm_token', 'nickname'],
+        required=['first_name', 'last_name',
+                  'login', 'fcm_token'],
         properties={
             'first_name': openapi.Schema(type=openapi.TYPE_STRING),
             'last_name': openapi.Schema(type=openapi.TYPE_STRING),
-            'photo': openapi.Schema(type=openapi.TYPE_STRING),
-            'email': openapi.Schema(type=openapi.TYPE_STRING),
-            'phone': openapi.Schema(type=openapi.TYPE_STRING),
             'login': openapi.Schema(type=openapi.TYPE_STRING),
             'fcm_token': openapi.Schema(type=openapi.TYPE_STRING),
-            'nickname': openapi.Schema(type=openapi.TYPE_STRING),
         }
     ),
     responses={
