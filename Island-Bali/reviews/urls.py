@@ -1,0 +1,1 @@
+from django.urls import pathfrom .views import CreateReviewAPIViewurlpatterns = [    path('', CreateReviewAPIView.as_view(), name='create-review'),]

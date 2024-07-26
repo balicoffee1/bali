@@ -1,0 +1,1 @@
+from coffee_shop.models import CoffeeShopdef get_email_cofeeshop_owner(coffee_shop):    email = CoffeeShop.objects.filter(coffee_shop=coffee_shop)    return emailget_email_cofeeshop_owner("1")

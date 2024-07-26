@@ -1,0 +1,67 @@
+
+sudo nano /etc/systemd/system/django_app.service
+
+
+[Unit]
+Description=Django App
+After=network.target
+
+[Service]
+User=root
+Group=www-data
+WorkingDirectory=/root/bali_coffee/Island-Bali
+ExecStart=/root/bali_coffee/Island-Bali/env/bin/gunicorn --workers 3 --bind unix:/root/bali_coffee/Island-Bali/django_app.sock island_bali.wsgi:application
+
+[Install]
+WantedBy=multi-user.target
+
+
+sudo systemctl daemon-reload
+sudo systemctl start django_app.service
+sudo systemctl enable django_app.service
+
+
+sudo apt update
+sudo apt install nginx
+
+
+sudo nano /etc/nginx/sites-available/django_app
+
+
+server {
+    listen 80;
+    server_name 79.174.81.151;
+
+    location / {
+        include proxy_params;
+        proxy_pass http://unix:/root/bali_coffee/Island-Bali/django_app.sock;
+    }
+
+    location /static/ {
+        alias /root/bali_coffee/Island-Bali/static/;
+    }
+
+    location /media/ {
+        alias /root/bali_coffee/Island-Bali/media/;
+    }
+}
+
+sudo ln -s /etc/nginx/sites-available/django_app /etc/nginx/sites-enabled
+
+
+sudo systemctl restart nginx
+
+
+[Unit]
+Description=gunicorn daemon
+Requires=gunicorn.socket
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/root/bali_coffee/Island-Bali #путь до каталога с файлом manage.py
+ExecStart=/root/bali_coffee/env/bin/gunicorn --workers 5 --bind unix:/root/bali_coffee/Island-Bali/django_app.sock island_bali.wsgi:application
+#путь до файла gunicorn в виртуальном окружении
+
+[Install]
+WantedBy=multi-user.target
