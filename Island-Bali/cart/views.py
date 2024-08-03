@@ -227,7 +227,7 @@ class ViewCartView(APIView):
             cart_items_data.append(cart_item_data)
 
         response_data = {
-            f'basket {user}': cart_items_data,
+            'basket': cart_items_data,
             'total_cart_price': total_cart_price
         }
         return Response(response_data, status=status.HTTP_200_OK)

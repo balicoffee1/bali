@@ -64,7 +64,7 @@ def registration_get_code(request):
         if CustomUser.objects.filter(phone_number__exact=phone):
             is_registered = True
         # code, text = utils.send_phone_reset(phone)
-        code = 12345
+        code = "1234"
         text = "test"
         return Response(
             {

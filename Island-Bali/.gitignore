@@ -17,3 +17,6 @@ images/
 pgdata/
 qr_codes/
 .env
+venv/
+venv
+/venv
