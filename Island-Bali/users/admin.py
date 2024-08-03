@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
 
-from .models import CustomUser
+from .models import CustomUser, UserCard
 
 
 @admin.register(CustomUser)
@@ -46,3 +46,6 @@ class UsersAdmin(BaseUserAdmin):
             return CustomUser.objects.all()
         else:
             return CustomUser.objects.none()
+
+
+admin.site.register(UserCard)
