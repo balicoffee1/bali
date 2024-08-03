@@ -1,9 +1,7 @@
 from rest_framework import serializers
-
 from cart.models import CartItem, ShoppingCart
 from menu_coffee_product.models import Product
 from menu_coffee_product.serializers import ProductSerializer
-
 
 class CartItemSerializer(serializers.ModelSerializer):
     product = ProductSerializer()
@@ -12,7 +10,6 @@ class CartItemSerializer(serializers.ModelSerializer):
         model = CartItem
         fields = ['product', 'amount', 'item_total_price']
 
-
 class CartSerializer(serializers.ModelSerializer):
     user = serializers.StringRelatedField()
     items = CartItemSerializer(many=True)
@@ -20,7 +17,6 @@ class CartSerializer(serializers.ModelSerializer):
     class Meta:
         model = ShoppingCart
         fields = "__all__"
-
 
 class AddToCartSerializer(serializers.Serializer):
     product_name = serializers.CharField(required=True,
@@ -39,7 +35,6 @@ class AddToCartSerializer(serializers.Serializer):
                                   help_text="Добавка",
                                   label="Напишите добавку")
 
-
 class ChangeCartSerializer(serializers.Serializer):
     product_name = serializers.CharField(required=True,
                                          help_text="Введите имя продукта "
@@ -48,7 +43,6 @@ class ChangeCartSerializer(serializers.Serializer):
     quantity = serializers.IntegerField(required=True,
                                         help_text="Укажите количество",
                                         label="Количество товара")
-
 
 class RemoveProductFromCartSerializer(serializers.Serializer):
     product_name = serializers.CharField(required=True,

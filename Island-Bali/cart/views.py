@@ -3,6 +3,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from drf_yasg import openapi
 
 from coffee_shop.models import CoffeeShop
 from menu_coffee_product.models import Addon, Product
@@ -14,100 +15,81 @@ from .serializers import (AddToCartSerializer, CartItemSerializer,
 
 
 class AddToCartView(APIView):
-    @staticmethod
+    permission_classes = [IsAuthenticated]  # Ensure user is authenticated
+
     @swagger_auto_schema(
         request_body=AddToCartSerializer,
-        operation_description="Используется для добавления нового товара в "
-                              "корзину или обновления количества"
-                              "существующего "
-                              "товара. Проверяет наличие продукта в меню"
-                              "кофейни и, если продукт найден",
-
-        responses={200: "OK", 400: "Bad Request"},
+        operation_description="Добавляет новый товар в корзину или обновляет количество существующего товара.",
+        responses={200: "OK", 400: "Bad Request", 401: "Unauthorized", 404: "Not Found"},
         tags=["Корзина пользователя"],
-        operation_id="Добавляет товар в корзину")
-    def post(request, city_name, street_name):
+        operation_id="Добавляет товар в корзину"
+    )
+    def post(self, request, city_name, street_name):
         serializer = AddToCartSerializer(data=request.data)
         if serializer.is_valid():
             validated_data = serializer.validated_data
             product_name = validated_data.get("product_name")
             quantity = validated_data.get("quantity")
             temperature_type = validated_data.get("temperature_type")
-            addons = validated_data.get("addons")
+            addons = validated_data.get("addon")
             user = request.user
 
-            if not product_name or not quantity:
-                return Response(
-                    {"error": "Введите название продукта и количество"},
-                    status=status.HTTP_400_BAD_REQUEST)
             if not user.is_authenticated:
-                return Response(
-                    {
-                        "error": "Необходимо авторизоваться "
-                                 "(Передайте токен пользователя)"},
-                    status=status.HTTP_401_UNAUTHORIZED)
+                return Response({"error": "Необходимо авторизоваться (Передайте токен пользователя)"},
+                                status=status.HTTP_401_UNAUTHORIZED)
 
             try:
-                coffee_shop = CoffeeShop.objects.get(city__name=city_name,
-                                                     street=street_name)
-                product = Product.objects.get(product=product_name,
-                                              coffee_shop=coffee_shop)
+                coffee_shop = CoffeeShop.objects.get(city__name=city_name, street=street_name)
+                product = Product.objects.get(product=product_name, coffee_shop=coffee_shop)
             except CoffeeShop.DoesNotExist:
-                return Response({"error": "Coffee shop not found"},
-                                status=status.HTTP_404_NOT_FOUND)
+                return Response({"error": "Кофейня не найдена"}, status=status.HTTP_404_NOT_FOUND)
             except Product.DoesNotExist:
-                return Response({"error": "Product not found in "
-                                          "this coffee shop"},
-                                status=status.HTTP_404_NOT_FOUND)
+                return Response({"error": "Продукт не найден в этой кофейне"}, status=status.HTTP_404_NOT_FOUND)
 
             if not product.availability:
-                return Response({"error": "К сожалению продукт закончился"},
+                return Response({"error": "К сожалению продукт закончился"}, status=status.HTTP_400_BAD_REQUEST)
+
+            if product.temperature_type == "All" and not temperature_type:
+                return Response({"error": "Выберите конкретную температуру напитка: холодный или горячий"},
                                 status=status.HTTP_400_BAD_REQUEST)
 
-            if product.temperature_type == "All":
-                return Response({
-                    "error": "Выберите конкретную температуру напитка: "
-                             "холодный или горячий"},
-                    status=status.HTTP_400_BAD_REQUEST)
-
-            if temperature_type not in [choice[0] for choice in
-                                        Product.TEMPERATURE_TYPE_CHOICES]:
-                return Response({
-                    "error": "Выбранная температура недопустима для "
-                             "этого продукта."
-                             "В temperature_type Укажите либо Cold или Hot"},
-                    status=status.HTTP_400_BAD_REQUEST)
+            if temperature_type and temperature_type not in dict(Product.TEMPERATURE_TYPE_CHOICES):
+                return Response({"error": "Выбранная температура недопустима для этого продукта"},
+                                status=status.HTTP_400_BAD_REQUEST)
 
             selected_addons = []
             if addons:
-                for addon_id in addons:
+                addon_ids = addons.split(",")  # Assuming `addons` is a comma-separated list of IDs
+                for addon_id in addon_ids:
                     try:
                         addon = Addon.objects.get(id=addon_id)
                         if addon in product.addons.all():
                             selected_addons.append(addon)
                         else:
-                            return Response({
-                                "error": "Выбранная добавка не доступна "
-                                         "для данного продукта"},
-                                status=status.HTTP_400_BAD_REQUEST)
+                            return Response({"error": "Выбранная добавка не доступна для данного продукта"},
+                                            status=status.HTTP_400_BAD_REQUEST)
                     except Addon.DoesNotExist:
-                        pass
+                        return Response({"error": "Добавка не найдена"}, status=status.HTTP_400_BAD_REQUEST)
 
             cart, created = ShoppingCart.objects.get_or_create(user=user)
             cart_item, created = CartItem.objects.get_or_create(
                 cart=cart,
-                product=product)
-            cart_item.amount += int(quantity)
+                product=product,
+                defaults={'amount': quantity}
+            )
+
+            if not created:
+                cart_item.amount += int(quantity)
+                cart_item.save()
+
             cart_item.temperature_type = temperature_type
             cart_item.save()
-            product.addons.set(selected_addons)
+            cart_item.product.addons.set(selected_addons)
 
             serializer = CartItemSerializer(cart_item)
-            return Response({"Добавлен товар в корзину": serializer.data},
-                            status=status.HTTP_200_OK)
+            return Response({"Добавлен товар в корзину": serializer.data}, status=status.HTTP_200_OK)
         else:
-            return Response(serializer.data,
-                            status=status.HTTP_400_BAD_REQUEST)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ChangeQuantityView(APIView):
@@ -231,3 +213,5 @@ class ViewCartView(APIView):
             'total_cart_price': total_cart_price
         }
         return Response(response_data, status=status.HTTP_200_OK)
+
+

@@ -22,7 +22,6 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS")
 # Application definition
 
 DJANGO_APPS = [
-    "jazzmin",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -92,12 +91,12 @@ WSGI_APPLICATION = "island_bali.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.sqlite3",
-#         "NAME": BASE_DIR / "db.sqlite3",
-#     }
-# }
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    }
+}
 
 # DATABASES = {
 #     'default': {
@@ -110,16 +109,16 @@ WSGI_APPLICATION = "island_bali.wsgi.application"
 #     }
 # }
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'island_bali',
-        'USER': 'postgres',
-        'PASSWORD': '12345',
-        'HOST': 'localhost',
-        'PORT': '5432',
-    }
-}
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'island_bali',
+#         'USER': 'postgres',
+#         'PASSWORD': '12345',
+#         'HOST': 'localhost',
+#         'PORT': '5432',
+#     }
+# }
 
 # DATABASES = {
 #     'default': env.db()
@@ -221,46 +220,7 @@ MEDIA_ROOT = os.path.join(BASE_DIR, '')
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-JAZZMIN_UI_TWEAKS = {
-    "theme": "minty",
-    "sticky_actions": True,
-    "actions_sticky_top": True,
-}
 
-JAZZMIN_SETTINGS = {
-    "site_title": "Island Balli AdminPanel",
-    "site_header": "Island Balli",
-    "welcome_sign": "Добро пожаловать в Island Balli",
-    "show_sidebar": True,
-    "navigation_expanded": True,
-    "hide_apps": ["social_django", "auth"],
-    "usermenu_links": [
-        {
-            "name": "Помощь",
-            "url": "https://www.google.com/",
-            "new_window": True
-        },
-        {
-            "model": "auth.user"
-        }
-    ],
-    "topmenu_links": [
-        # Ссылки, отображаемые в верхнем меню
-        {"name": "Домой", "url": "admin:index",
-         "permissions": ["auth.view_user"]},
-        {"name": "Поддержка", "url": "https://www.google.com/",
-         "new_window": True},
-    ],
-    "show_ui_builder": True,
-    "changeform_format": "horizontal_tabs",
-    # Используйте горизонтальные вкладки на страницах редактирования
-    "changeform_format_overrides": {"auth.user": "collapsible",
-                                    "auth.group": "vertical_tabs"},
-    "show_icons": True,  # Показывать иконки в меню
-    "default_theme": "cerulean",  # Используйте тему Cerulean из Bootswatch
-    "related_modal_active": True,
-    # Включить модальные окна для связанных объектов
-}
 
 CELERY_BROKER_URL = env.str("CELERY_BROKER_URL")
 CELERY_RESULT_BACKEND = env.str("CELERY_RESULT_BACKEND")
@@ -279,7 +239,7 @@ RUSSIAN_STANDARD_BASE_URL = env.str("RUSSIAN_STANDARD_BASE_URL")
 
 CART_SESSION_ID = 'cart'
 
-CSRF_COOKIE_SECURE = True
-ADMINS = [("Admin", "makhotin.07@gmail.com")], [
-    ("Nikita", "nikitka2121@gmail.com")]
+# CSRF_COOKIE_SECURE = True
+# ADMINS = [("Admin", "makhotin.07@gmail.com")], [
+#     ("Nikita", "nikitka2121@gmail.com")]
 SERVER_EMAIL = env.str("EMAIL_HOST_USER")
