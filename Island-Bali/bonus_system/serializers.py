@@ -10,4 +10,4 @@ class DiscountCardSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = DiscountCard
-        fields = ['qr_code_image']
+        fields = "__all__"

@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import views
+from . import qr_code_view
 
 app_name = "users"
 
@@ -19,5 +20,6 @@ urlpatterns = [
     path("bank_cards/", views.BankCardManager.as_view(), name="bank-cards"),
     path("get_discount/<int:id_shop>/", views.get_discount_for_user,
          name="get_discount"),
-
+    
+    path("qr_code/", qr_code_view.GenerateQRCodeView.as_view(), name='qr_code'),
 ]

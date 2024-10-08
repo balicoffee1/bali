@@ -441,6 +441,7 @@ class BankCardManager(APIView):
     def get(self, request):
         try:
             user = request.user
+            
             user_cards = UserCard.objects.filter(user=user)
             serializer = UserCardSerializer(user_cards, many=True)
 

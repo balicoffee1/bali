@@ -14,8 +14,7 @@ class UserCardSerializer(serializers.ModelSerializer):
 
     @staticmethod
     def get_card_number(obj):
-        if obj.card_number:
-            return obj.get_card_number()
+        return obj.get_card_number() if obj.card_number else None
 
     class Meta:
         model = UserCard

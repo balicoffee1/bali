@@ -7,6 +7,10 @@ class Addon(models.Model):
     name = models.CharField(max_length=255, verbose_name="Название добавки")
     description = models.TextField(blank=True, null=True,
                                    verbose_name='Описание добавки')
+    price = models.DecimalField(decimal_places=2,
+                                max_digits=10,
+                                verbose_name='Цена',
+                                default=0)
 
     def __str__(self):
         return self.name

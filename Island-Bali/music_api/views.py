@@ -4,9 +4,12 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.decorators import permission_classes
+from rest_framework import permissions
 
 from music_api.models import Music
 from music_api.serializers import MusicSerializer
+from music_api.connect_service import download_track
 
 TAGS_MUSIC = ['Музыка']
 
@@ -18,8 +21,10 @@ TAGS_MUSIC = ['Музыка']
     tags=TAGS_MUSIC,
     operation_id="Получить песню дня"
 )
+@permission_classes([permissions.AllowAny])
 @api_view(['GET'])
 def get_audio(request):
+    download_track()
     latest_song = Music.objects.latest('id')
     serializers = MusicSerializer(latest_song)
     return Response(serializers.data, status=status.HTTP_200_OK)
@@ -32,6 +37,7 @@ class DownloadMusicView(APIView):
         tags=TAGS_MUSIC,
         operation_id="Прослушать музыку"
     )
+    @permission_classes([permissions.AllowAny])
     def get(self, request, *args, **kwargs):
         try:
             music = Music.objects.latest("id")

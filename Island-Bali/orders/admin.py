@@ -16,7 +16,6 @@ class OrdersAdmin(admin.ModelAdmin):
     )
     list_filter = ("city_choose", "coffee_shop", "time_is_finish")
     search_fields = ("user__username", "coffee_shop__street")
-    readonly_fields = ("cart",)
 
     def get_queryset(self, request):
         user_role = request.user.role

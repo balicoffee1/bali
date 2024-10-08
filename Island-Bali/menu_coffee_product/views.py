@@ -1,13 +1,17 @@
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import generics
+from rest_framework.viewsets import ModelViewSet
 from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework import permissions
 
-from menu_coffee_product.models import Category, Product
+from menu_coffee_product.models import Category, Product, Addon
 from menu_coffee_product.serializers import (CategorySerializer,
-                                             ProductSerializer)
+    ProductSerializer, AddonSerializer)
 from menu_coffee_product.utils import get_weather
+from .models import SeasonMenu
+from .serializers import SeasonMenuSerializer
 
 TAGS_MENU = ['Меню заведений']
 
@@ -78,7 +82,7 @@ class ProductListInCategory(generics.ListAPIView):
 
 
 class WeatherView(APIView):
-    # TODO Убрать в отдельное приложение
+    permission_classes = [permissions.AllowAny]
     @swagger_auto_schema(
         operation_description="Получить погоду в городе",
         responses={201: "Created", 400: "Bad Request"},
@@ -100,3 +104,13 @@ class WeatherView(APIView):
         return Response(
             {f"Температура в {city_name}": temperature,
              "Описание погоды": weather_description})
+
+
+class SeasonMenuViewSet(ModelViewSet):
+    queryset = SeasonMenu.objects.all()
+    serializer_class = SeasonMenuSerializer
+
+
+class AddonList(generics.ListAPIView):
+    queryset = Addon.objects.all()
+    serializer_class = AddonSerializer

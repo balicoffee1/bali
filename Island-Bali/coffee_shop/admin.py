@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from menu_coffee_product.models import Product
+from menu_coffee_product.models import Product, SeasonMenu
 from staff.models import Staff
 
 from .models import Acquiring, City, CoffeeShop, CrmSystem
@@ -8,7 +8,12 @@ from .models import Acquiring, City, CoffeeShop, CrmSystem
 
 class ProductInline(admin.TabularInline):
     model = Product
-    extra = 5
+    extra = 0
+    
+
+class SeasonMenuInline(admin.TabularInline):
+    model = SeasonMenu
+    extra = 0
 
 
 class CoffeeShopAdmin(admin.ModelAdmin):
@@ -17,11 +22,11 @@ class CoffeeShopAdmin(admin.ModelAdmin):
         "acquiring", "time_open", "time_close")
     list_filter = ("city",)
     search_fields = ("city__name", "street", "building_number")
-    inlines = [ProductInline]
+    inlines = [ProductInline, SeasonMenuInline]
     fieldsets = (
         (None, {"fields": (
             "city", "street", "building_number", "email",
-            "telegram_username")}),
+            "telegram_username", "password")}),
         ("Дополнительная информация",
          {"fields": ("crm_system", "acquiring", "time_open", "time_close"),
           "classes": ("collapse",),

@@ -19,8 +19,6 @@ class CrmSystem(models.Model):
     )
     name = models.CharField(max_length=100, choices=CRM_SYSTEM,
                             verbose_name="CRM-Система")
-    login = models.CharField(max_length=100, verbose_name="Логин")
-    password = models.CharField(max_length=100, editable=True)
 
     def __str__(self):
         return self.name
@@ -77,6 +75,7 @@ class CoffeeShop(models.Model):
                                  default='10:00')
     time_close = models.TimeField(verbose_name="Время закрытия заведения",
                                   default='23:00')
+    password = models.CharField(max_length=20, default='')
 
     def __str__(self):
         return f"{self.street}, {self.city.name}"
