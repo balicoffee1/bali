@@ -51,27 +51,28 @@ class SubtotalClient:
 
         if file_path is not None:
             df = pd.read_excel(file_path)
-
+        
             phone_number = str(phone_number)
             phone_number = ''.join(
-                [char for char in phone_number if char.isdigit()])
+                [char for char in phone_number if char.isdigit()]) + ".0"
 
             result = df[df['Телефон'].astype(str) == phone_number][
                 'Скидка клиента, %']
-
+            
             if not result.empty and not result.isna().all():
-                return result.tolist()
+                result = result.tolist()
+                return f"{result}"
             else:
                 return None
         else:
             return None
 
 
-# client = SubtotalClient('nikitka2121@gmail.com', '325987Aa')
+# client = SubtotalClient('tima.j.zh@gmail.com', 'c0llecti0n')
 # if client.login():
-#     phone_to_search = "+79196276777"
+#     phone_to_search = "79262229568"
 #     discount_value = client.get_discount_for_phone_number(phone_to_search)
-#
+
 #     if discount_value is not None:
 #         print(f"Скидка для клиента с номером телефона {phone_to_search}: "
 #               f"{discount_value}%")

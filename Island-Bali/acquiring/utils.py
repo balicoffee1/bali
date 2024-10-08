@@ -1,7 +1,7 @@
 import requests
 from requests.auth import HTTPBasicAuth
 
-from island_bali import settings
+# from island_bali import settings
 
 
 class RussianStandard:
@@ -10,7 +10,8 @@ class RussianStandard:
         self._password: str = password
         self._auth_data: HTTPBasicAuth = HTTPBasicAuth(self._user,
                                                        self._password)
-        self._base_url = settings.RUSSIAN_STANDARD_BASE_URL
+        # self._base_url = settings.RUSSIAN_STANDARD_BASE_URL
+        self._base_url = "https://demo.rsb-processing.ru"
         self._headers: dict = {
             "Content-type": "application/x-www-form-urlencoded",
             "Connection": "keep-alive"
@@ -58,10 +59,85 @@ class RussianStandard:
         return response.text
 
 
-rus_standard = RussianStandard()
-req = rus_standard.link_for_payment(42,
-                                    'Иванов Иван Иваныч',
-                                    'Заказ № 10',
-                                    'test@example.com',
-                                    'Услуга',
-                                    '8 (910) 123-45-67')
+class AlfaBankService:
+    def __init__(self, client_id: str, client_secret: str):
+        self.client_id = client_id
+        self.client_secret = client_secret
+        self.base_url = "https://api.alfabank.ru"
+        self.token = None
+
+    def authenticate(self):
+        url = f"{self.base_url}/alfaid/oauth/token"
+        data = {
+            "grant_type": "client_credentials",
+            "client_id": self.client_id,
+            "client_secret": self.client_secret
+        }
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded"
+        }
+        response = requests.post(url, data=data, headers=headers)
+        if response.status_code == 200:
+            self.token = response.json().get("access_token")
+        else:
+            raise Exception("Ошибка аутентификации: " + response.text)
+
+    def transfer(self, from_card: str, to_card: str, amount: int):
+        if not self.token:
+            self.authenticate()
+
+        url = f"{self.base_url}/transfer/v1/payments"
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json"
+        }
+        data = {
+            "fromCardNumber": from_card,
+            "toCardNumber": to_card,
+            "amount": amount,
+            "currencyCode": "RUB"
+        }
+        response = requests.post(url, json=data, headers=headers)
+        return response.json()
+
+
+class TinkoffBankService:
+    def __init__(self, client_id: str, client_secret: str):
+        self.client_id = client_id
+        self.client_secret = client_secret
+        self.base_url = "https://securepay.tinkoff.ru"
+        self.token = None
+
+    def authenticate(self):
+        url = f"{self.base_url}/oauth/token"
+        data = {
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+            "grant_type": "client_credentials"
+        }
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded"
+        }
+        response = requests.post(url, data=data, headers=headers)
+        if response.status_code == 200:
+            self.token = response.json().get("access_token")
+        else:
+            raise Exception("Ошибка аутентификации: " + response.text)
+
+    def transfer(self, from_card: str, to_card: str, amount: int):
+        if not self.token:
+            self.authenticate()
+
+        url = f"{self.base_url}/v1/payments"
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json"
+        }
+        data = {
+            "fromCardNumber": from_card,
+            "toCardNumber": to_card,
+            "amount": amount,
+            "currencyCode": "RUB"
+        }
+        response = requests.post(url, json=data, headers=headers)
+        return response.json()

@@ -7,7 +7,6 @@ from django.db import models
 from coffee_shop.models import CoffeeShop
 from users.models import CustomUser
 
-
 class DiscountCard(models.Model):
     """
     Модель скидочной карты пользователя.
@@ -19,18 +18,15 @@ class DiscountCard(models.Model):
         related_name="discount_card",
         verbose_name="Владелец карты",
     )
-    is_active = models.BooleanField(default=False,
-                                    verbose_name="Статус активации")
-    qr_code = models.CharField(max_length=255, unique=True,
-                               verbose_name="Код QR-карты")
+    is_active = models.BooleanField(default=False, verbose_name="Статус активации")
+    qr_code = models.CharField(max_length=255, unique=True, verbose_name="Код QR-карты")
     qr_code_image = models.ImageField(
         upload_to="qr_codes/",
         blank=True,
         null=True,
         verbose_name="Изображение QR-кода",
     )
-    discount_rate = models.FloatField(default=5.0,
-                                      verbose_name="Размер скидки (%)")
+    discount_rate = models.FloatField(default=5.0, verbose_name="Размер скидки (%)")
     coffee_shop = models.ForeignKey(
         CoffeeShop,
         on_delete=models.CASCADE,
@@ -42,14 +38,13 @@ class DiscountCard(models.Model):
         При сохранении модели генерирует QR-код, если это новая запись.
         """
         if not self.pk:
+            # Сначала сохраняем объект, чтобы получить первичный ключ
             super().save(*args, **kwargs)
             self.qr_code = str(self.pk)
             buffer = BytesIO()
             img_qr = qrcode.make(self.qr_code)
             img_qr.save(buffer, format="PNG")
-            self.qr_code_image.save(f"qr_code_{self.pk}.png",
-                                    File(buffer),
-                                    save=False)
+            self.qr_code_image.save(f"qr_code_{self.pk}.png", File(buffer), save=False)
         super().save(*args, **kwargs)
 
     def __str__(self):

@@ -46,7 +46,7 @@ class Shift(models.Model):
     )
     staff = models.ForeignKey(Staff, on_delete=models.CASCADE,
                               related_name="shifts")
-    start_time = models.DateTimeField(auto_now_add=True)
+    start_time = models.DateTimeField(null=True, blank=True)
     end_time = models.DateTimeField(null=True, blank=True)
     number_orders_closed = models.PositiveIntegerField(
         verbose_name="Закрытые заказы за смену",
@@ -61,18 +61,23 @@ class Shift(models.Model):
     def update_shift_statistics(self):
         from orders.models import Orders
 
+
         closed_orders = Orders.objects.filter(
             staff=self.staff,
             status_orders="Completed",
             time_is_finish__range=(self.start_time, self.end_time)
         )
+        
+
 
         total_amount = closed_orders.aggregate(
-            total_amount=Sum('menu_items__price'))['total_amount'] or 0
-
+            total_amount=Sum('cart__items__amount') * Sum('cart__items__product__price') + Sum('cart__items__addons__price')
+        )['total_amount'] or 0
+        
         self.amount_closed_orders = total_amount
         self.number_orders_closed = closed_orders.count()
         self.save()
+
 
     class Meta:
         verbose_name = "Смена"

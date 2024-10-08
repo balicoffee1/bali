@@ -6,4 +6,4 @@ from .models import ShoppingCart
 @receiver(post_save, sender=CustomUser)
 def create_user_cart(sender, instance, created, **kwargs):
     if created:
-        ShoppingCart.objects.create(user=instance)
+        ShoppingCart.objects.create(user=instance, is_active=True)

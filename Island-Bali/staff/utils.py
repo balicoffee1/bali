@@ -111,21 +111,21 @@ def filter_orders_by_status(status):
     return Orders.objects.filter(status_orders=status)
 
 
-def open_shift(start_time):
+def open_shift(start_time, staff):
     """Создание и открытие новой смены с заданным временем начала."""
-    shift = Shift.objects.create(start_time=start_time, status_shift="Open")
-    shift.update_shift_statistics()
+    shift = Shift.objects.create(start_time=start_time, status_shift="Open", staff=staff)
     return shift
 
 
-def close_shift(start_time, end_time):
+def close_shift(start_time, end_time, staff):
     """
     Закрытие смены, соответствующей заданному времени начала.
     Возвращает смену, если она найдена и закрыта, иначе возвращает None и
      сообщение об ошибке.
     """
     try:
-        shift = Shift.objects.get(start_time=start_time, status_shift="Open")
+        
+        shift = Shift.objects.get(start_time=start_time, staff=staff)
         shift.update_shift_statistics()
         shift.status_shift = "Closed"
         shift.end_time = end_time

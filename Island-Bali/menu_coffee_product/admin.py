@@ -2,7 +2,7 @@ from django.contrib import admin
 
 from staff.models import Staff
 
-from .models import Addon, Category, Product
+from .models import Addon, Category, Product, SeasonMenu
 
 
 class CustomModelAdmin(admin.ModelAdmin):
@@ -104,3 +104,6 @@ class CategoryAdmin(CustomModelAdmin):
 class AddonAdmin(CustomModelAdmin):
     list_display = ('name',)
     search_fields = ('name',)
+
+
+admin.site.register(SeasonMenu)

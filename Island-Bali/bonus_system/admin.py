@@ -19,7 +19,6 @@ class DiscountCardAdmin(CustomModelAdmin):
                     "total_spent")
     search_fields = ("user__login", "user__first_name", "user__last_name")
     list_filter = ("is_active",)
-    readonly_fields = ("qr_code_image",)
 
     def save_model(self, request, obj, form, change):
         """

@@ -12,7 +12,7 @@ class PendingOrdersAcceptSerializer(serializers.ModelSerializer):
     class Meta:
         model = Orders
         fields = ("id", "cart", "time_is_finish", "status_orders",
-                  "client_comments")
+                  "client_comments", "payment_status", "receipt_photo")
 
 
 class StaffSerializer(serializers.ModelSerializer):

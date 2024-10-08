@@ -38,7 +38,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     )
     login = models.CharField(max_length=100, unique=True, verbose_name="Логин")
     first_name = models.CharField(max_length=30, verbose_name="Имя")
-    last_name = models.CharField(max_length=50, verbose_name="Фамилия")
+    last_name = models.CharField(max_length=50, verbose_name="Фамилия", blank=True, null=True, default='')
     code = models.IntegerField(blank=True, null=True)
     photo = models.ImageField(
         null=True, blank=True, upload_to="media/", verbose_name="Аватарка"
@@ -61,6 +61,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         on_delete=models.SET_NULL,
         verbose_name="Выбранная банковская карта",
     )
+
 
     objects = CustomUserManager()
 
@@ -100,29 +101,20 @@ class UserCard(models.Model):
         related_name="cards",
         verbose_name="Пользователь",
     )
-    card_number = models.BinaryField(
+    card_number = models.CharField(
         max_length=100, null=True, verbose_name="Зашифрованный номер карты"
     )
     expiration_date = models.DateField(verbose_name="Дата истечения")
-    encryption_key = models.ForeignKey(
-        EncryptionKey, on_delete=models.PROTECT, verbose_name="Ключ шифрования"
-    )
 
     @staticmethod
     def create_new_card(user, card_number, expiration_date):
-        new_card = UserCard(user=user, expiration_date=expiration_date)
-        new_encryption_key = EncryptionKey.objects.create(
-            key=Fernet.generate_key())
-        cipher_suite = Fernet(new_encryption_key.key)
-        encrypted_card_number = cipher_suite.encrypt(card_number.encode())
-        new_card.card_number = encrypted_card_number
-        new_card.encryption_key = new_encryption_key
+        new_card = UserCard(user=user, expiration_date=expiration_date, card_number=card_number)
         new_card.save()
         return new_card
-
+    
     def get_card_number(self):
-        if self.card_number and self.encryption_key:
-            cipher_suite = Fernet(self.encryption_key.key)
-            decrypted_card_number = cipher_suite.decrypt(self.card_number)
-            return decrypted_card_number.decode()
+        if self.card_number:
+            return self.card_number
         return None
+
+

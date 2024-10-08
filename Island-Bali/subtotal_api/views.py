@@ -54,10 +54,9 @@ class GetDiscountForUser(APIView):
             shop = CoffeeShop.objects.get(city__name=shop_city,
                                           street=shop_street)
 
-            # TODO переделать, чтобы почта и пароль брались из кофейни
             try:
-                client = SubtotalClient(email=shop.crm_system.login,
-                                        password=shop.crm_system.password)
+                client = SubtotalClient(email=shop.email,
+                                        password=shop.password)
                 if client.login():
                     discount_value = client.get_discount_for_phone_number(
                         phone_number)
@@ -71,7 +70,7 @@ class GetDiscountForUser(APIView):
                                     status=status.HTTP_401_UNAUTHORIZED)
             except Exception as e:
                 logging.error(f"An error occurred: {str(e)}")
-                return Response({'error': 'Internal Server Error'},
+                return Response({'error': f'Internal Server Error {str(e)}'},
                                 status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
             logging.error(f"An error occurred: {str(e)}")

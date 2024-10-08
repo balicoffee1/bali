@@ -1,6 +1,6 @@
 from django.db import models
 
-from menu_coffee_product.models import Product
+from menu_coffee_product.models import Product, Addon
 from users.models import CustomUser
 
 
@@ -51,13 +51,25 @@ class ShoppingCart(models.Model):
 
 
 class CartItem(models.Model):
+    class SizeChoices(models.TextChoices):
+        S = "S", "Small"
+        M = "M", "Medium"
+        L = "L", "Large"
     cart = models.ForeignKey(
         ShoppingCart, on_delete=models.CASCADE, related_name="items"
     )
     product = models.ForeignKey(
-        Product, related_name="cart_items", on_delete=models.CASCADE
+        Product, related_name="cart_items", on_delete=models.CASCADE,
+        null=True, blank=True
     )
+    addons = models.ManyToManyField(Addon, related_name='cart_items', blank=True)
     amount = models.PositiveIntegerField(default=0)
+    size = models.CharField(
+        max_length=1,
+        choices=SizeChoices.choices,
+        default=SizeChoices.S,
+        verbose_name="Размер"
+    )
 
     class Meta:
         ordering = ['id']
@@ -76,5 +88,6 @@ class CartItem(models.Model):
 
     @property
     def item_total_price(self):
-        """Высчитывает полную стоимость продукта в корзине."""
-        return round(self.product.price * self.amount, 2)
+        product_price = self.product.price if self.product else 0
+        addons_price = sum(addon.price for addon in self.addons.all())
+        return (product_price + addons_price) * self.amount

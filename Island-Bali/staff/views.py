@@ -1,7 +1,7 @@
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import generics, status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -276,23 +276,15 @@ class FilterOrdersByStatus(APIView):
         Возвращает список заказов с указанным статусом.
         В случае неверного статуса вернет ошибку.
         """
-        serializer = FilterOrdersByStatusSerializer(request.data)
+        serializer = FilterOrdersByStatusSerializer(data=request.data)
         if not serializer.is_valid():
-            return Response
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
         order_status = serializer.validated_data.get("status")
 
-        if not order_status:
-            return Response(
-                {"error": "Status is required in the request body"},
-                status=status.HTTP_400_BAD_REQUEST)
-
-        if not is_valid_order_status(order_status):
-            return Response({"error": "Invalid status provided"},
-                            status=status.HTTP_400_BAD_REQUEST)
-
-        filtered_orders = filter_orders_by_status(order_status)
-        serialized_data = self.serializer_class(filtered_orders,
-                                                many=True).data
+        # Фильтрация заказов по статусу
+        filtered_orders = Orders.objects.filter(status_orders=order_status)
+        serialized_data = self.serializer_class(filtered_orders, many=True).data
 
         return Response(serialized_data, status=status.HTTP_200_OK)
 
@@ -366,7 +358,7 @@ class ShiftToggleView(APIView):
 
 
 class UploadReceiptPhotoView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     @swagger_auto_schema(
         manual_parameters=[
@@ -384,7 +376,8 @@ class UploadReceiptPhotoView(APIView):
         operation_id="Получение фото чека",
         tags=TAGS_STAFF
     )
-    def post(self, request, order_id):
+    def post(self, request):
+        order_id = request.data.get('order_id')
         serializer = UploadReceiptPhotoRequestSerializer(
             data={'order_id': order_id})
         if serializer.is_valid():
@@ -495,14 +488,15 @@ class ShiftCloseOpenView(APIView):
     def post(request: Request):
         start_time = request.data.get('start_time')
         end_time = request.data.get('end_time')
+        staff = Staff.objects.get(users=request.user)
 
-        if start_time:
-            shift = open_shift(start_time)
+        if start_time and not end_time:
+            shift = open_shift(start_time, staff)
             return Response({"message": "Shift opened"},
                             status=status.HTTP_200_OK)
 
         elif end_time:
-            shift, error = close_shift(start_time, end_time)
+            shift, error = close_shift(start_time, end_time, staff)
             if error:
                 return Response({"error": error},
                                 status=status.HTTP_404_NOT_FOUND)

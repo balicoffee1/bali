@@ -16,7 +16,7 @@ env = environ.Env()
 environ.Env.read_env()
 
 SECRET_KEY = env.str("SECRET_KEY")
-DEBUG = env.bool("DEBUG", default=False)
+DEBUG = env.bool("DEBUG", default=True)
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS")
 
 # Application definition
@@ -38,6 +38,8 @@ THIRD_PARTY_APPS = [
     "drf_yasg",
     "django_celery_beat",
     "django_extensions",
+    'colorfield',
+
 
 ]
 
@@ -55,6 +57,9 @@ YOUR_APPS = [
     "subtotal_api.apps.SubtotalApiConfig",
     "ref_system.apps.RefSystemConfig",
     "acquiring.apps.AcquiringConfig",
+    "quickresto.apps.QuickrestoConfig",
+    "seo.apps.SeoConfig",
+    "applications"
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + YOUR_APPS
@@ -91,12 +96,12 @@ WSGI_APPLICATION = "island_bali.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.sqlite3",
-#         "NAME": BASE_DIR / "db.sqlite3",
-#     }
-# }
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    }
+}
 
 # DATABASES = {
 #     'default': {
@@ -109,16 +114,16 @@ WSGI_APPLICATION = "island_bali.wsgi.application"
 #     }
 # }
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'island_bali',
-        'USER': 'postgres',
-        'PASSWORD': '12345',
-        'HOST': 'localhost',
-        'PORT': '5432',
-    }
-}
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'island_bali',
+#         'USER': 'postgres',
+#         'PASSWORD': '12345',
+#         'HOST': 'localhost',
+#         'PORT': '5432',
+#     }
+# }
 
 # DATABASES = {
 #     'default': env.db()
@@ -222,8 +227,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
 
-CELERY_BROKER_URL = env.str("CELERY_BROKER_URL")
-CELERY_RESULT_BACKEND = env.str("CELERY_RESULT_BACKEND")
+CELERY_BROKER_URL = "redis://localhost:6379/0"
+CELERY_RESULT_BACKEND = "redis://localhost:6379/1"
 # в течение какого срока храним результаты, после чего они удаляются
 CELERY_TASK_RESULT_EXPIRES = 7 * 86400  # 7 days
 # это нужно для мониторинга наших воркеров
@@ -243,3 +248,51 @@ CART_SESSION_ID = 'cart'
 # ADMINS = [("Admin", "makhotin.07@gmail.com")], [
 #     ("Nikita", "nikitka2121@gmail.com")]
 SERVER_EMAIL = env.str("EMAIL_HOST_USER")
+
+
+
+
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'debug.log'),
+            'formatter': 'verbose',
+        },
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+        'django.request': {
+            'handlers': ['file'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'island_bali': {  # Логирование вашего приложения (замените на название вашего приложения)
+            'handlers': ['file'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+    },
+}
