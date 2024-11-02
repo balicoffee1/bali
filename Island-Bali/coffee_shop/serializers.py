@@ -14,4 +14,11 @@ class CoffeeShopSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CoffeeShop
-        fields = ("id", "city_name", "street", "building_number")
+        fields = (
+            "id",
+            "city_name",
+            "street",
+            "building_number",
+            "lat",
+            "lon"
+        )

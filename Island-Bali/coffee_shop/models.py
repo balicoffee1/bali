@@ -59,6 +59,7 @@ class CoffeeShop(models.Model):
         null=False,
         help_text="Пожалуйста введите вашу почту чтобы вы "
                   "могли контролировать отзывы)")
+    
 
     telegram_username = models.CharField(max_length=20,
                                          verbose_name="Username в Telegram. "
@@ -76,6 +77,18 @@ class CoffeeShop(models.Model):
     time_close = models.TimeField(verbose_name="Время закрытия заведения",
                                   default='23:00')
     password = models.CharField(max_length=20, default='')
+    lat = models.DecimalField(
+        max_digits=10,
+        decimal_places=10,
+        verbose_name=("Долгота"),
+        default=0
+    )
+    lon = models.DecimalField(
+        max_digits=10,
+        decimal_places=10,
+        verbose_name=("Широта"),
+        default=0
+    )
 
     def __str__(self):
         return f"{self.street}, {self.city.name}"
