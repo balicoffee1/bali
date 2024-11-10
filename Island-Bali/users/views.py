@@ -534,3 +534,25 @@ def get_discount_for_user(request, id_shop: int):
         discount_in_sub = client_subtotal.get_discount_for_phone_number(
             phone_number=phone)
         return Response(discount_in_sub)
+
+
+
+
+
+class ActivationView(APIView):
+    permission_classes = (AllowAny,)
+
+    def get(self, request, fcm_token):
+        try:
+            user = CustomUser.objects.get(fcm_token=fcm_token)
+            user.is_active = True
+            user.activation_code = ""
+            user.save()
+            return Response({
+                "msg": "activated"
+            },
+            status=200
+                            
+            )
+        except Exception:
+            return Response({"msg": 'user not found'}, status=400)
