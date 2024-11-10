@@ -12,6 +12,8 @@ from subtotal_api.connection_api import SubtotalClient
 from users import db_communication as db
 from users import utils
 from users.utils import search_clients
+from users.utils import send_phone_reset
+
 
 from .models import CustomUser, UserCard
 from .serializers import UserCardSerializer, UsersSerializer
@@ -182,6 +184,8 @@ def registration(request):
             )
         elif utils.is_phone_number(login):
             token, user = db.add_user(values)
+            user.create_activation_code()
+            send_phone_reset(user.login, user.fcm_token)
             return Response(
                 {
                     "token": token,
@@ -530,3 +534,25 @@ def get_discount_for_user(request, id_shop: int):
         discount_in_sub = client_subtotal.get_discount_for_phone_number(
             phone_number=phone)
         return Response(discount_in_sub)
+
+
+
+
+
+class ActivationView(APIView):
+    permission_classes = (AllowAny,)
+
+    def get(self, request, fcm_token):
+        try:
+            user = CustomUser.objects.get(fcm_token=fcm_token)
+            user.is_active = True
+            user.activation_code = ""
+            user.save()
+            return Response({
+                "msg": "activated"
+            },
+            status=200
+                            
+            )
+        except Exception:
+            return Response({"msg": 'user not found'}, status=400)

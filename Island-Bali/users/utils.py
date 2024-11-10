@@ -29,16 +29,15 @@ def is_phone_number(string: str):
         return False
 
 
-def send_phone_reset(phone):
-    code = random.randint(100000, 999999)
+def send_phone_reset(phone, code):
     body = json.dumps(
         {
             "messages": [
                 {
                     "phone": phone,
-                    "sender": "Test",
-                    "clientId": "1",
-                    "text": "Ваш код подтверждения приложения Omtogether: "
+                    "sender": "Islandbali",
+                    "clientId": f"{phone}",
+                    "text": "Ваш код подтверждения приложения Islandbali: "
                             + str(code)
                             + ". Не говорите код!",
                 }
