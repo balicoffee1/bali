@@ -8,9 +8,9 @@ from rest_framework.views import APIView
 
 from .serializers import ReviewsCoffeeShopSerializer
 from .tasks import send_review_for_email
+from .telegram_bot import send_review_to_user  # Импорт функции отправки
 
 TAGS_REVIEWS = ['Оставить отзыв']
-
 
 class CreateReviewAPIView(APIView):
     """Создание отзыва"""
@@ -34,6 +34,16 @@ class CreateReviewAPIView(APIView):
         serializer = ReviewsCoffeeShopSerializer(data=data_with_user)
         if serializer.is_valid():
             review = serializer.save(user=user)
+            id_coffeshop = serializer.validated_data.get('id')
+            # Отправляем отзыв в Telegram, если есть chat_id
+            if hasattr(user, 'telegram_chat_id') and user.telegram_chat_id:
+                review_text = (
+                    f"Спасибо за ваш отзыв!\n"
+                    f"Оценка: {review.evaluation}\n"
+                    f"Комментарий: {review.comments or 'Без комментариев'}"
+                )
+                send_review_to_user(..., review_text)
+
             email_coffeeshop = review.get_coffeeshop_email()
             telegram_contact = review.get_coffee_shop_telegram()
             check_negative_feedback(value=review.evaluation,
@@ -44,8 +54,10 @@ class CreateReviewAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+
 def check_negative_feedback(value, review, email_coffeeshop,
                             telegram_username):
     """Выявляем является ли отзыв плохим"""
     if value in [1, 2, 3]:
         send_review_for_email(review, email_coffeeshop, telegram_username)
+        

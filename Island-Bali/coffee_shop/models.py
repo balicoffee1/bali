@@ -66,11 +66,22 @@ class CoffeeShop(models.Model):
                                                       "Пример <@col1ecti0n>",
                                          help_text="Введите ваш username "
                                                    "из Telegram")
+    
+    telegram_id = models.CharField(
+        max_length=100,
+        verbose_name="Username в Telegram. "
+        "Пример <@col1ecti0n>",
+        help_text="Введите ваш username "
+        "из Telegram",
+        null=True,
+        blank=True              
+    )
+    
 
-    crm_system = models.OneToOneField(CrmSystem, max_length=20,
+    crm_system = models.ForeignKey(CrmSystem, max_length=20,
                                       verbose_name="CRM-Система",
                                       on_delete=models.CASCADE)
-    acquiring = models.OneToOneField(Acquiring, verbose_name="Эквайринг",
+    acquiring = models.ForeignKey(Acquiring, verbose_name="Эквайринг",
                                      on_delete=models.CASCADE)
     time_open = models.TimeField(verbose_name="Время открытия заведения",
                                  default='10:00')
@@ -78,7 +89,7 @@ class CoffeeShop(models.Model):
                                   default='23:00')
     password = models.CharField(max_length=20, default='')
     lat = models.DecimalField(
-        max_digits=10,
+        max_digits=100,
         decimal_places=10,
         verbose_name=("Долгота"),
         default=0

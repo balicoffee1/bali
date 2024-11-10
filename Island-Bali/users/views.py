@@ -12,6 +12,8 @@ from subtotal_api.connection_api import SubtotalClient
 from users import db_communication as db
 from users import utils
 from users.utils import search_clients
+from users.utils import send_phone_reset
+
 
 from .models import CustomUser, UserCard
 from .serializers import UserCardSerializer, UsersSerializer
@@ -182,6 +184,8 @@ def registration(request):
             )
         elif utils.is_phone_number(login):
             token, user = db.add_user(values)
+            user.create_activation_code()
+            send_phone_reset(user.login, user.fcm_token)
             return Response(
                 {
                     "token": token,

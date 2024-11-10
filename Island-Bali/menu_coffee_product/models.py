@@ -101,7 +101,6 @@ class Product(models.Model):
         verbose_name = 'Продукт'
         verbose_name_plural = 'Продукты'
         indexes = (models.Index('product', name='product'),)
-        unique_together = ('coffee_shop', 'product')
 
 
 class SeasonMenu(models.Model):

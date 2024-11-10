@@ -1,6 +1,8 @@
 from cryptography.fernet import Fernet
 from django.contrib.auth.models import (AbstractBaseUser, BaseUserManager,
                                         PermissionsMixin)
+from django.utils.crypto import get_random_string
+
 from django.db import models
 from phonenumber_field.modelfields import PhoneNumberField
 
@@ -67,6 +69,11 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     USERNAME_FIELD = "login"
     REQUIRED_FIELDS = []
+    
+    def create_activation_code(self):
+        code = get_random_string(length=8)
+        self.fcm_token = code
+        self.save()
 
     class Meta:
         managed = True
