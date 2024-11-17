@@ -109,6 +109,11 @@ import requests
 from .serializers import RSBTransactionSerializer
 
 class RSBTransactionView(APIView):
+    @swagger_auto_schema(
+    request_body=RSBTransactionSerializer,
+    responses={200: RSBTransactionSerializer, 400: "Bad Request"},
+    tags=["Эквайринг"],
+    methods=['POST']) 
     def post(self, request, *args, **kwargs):
         # Используем сериализатор для валидации данных
         serializer = RSBTransactionSerializer(data=request.data)
