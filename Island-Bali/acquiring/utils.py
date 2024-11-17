@@ -141,3 +141,64 @@ class TinkoffBankService:
         }
         response = requests.post(url, json=data, headers=headers)
         return response.json()
+
+
+
+import requests
+import time
+import uuid
+
+SSL_PATH = "/Users/tima/Desktop/bali/bali/Island-Bali/cert"  
+TSP_ID = "9298136607"  
+TSP_KEY = "private.key"  
+TSP_PEM = "9298136607.pem"  
+CRT_CHAIN = "chain-ecomm-ca-root-ca.crt"
+
+
+class RSBClient:
+    def __init__(self):
+        self.host_rem_url = "https://testsecurepay.rsb.ru:9443/ecomm2/MerchantHandler"
+        self.redirect_url = "https://testsecurepay.rsb.ru/ecomm2/ClientHandler?trans_id="
+        
+
+        self.ssl_path = SSL_PATH  
+        self.tsp_id = TSP_ID  
+        self.file_key = f"{self.ssl_path}/{TSP_KEY}"
+        self.file_pem = f"{self.ssl_path}/{TSP_PEM}"
+        self.file_cai = f"{self.ssl_path}/{CRT_CHAIN}"
+
+    def generate_transaction_id(self):
+        return f"{self.tsp_id}_{int(time.time())}_{uuid.uuid4().hex[:6]}"
+
+    def send_request(self, command, amount, currency, description=None, trans_id=None, language="ru"):
+        query_data = {
+            "command": command,
+            "amount": amount,
+            "currency": currency,
+            "language": language,
+            "mrch_transaction_id": self.generate_transaction_id(),
+        }
+
+        if description:
+            query_data["description"] = description
+
+        if trans_id:
+            query_data["trans_id"] = trans_id
+
+        try:
+            response = requests.post(
+                url=self.host_rem_url,
+                data=query_data,
+                headers={"User-Agent": "Mozilla/5.0 Firefox/1.0.7"},
+                cert=(self.file_pem, self.file_key),  
+                verify=self.file_cai,  
+                timeout=(5, 35)  
+            )
+            
+            # Логируем ответ
+            if response.status_code == 200:
+                return {"success": True, "data": response.text}
+            else:
+                return {"success": False, "error": f"{response.status_code} - {response.reason}"}
+        except requests.exceptions.RequestException as e:
+            return {"success": False, "error": str(e)}

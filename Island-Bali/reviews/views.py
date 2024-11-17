@@ -46,10 +46,12 @@ class CreateReviewAPIView(APIView):
 
             email_coffeeshop = review.get_coffeeshop_email()
             telegram_contact = review.get_coffee_shop_telegram()
-            check_negative_feedback(value=review.evaluation,
-                                    review=serializer.data,
-                                    email_coffeeshop=email_coffeeshop,
-                                    telegram_username=telegram_contact)
+            check_negative_feedback(
+                value=review.evaluation,
+                review=serializer.data,
+                email_coffeeshop=email_coffeeshop,
+                telegram_username=telegram_contact
+            )
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

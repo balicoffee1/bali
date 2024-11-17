@@ -100,3 +100,26 @@ class TBGetOrderView(APIView):
             return Response(order, status=status.HTTP_200_OK)
         except requests.exceptions.HTTPError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+from django.http import JsonResponse
+from .utils import RSBClient
+import requests
+
+@api_view(["POST"])
+def rsb_transaction(request):
+    if request.method == "POST":
+        rsb_client = RSBClient()
+
+        command = "v"  
+        amount = "123"
+        currency = "643"
+        description = "Test transaction"
+
+        response = rsb_client.send_request(command, amount, currency, description=description)
+
+        if response["success"]:
+            return JsonResponse({"status": "success", "data": response["data"]})
+        else:
+            return JsonResponse({"status": "error", "message": response["error"]})
