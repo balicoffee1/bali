@@ -147,8 +147,13 @@ class TinkoffBankService:
 import requests
 import time
 import uuid
+from pathlib import Path
+import os
 
-SSL_PATH = "/Users/tima/Desktop/bali/bali/Island-Bali/cert"  
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+SSL_PATH = os.path.join(BASE_DIR, "cert")
 TSP_ID = "9298136607"  
 TSP_KEY = "private.key"  
 TSP_PEM = "9298136607.pem"  
