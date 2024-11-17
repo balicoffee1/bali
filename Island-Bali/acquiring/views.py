@@ -106,20 +106,34 @@ class TBGetOrderView(APIView):
 from django.http import JsonResponse
 from .utils import RSBClient
 import requests
+from .serializers import RSBTransactionSerializer
 
-@api_view(["POST"])
-def rsb_transaction(request):
-    if request.method == "POST":
-        rsb_client = RSBClient()
+class RSBTransactionView(APIView):
+    def post(self, request, *args, **kwargs):
+        # Используем сериализатор для валидации данных
+        serializer = RSBTransactionSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            rsb_client = RSBClient()
 
-        command = "v"  
-        amount = "123"
-        currency = "643"
-        description = "Test transaction"
+            # Получаем данные из сериализатора
+            command = serializer.validated_data['command']
+            amount = serializer.validated_data['amount']
+            currency = serializer.validated_data['currency']
+            description = serializer.validated_data['description']
+            
+            # Отправляем запрос через клиент
+            response = rsb_client.send_request(command, amount, currency, description=description)
 
-        response = rsb_client.send_request(command, amount, currency, description=description)
+            # Возвращаем ответ в формате JSON
+            if response["success"]:
+                return Response({"status": "success", "data": response["data"]})
+            else:
+                return Response({"status": "error", "message": response["error"]}, status=status.HTTP_400_BAD_REQUEST)
 
-        if response["success"]:
-            return JsonResponse({"status": "success", "data": response["data"]})
-        else:
-            return JsonResponse({"status": "error", "message": response["error"]})
+        # Если данные не валидны, возвращаем ошибку с подробностями
+        return Response({
+            "status": "error",
+            "message": "Invalid data.",
+            "errors": serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)

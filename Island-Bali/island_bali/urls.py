@@ -7,7 +7,7 @@ from drf_yasg.views import get_schema_view
 from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 
 from acquiring.views import AlphaCreatePaymentOrderView, AlphaGetPaymentStatusView, TBCreateOrderView, TBGetOrderView, get_link, get_status_payment
-from acquiring.views import rsb_transaction
+from acquiring.views import RSBTransactionView
 
 admin.site.site_header = 'Кофейня'
 admin.site.site_title = 'Администрирование кофейни'
@@ -58,7 +58,7 @@ urlpatterns = [
     path('api/rus_standart/status/<str:invoice_id>/', get_status_payment, name='get_status_payment'),
     path('api/seo/', include("seo.urls")),
     path("api/applications", include("applications.urls")),
-    path("api/rus_standart/", rsb_transaction, name="payment_request")
+    path("api/rus_standart/", RSBTransactionView.as_view(), name="payment_request")
 ]
 
 if settings.DEBUG:

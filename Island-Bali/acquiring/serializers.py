@@ -22,3 +22,10 @@ class PaymentsRequestSerializer(serializers.Serializer):
     currency = serializers.CharField(max_length=3, default='643')
     description = serializers.CharField(max_length=255, allow_blank=True)
     trans_id = serializers.CharField(max_length=28, allow_blank=True, required=False)
+
+
+class RSBTransactionSerializer(serializers.Serializer):
+    command = serializers.CharField(required=True)
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=True)
+    currency = serializers.CharField(required=True)
+    description = serializers.CharField(required=False, default="Test transaction")
