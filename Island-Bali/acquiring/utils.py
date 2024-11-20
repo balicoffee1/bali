@@ -163,7 +163,7 @@ CRT_CHAIN = "chain-ecomm-ca-root-ca.crt"
 class RSBClient:
     def __init__(self):
         self.host_rem_url = "https://testsecurepay.rsb.ru:9443/ecomm2/MerchantHandler"
-        self.redirect_url = "https://testsecurepay.rsb.ru/ecomm2/ClientHandler?trans_id="
+        self.redirect_url = "http://79.174.81.151/?trans_id="
         
 
         self.ssl_path = SSL_PATH  
