@@ -162,8 +162,8 @@ CRT_CHAIN = "chain-ecomm-ca-root-ca.crt"
 
 class RSBClient:
     def __init__(self):
-        self.host_rem_url = "https://testsecurepay.rsb.ru:9443/ecomm2/MerchantHandler"
-        self.redirect_url = "http://79.174.81.151/?trans_id="
+        self.host_rem_url = "https://testsecurepay2.rsb.ru:9443/ecomm2/MerchantHandler"
+        self.redirect_url = "https://testsecurepay2.rsb.ru/ecomm2/ClientHandler?trans_id=transaction_id"
         
 
         self.ssl_path = SSL_PATH  
@@ -178,17 +178,19 @@ class RSBClient:
     def send_request(self, command, amount, currency, description=None, trans_id=None, language="ru"):
         query_data = {
             "command": command,
-            "amount": amount,
-            "currency": currency,
+            "amount": int(amount)*100,
+            "currency": int(currency),
+            "client_ip_addr": "79.174.81.151",
+            "description": description,
             "language": language,
             "mrch_transaction_id": self.generate_transaction_id(),
+            "language": "ru",
+            "server_version":"2.0"
         }
 
-        if description:
-            query_data["description"] = description
 
-        if trans_id:
-            query_data["trans_id"] = trans_id
+        # if trans_id:
+        #     query_data["trans_id"] = trans_id
 
         try:
             response = requests.post(
@@ -202,7 +204,7 @@ class RSBClient:
             
             # Логируем ответ
             if response.status_code == 200:
-                return {"success": True, "data": response.text}
+                return {"success": True, "data": response.json()}
             else:
                 return {"success": False, "error": f"{response.status_code} - {response.reason}"}
         except requests.exceptions.RequestException as e:

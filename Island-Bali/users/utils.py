@@ -35,7 +35,7 @@ def send_phone_reset(phone, code):
             "messages": [
                 {
                     "phone": phone,
-                    "sender": "Islandbali",
+                    "sender": "Island_Baly",
                     "clientId": f"{phone}",
                     "text": "Ваш код подтверждения приложения Islandbali: "
                             + str(code)
