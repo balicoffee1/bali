@@ -39,9 +39,7 @@ def add_user(values: dict) -> tuple:
         last_name=last_name,
         email=email,
         phone_number=phone,
-        fcm_token=values["fcm_token"],
     )
-    logger.debug(f'Created new user with fcm token {values["fcm_token"]}')
     
     if photo:
         change_photo(user, photo)
