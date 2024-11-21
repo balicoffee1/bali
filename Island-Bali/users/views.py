@@ -190,6 +190,7 @@ def registration(request):
                 {
                     "token": token,
                     "id": user.id,
+                    "fcm_token": user.fcm_token
                 },
                 status=status.HTTP_201_CREATED,
             )

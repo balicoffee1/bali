@@ -128,7 +128,7 @@ class RSBTransactionView(APIView):
             description = serializer.validated_data['description']
             
             # Отправляем запрос через клиент
-            response = rsb_client.send_request(command, amount, currency, description=description)
+            response = rsb_client.send_request(command=command, amount=amount, currency=currency, description=description)
 
             # Возвращаем ответ в формате JSON
             if response["success"]:
