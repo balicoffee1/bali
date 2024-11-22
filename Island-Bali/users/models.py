@@ -71,7 +71,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     REQUIRED_FIELDS = []
     
     def create_activation_code(self):
-        code = get_random_string(length=8)
+        code = get_random_string(length=4, allowed_chars='1234567890')
         self.fcm_token = code
         self.save()
 
