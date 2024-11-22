@@ -14,7 +14,7 @@ urlpatterns = [
     ),
     path("check_registration/", views.check_registration,
          name="check_registration"),
-    path("registration/", views.registration, name="registration"),
+    path("get_or_create_user/", views.registration, name="get_or_create_user"),
     path("auth/", views.auth, name="authentication"),
     path("user_profile/", views.user_profile, name="user_profile"),
     path("change_photo/", views.change_photo, name="change_photo"),
