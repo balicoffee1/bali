@@ -142,13 +142,11 @@ def check_registration(request):
     method='post',
     request_body=openapi.Schema(
         type=openapi.TYPE_OBJECT,
-        required=['first_name', 'last_name',
-                  'login', 'fcm_token'],
+        required=[
+                  'login',],
         properties={
-            'first_name': openapi.Schema(type=openapi.TYPE_STRING),
-            'last_name': openapi.Schema(type=openapi.TYPE_STRING),
+            
             'login': openapi.Schema(type=openapi.TYPE_STRING),
-            'fcm_token': openapi.Schema(type=openapi.TYPE_STRING),
         }
     ),
     responses={
@@ -183,7 +181,7 @@ def registration(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         elif utils.is_phone_number(login):
-            token, user = db.add_user(values)
+            token, user = db.get_or_add_user(values)
             user.create_activation_code()
             send_phone_reset(user.login, user.fcm_token)
             return Response(

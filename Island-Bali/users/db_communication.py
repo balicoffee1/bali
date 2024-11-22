@@ -10,7 +10,7 @@ from users import utils
 from .models import CustomUser
 
 
-def add_user(values: dict) -> tuple:
+def get_or_add_user(values: dict) -> tuple:
     """
     Добавление нового пользователя в базу данных.
 
@@ -23,31 +23,25 @@ def add_user(values: dict) -> tuple:
     - user (Users): Вновь созданный экземпляр пользователя.
     """
     login = values["login"]
-    first_name = values["first_name"]
-    last_name = values["last_name"]
     photo = values.get("photo")
     email = values.get("email")
     phone = None
     if utils.is_phone_number(login):
         phone = login
-        if CustomUser.objects.filter(phone_number__exact=phone).exists():
-            raise Exception("UNIQUE constraint failed: user.phone_number")
+        if not CustomUser.objects.filter(phone_number__exact=phone).exists():
+            user = CustomUser.objects.create_user(
+            login=login,
+            email=email,
+            phone_number=phone,
+        )
+        else:
+            user = CustomUser.objects.get(login=login)
 
-    user = CustomUser.objects.create_user(
-        login=login,
-        first_name=first_name,
-        last_name=last_name,
-        email=email,
-        phone_number=phone,
-    )
+    
     
     if photo:
         change_photo(user, photo)
 
-    # token_obj, created = Token.objects.get_or_create(user=user)
-    # token = token_obj.key
-    #
-    # return token, user
     refresh = RefreshToken.for_user(user)
     token = {"access": str(refresh.access_token), "refresh": str(refresh)}
     return token, user

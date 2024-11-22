@@ -48,7 +48,9 @@ def send_phone_reset(phone, code):
             "password": SMS_PASSWORD,
         }
     )
-    requests.post("https://api.iqsms.ru/messages/v2/send.json", data=body)
+    response = requests.post("https://api.iqsms.ru/messages/v2/send.json", data=body)
+    if response.json().get('messages')[0].get("status") != "accepted":
+        raise Exception('Сервер отправки СМС в данный момент не работает. Попробуйте позже')
     return code
 
 
