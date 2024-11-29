@@ -34,7 +34,8 @@ class CreateReviewAPIView(APIView):
         serializer = ReviewsCoffeeShopSerializer(data=data_with_user)
         if serializer.is_valid():
             review = serializer.save(user=user)
-            id_coffeshop = serializer.validated_data.get('id')
+            id_coffeshop = serializer.validated_data.get('coffee_shop')
+            print(id_coffeshop.telegram_id)
             # Отправляем отзыв в Telegram, если есть chat_id
             if hasattr(user, 'telegram_chat_id') and user.telegram_chat_id:
                 review_text = (
@@ -42,7 +43,11 @@ class CreateReviewAPIView(APIView):
                     f"Оценка: {review.evaluation}\n"
                     f"Комментарий: {review.comments or 'Без комментариев'}"
                 )
-                send_review_to_user(..., review_text)
+            review_text_admin = (
+                f"Оценка: {review.evaluation}\n"
+                f"Комментарий: {review.comments or 'Без комментариев'}"
+            ) 
+            send_review_to_user(chat_id=id_coffeshop.telegram_id, review_text=review_text_admin)
 
             email_coffeeshop = review.get_coffeeshop_email()
             telegram_contact = review.get_coffee_shop_telegram()
