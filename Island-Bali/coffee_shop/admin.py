@@ -26,7 +26,7 @@ class CoffeeShopAdmin(admin.ModelAdmin):
     inlines = [ProductInline, SeasonMenuInline]
     fieldsets = (
         (None, {"fields": (
-            "city", "street", "building_number", "email",
+            "city", "street","telegram_id", "building_number", "email",
             "telegram_username", "password", "lat",
             "lon")}),
         ("Дополнительная информация",

@@ -69,9 +69,9 @@ class CoffeeShop(models.Model):
     
     telegram_id = models.CharField(
         max_length=100,
-        verbose_name="Username в Telegram. "
+        verbose_name="ID в Telegram. "
         "Пример <@col1ecti0n>",
-        help_text="Введите ваш username "
+        help_text="Введите ваш id "
         "из Telegram",
         null=True,
         blank=True              
