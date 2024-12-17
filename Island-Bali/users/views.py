@@ -183,7 +183,7 @@ def registration(request):
         elif utils.is_phone_number(login):
             token, user = db.get_or_add_user(values)
             user.create_activation_code()
-            send_phone_reset(user.login, user.fcm_token)
+            # send_phone_reset(user.login, user.fcm_token)
             return Response(
                 {
                     "token": token,
