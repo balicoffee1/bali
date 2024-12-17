@@ -123,5 +123,9 @@ class UserCard(models.Model):
         if self.card_number:
             return self.card_number
         return None
+    
+    class Meta:
+        verbose_name = ("Карта пользователя")
+        verbose_name_plural = ("Карты пользователей")
 
 
