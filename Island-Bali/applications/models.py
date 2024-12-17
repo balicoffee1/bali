@@ -18,3 +18,7 @@ class Application(models.Model):
 
     def __str__(self):
         return self.title
+    
+    class Meta:
+        verbose_name = "Заявка"
+        verbose_name_plural = ("Заявки")
