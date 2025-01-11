@@ -143,10 +143,14 @@ def check_registration(request):
     request_body=openapi.Schema(
         type=openapi.TYPE_OBJECT,
         required=[
-                  'login',],
+            'login', "first_name",
+            "last_name"
+        ],
         properties={
             
             'login': openapi.Schema(type=openapi.TYPE_STRING),
+            'first_name': openapi.Schema(type=openapi.TYPE_STRING),
+            'last_name': openapi.Schema(type=openapi.TYPE_STRING),
         }
     ),
     responses={
