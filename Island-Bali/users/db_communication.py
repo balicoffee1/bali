@@ -25,6 +25,8 @@ def get_or_add_user(values: dict) -> tuple:
     login = values["login"]
     photo = values.get("photo")
     email = values.get("email")
+    first_name = values.get("first_name")
+    last_name = values.get("last_name")
     phone = None
     if utils.is_phone_number(login):
         phone = login
@@ -33,6 +35,8 @@ def get_or_add_user(values: dict) -> tuple:
             login=login,
             email=email,
             phone_number=phone,
+            first_name=first_name,
+            last_name=last_name
         )
         else:
             user = CustomUser.objects.get(login=login)

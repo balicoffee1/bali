@@ -111,7 +111,7 @@ class UserCard(models.Model):
     card_number = models.CharField(
         max_length=100, null=True, verbose_name="Зашифрованный номер карты"
     )
-    expiration_date = models.DateField(verbose_name="Дата истечения")
+    expiration_date = models.CharField(verbose_name="Дата истечения", default='', max_length=10)
 
     @staticmethod
     def create_new_card(user, card_number, expiration_date):

@@ -6,6 +6,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import permissions
 
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import SearchFilter
+from .filters import SeasonMenuFilter
+from .filters import AddonFilter
+
 from menu_coffee_product.models import Category, Product, Addon
 from menu_coffee_product.serializers import (CategorySerializer,
     ProductSerializer, AddonSerializer)
@@ -109,8 +114,12 @@ class WeatherView(APIView):
 class SeasonMenuViewSet(ModelViewSet):
     queryset = SeasonMenu.objects.all()
     serializer_class = SeasonMenuSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_class = SeasonMenuFilter
 
 
 class AddonList(generics.ListAPIView):
     queryset = Addon.objects.all()
     serializer_class = AddonSerializer
+    ilter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_class = AddonFilter

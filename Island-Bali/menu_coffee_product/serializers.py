@@ -6,7 +6,7 @@ from .models import Addon, Category, Product, SeasonMenu
 class AddonSerializer(serializers.ModelSerializer):
     class Meta:
         model = Addon
-        fields = ['id', 'name', 'description', 'price']
+        fields = ['id', 'name', 'description', 'price', "coffee_shop"]
 
 
 class CategorySerializer(serializers.ModelSerializer):

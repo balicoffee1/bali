@@ -4,6 +4,12 @@ from coffee_shop.models import CoffeeShop
 
 
 class Addon(models.Model):
+    coffee_shop = models.ForeignKey(
+        CoffeeShop, on_delete=models.CASCADE,
+        verbose_name="Кофейня",
+        related_name="addon_coffe_shop",
+        null=True
+    )
     name = models.CharField(max_length=255, verbose_name="Название добавки")
     description = models.TextField(blank=True, null=True,
                                    verbose_name='Описание добавки')
