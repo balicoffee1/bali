@@ -99,6 +99,27 @@ class Product(models.Model):
         verbose_name="Тип температуры напитка",
         default="Hot"
     )
+    price_s = models.DecimalField(
+        decimal_places=2,
+        max_digits=10,
+        verbose_name='Цена размера S',
+        null=True,
+        blank=True
+    )
+    price_m = models.DecimalField(
+        decimal_places=2,
+        max_digits=10,
+        verbose_name='Цена размера M',
+        null=True,
+        blank=True
+    )
+    price_l = models.DecimalField(
+        decimal_places=2,
+        max_digits=10,
+        verbose_name='Цена размера L',
+        null=True,
+        blank=True
+    )
 
     def __str__(self):
         return f"Название продукта {self.product}"

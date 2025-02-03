@@ -88,6 +88,20 @@ class CartItem(models.Model):
 
     @property
     def item_total_price(self):
-        product_price = self.product.price if self.product else 0
+        # Получаем цену продукта в зависимости от размера
+        size_prices = {
+            self.SizeChoices.S: self.product.price_s,
+            self.SizeChoices.M: self.product.price_m,
+            self.SizeChoices.L: self.product.price_l
+        }
+        product_price = size_prices.get(self.size, self.product.price)
+        
+        # Если цена для выбранного размера не задана, используем базовую цену
+        if product_price is None:
+            product_price = self.product.price
+        
+        # Стоимость добавок
         addons_price = sum(addon.price for addon in self.addons.all())
+        
+        # Итоговая стоимость позиции
         return (product_price + addons_price) * self.amount
