@@ -5,7 +5,7 @@ from phonenumber_field.modelfields import PhoneNumberField
 class FranchiseRequest(models.Model):
     name = models.CharField(max_length=40, verbose_name="Ваше Имя")
     number_phone = PhoneNumberField(
-        null=False, blank=False, unique=True, verbose_name="Номер Телефона"
+        null=False, blank=False, verbose_name="Номер Телефона"
     )
     text = models.TextField(verbose_name="Ваши Пожелания")
 
