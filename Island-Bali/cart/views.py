@@ -31,7 +31,7 @@ class AddToCartView(APIView):
             product_name = validated_data.get("product_name")
             quantity = validated_data.get("quantity")
             temperature_type = validated_data.get("temperature_type")
-            addons = validated_data.get("addon")
+            addons = validated_data.get("addons")
             size = validated_data.get("size")
             user = request.user
 
