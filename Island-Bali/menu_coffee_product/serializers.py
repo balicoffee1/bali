@@ -22,7 +22,19 @@ class ProductSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ['id', 'product', 'price', 'availability', 'temperature_type', 'addon', "coffee_shop", "category"]
+        fields = [
+            'id',
+            'product',
+            'price',
+            'availability',
+            'temperature_type',
+            'addon',
+            "coffee_shop",
+            "category",
+            "price_s",
+            "price_m",
+            "price_l"
+            ]
 
 
 class SeasonMenuSerializer(serializers.ModelSerializer):
