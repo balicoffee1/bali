@@ -10,7 +10,7 @@ from menu_coffee_product.models import Addon, Product
 
 from .models import CartItem, ShoppingCart
 from .serializers import (AddToCartSerializer, CartItemSerializer,
-                          ChangeCartSerializer,
+                          ChangeCartSerializer, CartSerializer,
                           RemoveProductFromCartSerializer)
 
 
@@ -59,11 +59,11 @@ class AddToCartView(APIView):
                                 status=status.HTTP_400_BAD_REQUEST)
 
             selected_addons = []
+            print(addons)
             if addons:
-                addon_ids = addons.split(",")  # Assuming `addons` is a comma-separated list of IDs
-                for addon_id in addon_ids:
+                for addon_obj in addons:
                     try:
-                        addon = Addon.objects.get(id=addon_id)
+                        addon = Addon.objects.get(id=addon_obj.id)
                         if addon in product.addons.all():
                             selected_addons.append(addon)
                         else:
@@ -117,15 +117,24 @@ class ChangeQuantityView(APIView):
                 return Response({"error": "Необходимо авторизоваться (Передайте токен пользователя)"}, status=status.HTTP_401_UNAUTHORIZED)
 
             try:
-                cart_item = CartItem.objects.get(product__product=product_name, cart__user=user)
+                product = Product.objects.get(product=product_name)
+                cart_item = CartItem.objects.get(product=product, cart__user=user)
                 cart_item.amount = int(quantity)
                 cart_item.save()
-                serializer = CartItemSerializer(cart_item)
-                return Response({"Сообщение": f"Количество товара {product_name} изменено на {quantity}"}, status=status.HTTP_200_OK)
+                cart = ShoppingCart.objects.get(items=cart_item)
+                if not cart:
+                    return Response({"error": "Корзина не найдена"}, status=status.HTTP_404_NOT_FOUND)
+                cart_serializer = CartSerializer(cart)  
+
+                return Response({
+                    "Сообщение": f"Количество товара '{product_name}' изменено на {quantity}",
+                    "data": cart_serializer.data
+                }, status=status.HTTP_200_OK)
             except CartItem.DoesNotExist:
-                return Response({"error": f"Товар {product_name} не найден в корзине пользователя"}, status=status.HTTP_404_NOT_FOUND)
+                return Response({"error": f"Товар '{product_name}' не найден в корзине пользователя"}, status=status.HTTP_404_NOT_FOUND)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 class RemoveFromCartView(APIView):
