@@ -99,7 +99,6 @@ class CartItem(models.Model):
         # Если цена для выбранного размера не задана, используем базовую цену
         if product_price is None:
             product_price = self.product.price
-        
         # Стоимость добавок
         addons_price = sum(addon.price for addon in self.addons.all())
         

@@ -13,10 +13,10 @@ class CartItemSerializer(serializers.ModelSerializer):
         fields = ['product', 'amount', 'item_total_price', 'size', 'addons']
 
     def get_item_total_price(self, obj):
-        product_price = obj.product.price
-        addons_price = sum(addon.price for addon in obj.addons.all())
-        total_price = (product_price + addons_price) * obj.amount
-        return total_price
+        # product_price = obj.product.price
+        # addons_price = sum(addon.price for addon in obj.addons.all())
+        # total_price = (product_price + addons_price) * obj.amount
+        return obj.item_total_price
 
 class CartSerializer(serializers.ModelSerializer):
     user = serializers.StringRelatedField()
@@ -39,9 +39,10 @@ class AddToCartSerializer(serializers.Serializer):
         required=False,
         help_text="Выберите тип температуры: холодный или горячий",
         label="Тип температуры напитка")
-    addon = serializers.CharField(required=False,
-                                  help_text="Добавка",
-                                  label="Напишите добавку")
+    addons = serializers.ListField(
+        child=serializers.PrimaryKeyRelatedField(queryset=Addon.objects.all()),
+        required=False
+    )
     size = serializers.ChoiceField(
         choices=CartItem.SizeChoices.choices,
         required=False,
