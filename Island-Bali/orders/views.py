@@ -125,11 +125,13 @@ class OrderViewSet(ModelViewSet):
 
     def get_queryset(self):
         """Возвращает заказы, относящиеся к текущему пользователю"""
+        
         return Orders.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
         """Создание нового заказа с валидацией времени"""
-        serializer.save(user=self.request.user)
+        cart = ShoppingCart.objects.get(user=self.request.user)
+        serializer.save(user=self.request.user, cart=cart)
 
     @action(detail=True, methods=['patch'], url_path='confirm')
     def confirm_order(self, request, pk=None):

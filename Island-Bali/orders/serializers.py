@@ -107,10 +107,11 @@ class GetStatusPaymentSerializer(serializers.Serializer):
 
 
 class OrderSerializers(serializers.ModelSerializer):
-    user = serializers.PrimaryKeyRelatedField(queryset=CustomUser.objects.all())
+    user = serializers.PrimaryKeyRelatedField(queryset=CustomUser.objects.all(), required=False)
+    staff = serializers.PrimaryKeyRelatedField(queryset=CustomUser.objects.all(), required=False)
     city_choose = serializers.PrimaryKeyRelatedField(queryset=City.objects.all())
     coffee_shop = serializers.PrimaryKeyRelatedField(queryset=CoffeeShop.objects.all())
-    cart = serializers.PrimaryKeyRelatedField(queryset=ShoppingCart.objects.all())
+    cart = serializers.PrimaryKeyRelatedField(queryset=ShoppingCart.objects.all(), required=False)
 
     class Meta:
         model = Orders
