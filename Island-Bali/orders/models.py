@@ -50,7 +50,10 @@ class Orders(models.Model):
 
     staff = models.ForeignKey(Staff, related_name='staff',
                               verbose_name="Исполнитель заказа",
-                              on_delete=models.CASCADE)
+                              on_delete=models.CASCADE,
+                              null=True,
+                              blank=True
+    )
 
     status_orders = models.CharField(choices=StatusOrders, max_length=30,
                                      verbose_name="Статус заказа")
