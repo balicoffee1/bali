@@ -38,7 +38,8 @@ class ProductSerializer(serializers.ModelSerializer):
 
 
 class SeasonMenuSerializer(serializers.ModelSerializer):
-    coffee_shop = serializers.StringRelatedField()
+    coffee_shop_id = serializers.PrimaryKeyRelatedField(source='coffee_shop', read_only=True)
+    coffee_shop_name = serializers.StringRelatedField(source='coffee_shop')
     seasonal_section = serializers.CharField()
     products = ProductSerializer(
         many=True)
