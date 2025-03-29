@@ -58,10 +58,10 @@ class CartItem(models.Model):
     )
     product = models.ForeignKey(
         Product, related_name="cart_items", on_delete=models.CASCADE,
-        null=True, blank=True
+        null=True, blank=True, verbose_name="Продукт"
     )
-    addons = models.ManyToManyField(Addon, related_name='cart_items', blank=True)
-    amount = models.PositiveIntegerField(default=0)
+    addons = models.ManyToManyField(Addon, related_name='cart_items', blank=True, verbose_name="Добавки")
+    amount = models.PositiveIntegerField(default=0, verbose_name="Колличество")
     size = models.CharField(
         max_length=1,
         choices=SizeChoices.choices,
