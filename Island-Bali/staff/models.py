@@ -45,9 +45,9 @@ class Shift(models.Model):
         ("Closed", "Смена закрыта"),
     )
     staff = models.ForeignKey(Staff, on_delete=models.CASCADE,
-                              related_name="shifts")
-    start_time = models.DateTimeField(null=True, blank=True)
-    end_time = models.DateTimeField(null=True, blank=True)
+                              related_name="shifts", verbose_name="Сотрудник")
+    start_time = models.DateTimeField(null=True, blank=True, verbose_name="Время начало")
+    end_time = models.DateTimeField(null=True, blank=True, verbose_name="Время окончания")
     number_orders_closed = models.PositiveIntegerField(
         verbose_name="Закрытые заказы за смену",
         default=0)
