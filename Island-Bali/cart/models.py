@@ -38,8 +38,6 @@ class ShoppingCart(models.Model):
             coffee_shop=coffee_shop,
             cart=cart,
             client_comments=client_comments,
-            staff=staff,
-            time_is_finish=time_is_finish,
             status_orders="Waiting",
             payment_status="Pending"
         )

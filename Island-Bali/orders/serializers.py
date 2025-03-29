@@ -72,8 +72,6 @@ class CheckoutSerializer(serializers.Serializer):
             city_choose=cart.city,
             coffee_shop=cart.coffee_shop,
             client_comments="",
-            staff=None,  # Исполнитель пока не назначен
-            time_is_finish=None,  # Время пока не установлено
             cart=cart
         )
 
