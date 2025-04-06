@@ -25,3 +25,4 @@ django-extensions==3.2.3
 Pillow==10.1.0
 redis
 sqlalchemy
+django-colorfield

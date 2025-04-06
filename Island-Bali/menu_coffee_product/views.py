@@ -1,3 +1,4 @@
+from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import generics
 from rest_framework.viewsets import ModelViewSet
@@ -22,16 +23,24 @@ TAGS_MENU = ['Меню заведений']
 
 
 class CategoryViewSet(generics.ListAPIView):
-    # TODO Реализовать просмотр категорий в отдельной кофейне,
-    #  а в данный момент выходят все категории из всех кофейн
-    queryset = Category.objects.all()
     serializer_class = CategorySerializer
+    queryset = Category.objects.all()
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['coffee_shop']  # Поле для фильтрации
 
     @swagger_auto_schema(
         operation_description="С помощью этого метода можно "
-                              "просмотреть все категории ",
-
-        responses={201: "Created", 400: "Bad Request"},
+                              "просмотреть все категории, "
+                              "фильтруя их по кофейне с помощью параметра `coffee_shop`.",
+        manual_parameters=[
+            openapi.Parameter(
+                'coffee_shop',
+                openapi.IN_QUERY,
+                description="ID кофейни для фильтрации категорий",
+                type=openapi.TYPE_INTEGER
+            )
+        ],
+        responses={200: CategorySerializer(many=True)},
         tags=TAGS_MENU,
         operation_id="Просмотр категорий"
     )
@@ -123,3 +132,38 @@ class AddonList(generics.ListAPIView):
     serializer_class = AddonSerializer
     ilter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = AddonFilter
+    
+    
+    @swagger_auto_schema(
+        manual_parameters=[
+            openapi.Parameter(
+                'product_id',
+                openapi.IN_QUERY,
+                description="ID продукта для фильтрации добавок",
+                type=openapi.TYPE_INTEGER
+            ),
+            openapi.Parameter(
+                'coffee_shop_id',
+                openapi.IN_QUERY,
+                description="ID кофейни для фильтрации добавок",
+                type=openapi.TYPE_INTEGER
+            ),
+            openapi.Parameter(
+                'city_id',
+                openapi.IN_QUERY,
+                description="ID города для фильтрации добавок",
+                type=openapi.TYPE_INTEGER
+            ),
+            openapi.Parameter(
+                'coffee_shop',
+                openapi.IN_QUERY,
+                description="Улица кофейни для фильтрации добавок",
+                type=openapi.TYPE_STRING
+            )
+        ],
+        responses={200: CategorySerializer(many=True)},
+        tags=TAGS_MENU,
+        operation_id="Просмотр категорий"
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)

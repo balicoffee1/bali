@@ -8,9 +8,8 @@ from .alpha_client import AlphaBankClient
 from acquiring.utils import RussianStandard
 from .serializers import PaymentRequestSerializer, PaymentResponseSerializer
 from .tinkoff_client import TinkoffClient
+from coffee_shop.models import CoffeeShop
 
-
-rus_standard = RussianStandard()
 
 @swagger_auto_schema(
     request_body=PaymentRequestSerializer,
@@ -20,13 +19,16 @@ rus_standard = RussianStandard()
     operation_id="Создание ссылки для оплаты",
     methods=['POST']) 
 @api_view(['POST'])
-def get_link(request):
+def get_link(request, coffee_shop_id):
     """
-    Этот запрос создаёт по переданным параметрам оплаты счёт и генерирует
-    для отображения в виде предварительного просмотра html-код письма счёта.
-    В ответ на данный запрос возвращается объект с полями invoice_id,
-    invoice_url, и invoice.
+    Создание ссылки для оплаты через Russian Standard.
     """
+    coffee_shop = CoffeeShop.objects.get(id=coffee_shop_id)
+    rus_standard = RussianStandard(
+        user=coffee_shop.bank_user,
+        password=coffee_shop.bank_password
+    )
+
     serializer = PaymentRequestSerializer(data=request.data)
     if serializer.is_valid():
         data = serializer.validated_data
@@ -49,17 +51,21 @@ def get_link(request):
     operation_id="Проверка статуса заказа",
     methods=['GET'])
 @api_view(['GET'])
-def get_status_payment(request, invoice_id):
+def get_status_payment(request, coffee_shop_id, invoice_id):
+    coffee_shop = CoffeeShop.objects.get(id=coffee_shop_id)
+    rus_standard = RussianStandard(
+        user=coffee_shop.bank_user,
+        password=coffee_shop.bank_password
+    )
+
     check_status = rus_standard.check_order(invoice_id)
     return Response(data={"status": check_status})
 
 
-
-
-
 class AlphaCreatePaymentOrderView(APIView):
-    def post(self, request, *args, **kwargs):
-        client = AlphaBankClient()
+    def post(self, request, coffee_shop_id, *args, **kwargs):
+        coffee_shop = CoffeeShop.objects.get(id=coffee_shop_id)
+        client = AlphaBankClient(api_token=coffee_shop.bank_api_token)
         payment_data = request.data
 
         try:
@@ -69,8 +75,9 @@ class AlphaCreatePaymentOrderView(APIView):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 class AlphaGetPaymentStatusView(APIView):
-    def get(self, request, external_id, *args, **kwargs):
-        client = AlphaBankClient()
+    def get(self, request, coffee_shop_id, external_id, *args, **kwargs):
+        coffee_shop = CoffeeShop.objects.get(id=coffee_shop_id)
+        client = AlphaBankClient(api_token=coffee_shop.bank_api_token)
 
         try:
             status_response = client.get_payment_status(external_id)
@@ -79,10 +86,13 @@ class AlphaGetPaymentStatusView(APIView):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-
 class TBCreateOrderView(APIView):
-    def post(self, request, *args, **kwargs):
-        client = TinkoffClient()
+    def post(self, request, coffee_shop_id, *args, **kwargs):
+        coffee_shop = CoffeeShop.objects.get(id=coffee_shop_id)
+        client = TinkoffClient(
+            api_token=coffee_shop.bank_api_token,
+            shop_id=coffee_shop.bank_shop_id
+        )
         order_data = request.data
 
         try:
@@ -92,8 +102,12 @@ class TBCreateOrderView(APIView):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 class TBGetOrderView(APIView):
-    def get(self, request, order_id, *args, **kwargs):
-        client = TinkoffClient()
+    def get(self, request, coffee_shop_id, order_id, *args, **kwargs):
+        coffee_shop = CoffeeShop.objects.get(id=coffee_shop_id)
+        client = TinkoffClient(
+            api_token=coffee_shop.bank_api_token,
+            shop_id=coffee_shop.bank_shop_id
+        )
 
         try:
             order = client.get_order(order_id)
@@ -114,29 +128,32 @@ class RSBTransactionView(APIView):
         responses={200: RSBTransactionSerializer, 400: "Bad Request"},
         tags=["Эквайринг"]
     )
-    def post(self, request, *args, **kwargs):
-        # Используем сериализатор для валидации данных
-        serializer = RSBTransactionSerializer(data=request.data)
-        
-        if serializer.is_valid():
-            rsb_client = RSBClient()
+    def post(self, request, coffee_shop_id, *args, **kwargs):
+        coffee_shop = CoffeeShop.objects.get(id=coffee_shop_id)
+        rsb_client = RSBClient(
+            user=coffee_shop.bank_user,
+            password=coffee_shop.bank_password
+        )
 
-            # Получаем данные из сериализатора
+        serializer = RSBTransactionSerializer(data=request.data)
+        if serializer.is_valid():
             command = serializer.validated_data['command']
             amount = serializer.validated_data['amount']
             currency = serializer.validated_data['currency']
             description = serializer.validated_data['description']
-            
-            # Отправляем запрос через клиент
-            response = rsb_client.send_request(command=command, amount=amount, currency=currency, description=description)
 
-            # Возвращаем ответ в формате JSON
+            response = rsb_client.send_request(
+                command=command,
+                amount=amount,
+                currency=currency,
+                description=description
+            )
+
             if response["success"]:
                 return Response({"status": "success", "data": response["data"]})
             else:
                 return Response({"status": "error", "message": response["error"]}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Если данные не валидны, возвращаем ошибку с подробностями
         return Response({
             "status": "error",
             "message": "Invalid data.",

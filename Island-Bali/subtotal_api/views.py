@@ -55,8 +55,8 @@ class GetDiscountForUser(APIView):
                                           street=shop_street)
 
             try:
-                client = SubtotalClient(email=shop.email,
-                                        password=shop.password)
+                client = SubtotalClient(email=shop.crm_email,
+                                        password=shop.crm_password)
                 if client.login():
                     discount_value = client.get_discount_for_phone_number(
                         phone_number)

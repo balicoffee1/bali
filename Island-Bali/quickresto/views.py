@@ -3,20 +3,19 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from coffee_shop.models import CoffeeShop
 
-layer_name = ''
 
 class FilterCustomersView(APIView):
     def post(self, request):
-        url = f"https://{layer_name}.quickresto.ru/platform/online/bonuses/filterCustomers"
-        headers = {
-            "Content-Type": "application/json",
-            "Connection": "keep-alive",
-        }
         shop_city = request.data.get('shop_city')
         shop_street = request.data.get('shop_street')
         shop = CoffeeShop.objects.get(city__name=shop_city,
                                           street=shop_street)
-        auth = (shop.email, shop.password)
+        url = f"https://{shop.crm_layer_name}.quickresto.ru/platform/online/bonuses/filterCustomers"
+        headers = {
+            "Content-Type": "application/json",
+            "Connection": "keep-alive",
+        }
+        auth = (shop.crm_email, shop.crm_password)
 
         data = {
             "search": request.data.get("search", "")
@@ -29,16 +28,16 @@ class FilterCustomersView(APIView):
 
 class GetCustomerView(APIView):
     def post(self, request):
-        url = f"https://{layer_name}.quickresto.ru/platform/online/bonuses/getCustomer"
-        headers = {
-            "Content-Type": "application/json",
-            "Connection": "keep-alive",
-        }
         shop_city = request.data.get('shop_city')
         shop_street = request.data.get('shop_street')
         shop = CoffeeShop.objects.get(city__name=shop_city,
                                           street=shop_street)
-        auth = (shop.email, shop.password)
+        url = f"https://{shop.crm_layer_name}.quickresto.ru/platform/online/bonuses/getCustomer"
+        headers = {
+            "Content-Type": "application/json",
+            "Connection": "keep-alive",
+        }
+        auth = (shop.crm_email, shop.crm_password)
 
         data = {
             "customerToken": {
@@ -54,16 +53,16 @@ class GetCustomerView(APIView):
 
 class BalanceView(APIView):
     def post(self, request):
-        url = f"https://{layer_name}.quickresto.ru/platform/online/bonuses/balance"
-        headers = {
-            "Content-Type": "application/json",
-            "Connection": "keep-alive",
-        }
         shop_city = request.data.get('shop_city')
         shop_street = request.data.get('shop_street')
         shop = CoffeeShop.objects.get(city__name=shop_city,
                                           street=shop_street)
-        auth = (shop.email, shop.password)
+        url = f"https://{shop.crm_layer_name}.quickresto.ru/platform/online/bonuses/balance"
+        headers = {
+            "Content-Type": "application/json",
+            "Connection": "keep-alive",
+        }
+        auth = (shop.crm_email, shop.crm_password)
 
         data = {
             "customerToken": {
@@ -83,16 +82,16 @@ class BalanceView(APIView):
 
 class OperationHistoryView(APIView):
     def post(self, request):
-        url = f"https://{layer_name}.quickresto.ru/platform/online/bonuses/operationHistory"
-        headers = {
-            "Content-Type": "application/json",
-            "Connection": "keep-alive",
-        }
         shop_city = request.data.get('shop_city')
         shop_street = request.data.get('shop_street')
         shop = CoffeeShop.objects.get(city__name=shop_city,
                                           street=shop_street)
-        auth = (shop.email, shop.password)
+        url = f"https://{shop.crm_layer_name}.quickresto.ru/platform/online/bonuses/operationHistory"
+        headers = {
+            "Content-Type": "application/json",
+            "Connection": "keep-alive",
+        }
+        auth = (shop.crm_email, shop.crm_password)
 
         data = {
             "customerToken": {
@@ -112,16 +111,16 @@ class OperationHistoryView(APIView):
 
 class DebitHoldView(APIView):
     def post(self, request):
-        url = f"https://{layer_name}.quickresto.ru/platform/online/bonuses/debitHold"
-        headers = {
-            "Content-Type": "application/json",
-            "Connection": "keep-alive",
-        }
         shop_city = request.data.get('shop_city')
         shop_street = request.data.get('shop_street')
         shop = CoffeeShop.objects.get(city__name=shop_city,
                                           street=shop_street)
-        auth = (shop.email, shop.password)
+        url = f"https://{shop.crm_layer_name}.quickresto.ru/platform/online/bonuses/debitHold"
+        headers = {
+            "Content-Type": "application/json",
+            "Connection": "keep-alive",
+        }
+        auth = (shop.crm_email, shop.crm_password)
 
         data = {
             "customerToken": {
@@ -144,16 +143,16 @@ class DebitHoldView(APIView):
 
 class CreditHoldView(APIView):
     def post(self, request):
-        url = f"https://{layer_name}.quickresto.ru/platform/online/bonuses/creditHold"
-        headers = {
-            "Content-Type": "application/json",
-            "Connection": "keep-alive",
-        }
         shop_city = request.data.get('shop_city')
         shop_street = request.data.get('shop_street')
         shop = CoffeeShop.objects.get(city__name=shop_city,
                                           street=shop_street)
-        auth = (shop.email, shop.password)
+        url = f"https://{shop.crm_layer_name}.quickresto.ru/platform/online/bonuses/creditHold"
+        headers = {
+            "Content-Type": "application/json",
+            "Connection": "keep-alive",
+        }
+        auth = (shop.crm_email, shop.crm_password)
 
         data = {
             "customerToken": {
@@ -176,16 +175,16 @@ class CreditHoldView(APIView):
 
 class ReverseView(APIView):
     def post(self, request):
-        url = f"https://{layer_name}.quickresto.ru/platform/online/bonuses/reverse"
-        headers = {
-            "Content-Type": "application/json",
-            "Connection": "keep-alive",
-        }
         shop_city = request.data.get('shop_city')
         shop_street = request.data.get('shop_street')
         shop = CoffeeShop.objects.get(city__name=shop_city,
                                           street=shop_street)
-        auth = (shop.email, shop.password)
+        url = f"https://{shop.crm_layer_name}.quickresto.ru/platform/online/bonuses/reverse"
+        headers = {
+            "Content-Type": "application/json",
+            "Connection": "keep-alive",
+        }
+        auth = (shop.crm_email, shop.crm_password)
 
         data = {
             "customerToken": {
@@ -207,16 +206,16 @@ class ReverseView(APIView):
 class ReadCustomerView(APIView):
     def get(self, request):
         object_id = request.query_params.get("objectId")
-        url = f"https://{layer_name}.quickresto.ru/platform/online/api/read?moduleName=crm.customer&className=ru.edgex.quickresto.modules.crm.customer.CrmCustomer&objectId={object_id}"
-        headers = {
-            "Content-Type": "application/json",
-            "Connection": "keep-alive",
-        }
         shop_city = request.data.get('shop_city')
         shop_street = request.data.get('shop_street')
         shop = CoffeeShop.objects.get(city__name=shop_city,
                                           street=shop_street)
-        auth = (shop.email, shop.password)
+        url = f"https://{shop.crm_layer_name}.quickresto.ru/platform/online/api/read?moduleName=crm.customer&className=ru.edgex.quickresto.modules.crm.customer.CrmCustomer&objectId={object_id}"
+        headers = {
+            "Content-Type": "application/json",
+            "Connection": "keep-alive",
+        }
+        auth = (shop.crm_email, shop.crm_password)
 
         response = requests.get(url, headers=headers, auth=auth)
 
@@ -224,16 +223,16 @@ class ReadCustomerView(APIView):
 
 class ListCustomersView(APIView):
     def get(self, request):
-        url = "https://{layer_name}.quickresto.ru/platform/online/api/list?moduleName=crm.customer&className=ru.edgex.quickresto.modules.crm.customer.CrmCustomer"
-        headers = {
-            "Content-Type": "application/json",
-            "Connection": "keep-alive",
-        }
         shop_city = request.data.get('shop_city')
         shop_street = request.data.get('shop_street')
         shop = CoffeeShop.objects.get(city__name=shop_city,
                                           street=shop_street)
-        auth = (shop.email, shop.password)
+        url = f"https://{shop.crm_layer_name}.quickresto.ru/platform/online/api/list?moduleName=crm.customer&className=ru.edgex.quickresto.modules.crm.customer.CrmCustomer"
+        headers = {
+            "Content-Type": "application/json",
+            "Connection": "keep-alive",
+        }
+        auth = (shop.crm_email, shop.crm_password)
 
         response = requests.get(url, headers=headers, auth=auth)
 
@@ -241,16 +240,16 @@ class ListCustomersView(APIView):
 
 class CreateCustomerView(APIView):
     def post(self, request):
-        url = f"https://{layer_name}.quickresto.ru/platform/online/api/create?moduleName=crm.customer&className=ru.edgex.quickresto.modules.crm.customer.CrmCustomer"
-        headers = {
-            "Content-Type": "application/json",
-            "Connection": "keep-alive",
-        }
         shop_city = request.data.get('shop_city')
         shop_street = request.data.get('shop_street')
         shop = CoffeeShop.objects.get(city__name=shop_city,
                                           street=shop_street)
-        auth = (shop.email, shop.password)
+        url = f"https://{shop.crm_layer_name}.quickresto.ru/platform/online/api/create?moduleName=crm.customer&className=ru.edgex.quickresto.modules.crm.customer.CrmCustomer"
+        headers = {
+            "Content-Type": "application/json",
+            "Connection": "keep-alive",
+        }
+        auth = (shop.crm_email, shop.crm_password)
 
         data = request.data
 
@@ -260,16 +259,16 @@ class CreateCustomerView(APIView):
 
 class UpdateCustomerView(APIView):
     def post(self, request):
-        url = f"https://{layer_name}.quickresto.ru/platform/online/api/update?moduleName=crm.customer&className=ru.edgex.quickresto.modules.crm.customer.CrmCustomer"
-        headers = {
-            "Content-Type": "application/json",
-            "Connection": "keep-alive",
-        }
         shop_city = request.data.get('shop_city')
         shop_street = request.data.get('shop_street')
         shop = CoffeeShop.objects.get(city__name=shop_city,
                                           street=shop_street)
-        auth = (shop.email, shop.password)
+        url = f"https://{shop.crm_layer_name}.quickresto.ru/platform/online/api/update?moduleName=crm.customer&className=ru.edgex.quickresto.modules.crm.customer.CrmCustomer"
+        headers = {
+            "Content-Type": "application/json",
+            "Connection": "keep-alive",
+        }
+        auth = (shop.crm_email, shop.crm_password)
 
         data = request.data
 
@@ -279,16 +278,16 @@ class UpdateCustomerView(APIView):
 
 class RemoveCustomerView(APIView):
     def post(self, request):
-        url = f"https://{layer_name}.quickresto.ru/platform/online/api/remove?moduleName=crm.customer&className=ru.edgex.quickresto.modules.crm.customer.CrmCustomer"
-        headers = {
-            "Content-Type": "application/json",
-            "Connection": "keep-alive",
-        }
         shop_city = request.data.get('shop_city')
         shop_street = request.data.get('shop_street')
         shop = CoffeeShop.objects.get(city__name=shop_city,
                                           street=shop_street)
-        auth = (shop.email, shop.password)
+        url = f"https://{shop.crm_layer_name}.quickresto.ru/platform/online/api/remove?moduleName=crm.customer&className=ru.edgex.quickresto.modules.crm.customer.CrmCustomer"
+        headers = {
+            "Content-Type": "application/json",
+            "Connection": "keep-alive",
+        }
+        auth = (shop.crm_email, shop.crm_password)
 
         data = {
             "objectId": request.data.get("objectId", "")

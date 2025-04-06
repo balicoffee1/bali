@@ -83,11 +83,45 @@ class CoffeeShop(models.Model):
                                       on_delete=models.CASCADE)
     acquiring = models.ForeignKey(Acquiring, verbose_name="Эквайринг",
                                      on_delete=models.CASCADE)
+    
+    bank_api_token = models.CharField(
+        max_length=255,
+        verbose_name="API токен банка",
+        blank=True,
+        null=True
+    )
+    bank_shop_id = models.CharField(
+        max_length=255,
+        verbose_name="ID магазина в банке",
+        blank=True, null=True
+    )
+    bank_user = models.CharField(
+        max_length=255,
+        verbose_name="Пользователь банка (для RSB)",
+        blank=True, null=True
+    )
+    bank_password = models.CharField(
+        max_length=255,
+        verbose_name="Пароль банка (для RSB)",
+        blank=True, null=True
+    )
+    
     time_open = models.TimeField(verbose_name="Время открытия заведения",
                                  default='10:00')
     time_close = models.TimeField(verbose_name="Время закрытия заведения",
                                   default='23:00')
-    password = models.CharField(max_length=20, default='')
+    crm_email = models.EmailField(
+        verbose_name="Логин для CRM системы", blank=False,
+        null=True,
+        help_text="Пожалуйста введите вашу почту чтобы вы "
+                  "могли контролировать отзывы")
+    crm_password = models.CharField(max_length=20, default='')
+    crm_layer_name = models.CharField(
+        max_length=100, blank=False,
+        null=True,
+        verbose_name="Название слоя в CRM системе",
+        help_text="Пожалуйста введите название слоя в CRM системе"
+    )
     lat = models.DecimalField(
         max_digits=100,
         decimal_places=10,
