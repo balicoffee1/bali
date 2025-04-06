@@ -37,7 +37,20 @@ class AddonFilter(django_filters.FilterSet):
         field_name='coffee_shop__id',
         label="ID кофейни",
     )
+    product_id = django_filters.NumberFilter(
+        field_name='product__id',
+        label="ID продукта",
+        method='filter_by_product'
+    )
 
     class Meta:
         model = Addon
-        fields = ['city_id', 'coffee_shop', 'coffee_shop_id']
+        fields = [
+            'city_id',
+            'coffee_shop',
+            'coffee_shop_id',
+            'product_id'
+        ]
+    
+    def filter_by_product(self, queryset, name, value):
+        return queryset.filter(product__id=value).distinct()

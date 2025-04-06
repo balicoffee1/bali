@@ -6,7 +6,7 @@ from coffee_shop.models import City, CoffeeShop
 class CitySerializer(serializers.ModelSerializer):
     class Meta:
         model = City
-        fields = ("name",)
+        fields = ("id", "name",)
 
 
 class CoffeeShopSerializer(serializers.ModelSerializer):

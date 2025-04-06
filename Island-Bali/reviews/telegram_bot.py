@@ -2,7 +2,6 @@ import asyncio
 import telegram
 from django.conf import settings
 
-# Инициализируем бота с вашим токеном
 bot = telegram.Bot(token=settings.TELEGRAM_BOT_TOKEN)
 
 def send_review_to_user(chat_id, review_text):
