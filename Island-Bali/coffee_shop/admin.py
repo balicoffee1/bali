@@ -6,6 +6,11 @@ from staff.models import Staff
 from .models import Acquiring, City, CoffeeShop, CrmSystem
 
 
+class AcquiringInline(admin.TabularInline):
+    model = Acquiring
+    extra = 0
+    fields = ('name', 'login', 'password') 
+
 class ProductInline(admin.TabularInline):
     model = Product
     extra = 0
@@ -26,9 +31,9 @@ class CoffeeShopAdmin(admin.ModelAdmin):
     inlines = [ProductInline, SeasonMenuInline]
     fieldsets = (
         (None, {"fields": (
-            "city", "street","telegram_id", "building_number", "email",
-            "telegram_username", "password", "lat",
-            "lon")}),
+            "city", "street", "telegram_id", "building_number", "email",
+            "telegram_username", "lat", "lon", "crm_layer_name", "crm_password", 
+            "bank_api_token", "bank_shop_id",)}),
         ("Дополнительная информация",
          {"fields": ("crm_system", "acquiring", "time_open", "time_close"),
           "classes": ("collapse",),
