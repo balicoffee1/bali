@@ -1,68 +1,68 @@
-from drf_yasg.utils import swagger_auto_schema
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from rest_framework import status
 from rest_framework.views import APIView
-import requests
-from .alpha_client import AlphaBankClient
-from acquiring.utils import RussianStandard
-from .serializers import PaymentRequestSerializer, PaymentResponseSerializer
-from .tinkoff_client import TinkoffClient
+from rest_framework import status
+from rest_framework.response import Response
+from .clients import AlphaBankClient, RussianStandard, TinkoffClient, RSBClient
+from .serializers import PaymentRequestSerializer, PaymentResponseSerializer, RSBTransactionSerializer
 from coffee_shop.models import CoffeeShop
+from orders.models import Orders
+import requests
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 
-
-@swagger_auto_schema(
-    request_body=PaymentRequestSerializer,
-    operation_description="Этот запрос создаёт по переданным параметрам оплаты счёт и генерирует для отображения в виде предварительного просмотра html-код письма счёта.",
-    responses={200: PaymentResponseSerializer, 400: "Bad Request"},
-    tags=["Эквайринг"],
-    operation_id="Создание ссылки для оплаты",
-    methods=['POST']) 
-@api_view(['POST'])
-def get_link(request, coffee_shop_id):
-    """
-    Создание ссылки для оплаты через Russian Standard.
-    """
-    coffee_shop = CoffeeShop.objects.get(id=coffee_shop_id)
-    rus_standard = RussianStandard(
-        user=coffee_shop.bank_user,
-        password=coffee_shop.bank_password
+# Создание ссылки для оплаты через Russian Standard
+class RussianStandardPaymentView(APIView):
+    @swagger_auto_schema(
+        request_body=PaymentRequestSerializer,
+        responses={200: PaymentResponseSerializer, 400: "Invalid data."},
+        operation_description="Создание ссылки для оплаты через Russian Standard"
     )
-
-    serializer = PaymentRequestSerializer(data=request.data)
-    if serializer.is_valid():
-        data = serializer.validated_data
-        payment = rus_standard.link_for_payment(
-            pay_amount=data['pay_amount'],
-            client_id=data['client_id'],
-            order_id=data['order_id'],
-            client_email=data['client_email'],
-            service_name=data['service_name'],
-            client_phone=data['client_phone']
+    def post(self, request, coffee_shop_id, *args, **kwargs):
+        coffee_shop = CoffeeShop.objects.get(id=coffee_shop_id)
+        rus_standard = RussianStandard(
+            user=coffee_shop.bank_user,
+            password=coffee_shop.bank_password
         )
-        response_serializer = PaymentResponseSerializer(payment)
-        return Response(data=response_serializer.data, status=status.HTTP_200_OK)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-@swagger_auto_schema(
-    operation_description="Метод `get_status_payment` используется для проверки статуса оплаты.",
-    responses={200: "OK", 400: "Bad Request"},
-    tags=["Эквайринг"],
-    operation_id="Проверка статуса заказа",
-    methods=['GET'])
-@api_view(['GET'])
-def get_status_payment(request, coffee_shop_id, invoice_id):
-    coffee_shop = CoffeeShop.objects.get(id=coffee_shop_id)
-    rus_standard = RussianStandard(
-        user=coffee_shop.bank_user,
-        password=coffee_shop.bank_password
+        serializer = PaymentRequestSerializer(data=request.data)
+        if serializer.is_valid():
+            data = serializer.validated_data
+            payment = rus_standard.link_for_payment(
+                pay_amount=data['amount'],
+                client_id=data['client_id'],
+                order_id=data['order_id'],
+                client_email=data['client_email'],
+                service_name=data['service_name'],
+                client_phone=data['client_phone']
+            )
+            response_serializer = PaymentResponseSerializer(payment)
+            return Response(data=response_serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# Проверка статуса заказа через Russian Standard
+class RussianStandardCheckPaymentView(APIView):
+    @swagger_auto_schema(
+        responses={200: openapi.Response('Статус заказа', openapi.Schema(type=openapi.TYPE_OBJECT, properties={'status': openapi.Schema(type=openapi.TYPE_STRING)}))},
+        operation_description="Проверка статуса заказа через Russian Standard"
     )
+    def get(self, request, coffee_shop_id, invoice_id, *args, **kwargs):
+        coffee_shop = CoffeeShop.objects.get(id=coffee_shop_id)
+        rus_standard = RussianStandard(
+            user=coffee_shop.bank_user,
+            password=coffee_shop.bank_password
+        )
 
-    check_status = rus_standard.check_order(invoice_id)
-    return Response(data={"status": check_status})
+        check_status = rus_standard.check_order(invoice_id)
+        return Response(data={"status": check_status})
 
 
+# Создание платежного заказа через AlphaBank
 class AlphaCreatePaymentOrderView(APIView):
+    @swagger_auto_schema(
+        request_body=PaymentRequestSerializer,
+        responses={201: openapi.Response('Успешное создание платежа', openapi.Schema(type=openapi.TYPE_OBJECT))},
+        operation_description="Создание платежного заказа через AlphaBank"
+    )
     def post(self, request, coffee_shop_id, *args, **kwargs):
         coffee_shop = CoffeeShop.objects.get(id=coffee_shop_id)
         client = AlphaBankClient(api_token=coffee_shop.bank_api_token)
@@ -74,7 +74,13 @@ class AlphaCreatePaymentOrderView(APIView):
         except requests.exceptions.HTTPError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+
+# Получение статуса платежа через AlphaBank
 class AlphaGetPaymentStatusView(APIView):
+    @swagger_auto_schema(
+        responses={200: openapi.Response('Статус платежа', openapi.Schema(type=openapi.TYPE_OBJECT, properties={'status': openapi.Schema(type=openapi.TYPE_STRING)}))},
+        operation_description="Получение статуса платежа через AlphaBank"
+    )
     def get(self, request, coffee_shop_id, external_id, *args, **kwargs):
         coffee_shop = CoffeeShop.objects.get(id=coffee_shop_id)
         client = AlphaBankClient(api_token=coffee_shop.bank_api_token)
@@ -86,7 +92,13 @@ class AlphaGetPaymentStatusView(APIView):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
+# Создание заказа через Тинькофф
 class TBCreateOrderView(APIView):
+    @swagger_auto_schema(
+        request_body=PaymentRequestSerializer,
+        responses={201: openapi.Response('Создание заказа', openapi.Schema(type=openapi.TYPE_OBJECT))},
+        operation_description="Создание заказа через Тинькофф"
+    )
     def post(self, request, coffee_shop_id, *args, **kwargs):
         coffee_shop = CoffeeShop.objects.get(id=coffee_shop_id)
         client = TinkoffClient(
@@ -101,7 +113,13 @@ class TBCreateOrderView(APIView):
         except requests.exceptions.HTTPError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+
+# Получение информации о заказе через Тинькофф
 class TBGetOrderView(APIView):
+    @swagger_auto_schema(
+        responses={200: openapi.Response('Информация о заказе', openapi.Schema(type=openapi.TYPE_OBJECT))},
+        operation_description="Получение информации о заказе через Тинькофф"
+    )
     def get(self, request, coffee_shop_id, order_id, *args, **kwargs):
         coffee_shop = CoffeeShop.objects.get(id=coffee_shop_id)
         client = TinkoffClient(
@@ -116,17 +134,13 @@ class TBGetOrderView(APIView):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-
-from django.http import JsonResponse
-from .utils import RSBClient
-import requests
-from .serializers import RSBTransactionSerializer
-
+# Транзакция через RSB
 class RSBTransactionView(APIView):
     @swagger_auto_schema(
         request_body=RSBTransactionSerializer,
-        responses={200: RSBTransactionSerializer, 400: "Bad Request"},
-        tags=["Эквайринг"]
+        responses={200: openapi.Response('Транзакция успешна', openapi.Schema(type=openapi.TYPE_OBJECT)),
+                   400: openapi.Response('Ошибка транзакции', openapi.Schema(type=openapi.TYPE_OBJECT))},
+        operation_description="Транзакция через RSB"
     )
     def post(self, request, coffee_shop_id, *args, **kwargs):
         coffee_shop = CoffeeShop.objects.get(id=coffee_shop_id)

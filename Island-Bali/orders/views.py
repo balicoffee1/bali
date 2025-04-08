@@ -17,7 +17,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
-from acquiring.utils import RussianStandard
+from acquiring.clients import RussianStandard
 from coffee_shop.models import City
 from staff.models import Shift, Staff
 from users.permissions import CanViewOrders

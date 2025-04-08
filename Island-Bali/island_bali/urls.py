@@ -7,13 +7,8 @@ from drf_yasg.views import get_schema_view
 from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 
 from acquiring.views import (
-    AlphaCreatePaymentOrderView,
-    AlphaGetPaymentStatusView,
-    TBCreateOrderView,
-    TBGetOrderView,
-    get_link,
-    get_status_payment,
-    RSBTransactionView
+    RussianStandardPaymentView, RussianStandardCheckPaymentView, AlphaCreatePaymentOrderView, \
+    AlphaGetPaymentStatusView, TBCreateOrderView, TBGetOrderView, RSBTransactionView
 )
 
 admin.site.site_header = 'Кофейня'
@@ -62,13 +57,13 @@ urlpatterns = [
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
 
     # Эквайринг
-    path('api/alpha/<int:coffee_shop_id>/create-payment-order/', AlphaCreatePaymentOrderView.as_view(), name='create_payment_order'),
-    path('api/alpha/<int:coffee_shop_id>/payment-status/<str:external_id>/', AlphaGetPaymentStatusView.as_view(), name='get_payment_status'),
-    path('api/tinkoff/<int:coffee_shop_id>/create-order/', TBCreateOrderView.as_view(), name='create_order'),
-    path('api/tinkoff/<int:coffee_shop_id>/order/<str:order_id>/', TBGetOrderView.as_view(), name='get_order'),
-    path('api/rus_standart/<int:coffee_shop_id>/link/', get_link, name='get_link'),
-    path('api/rus_standart/<int:coffee_shop_id>/status/<str:invoice_id>/', get_status_payment, name='get_status_payment'),
-    path('api/rus_standart/<int:coffee_shop_id>/transaction/', RSBTransactionView.as_view(), name="payment_request"),
+    path('api/payment/russian-standard/create/<int:coffee_shop_id>/', RussianStandardPaymentView.as_view(), name='create-payment'),
+    path('api/payment/russian-standard/status/<int:coffee_shop_id>/<int:invoice_id>/', RussianStandardCheckPaymentView.as_view(), name='check-payment-status'),
+    path('api/payment/alpha/create/<int:coffee_shop_id>/', AlphaCreatePaymentOrderView.as_view(), name='alpha-create-payment'),
+    path('api/payment/alpha/status/<int:coffee_shop_id>/<str:external_id>/', AlphaGetPaymentStatusView.as_view(), name='alpha-payment-status'),
+    path('api/payment/tinkoff/create/<int:coffee_shop_id>/', TBCreateOrderView.as_view(), name='tinkoff-create-order'),
+    path('api/payment/tinkoff/order/<int:coffee_shop_id>/<str:order_id>/', TBGetOrderView.as_view(), name='tinkoff-get-order'),
+    path('api/payment/rsb/transaction/<int:coffee_shop_id>/', RSBTransactionView.as_view(), name='rsb-transaction'),
 ]
 
 # Статические и медиафайлы в режиме DEBUG

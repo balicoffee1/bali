@@ -1,7 +1,7 @@
 from django.utils import timezone
 from rest_framework import serializers
 
-from acquiring.utils import RussianStandard
+from acquiring.clients import RussianStandard
 from cart.models import ShoppingCart
 from coffee_shop.models import City, CoffeeShop
 from users.models import CustomUser
