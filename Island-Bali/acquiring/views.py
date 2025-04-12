@@ -42,7 +42,10 @@ class RussianStandardPaymentView(APIView):
 # Проверка статуса заказа через Russian Standard
 class RussianStandardCheckPaymentView(APIView):
     @swagger_auto_schema(
-        responses={200: openapi.Response('Статус заказа', openapi.Schema(type=openapi.TYPE_OBJECT, properties={'status': openapi.Schema(type=openapi.TYPE_STRING)}))},
+        responses={200: openapi.Response('Статус заказа', openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={'status': openapi.Schema(type=openapi.TYPE_STRING)}
+        ))},
         operation_description="Проверка статуса заказа через Russian Standard"
     )
     def get(self, request, coffee_shop_id, invoice_id, *args, **kwargs):
