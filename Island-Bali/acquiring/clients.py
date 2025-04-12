@@ -76,6 +76,7 @@ class RussianStandard:
 
 
 
+
 class AlphaBankClient(BaseBankClient):
     BASE_URL = 'https://baas.alfabank.ru/api/jp/v2'
     def __init__(self, api_token: str):

@@ -10,6 +10,7 @@ class PaymentRequestSerializer(serializers.Serializer):
 
 class PaymentResponseSerializer(serializers.Serializer):
     payment_url = serializers.URLField(help_text="Ссылка для перехода на страницу оплаты")
+    transaction_id = serializers.CharField(required=False, allow_null=True)
     status = serializers.CharField(max_length=20, help_text="Статус оплаты")
 
 class RSBTransactionSerializer(serializers.Serializer):
