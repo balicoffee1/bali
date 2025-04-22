@@ -14,6 +14,9 @@ class CustomModelAdmin(admin.ModelAdmin):
 class AddonInline(admin.TabularInline):
     model = Product.addons.through
     extra = 1
+    verbose_name = "Добавка"
+    verbose_name_plural = "Добавки"
+        
 
 
 @admin.register(Product)
@@ -29,6 +32,7 @@ class ProductAdmin(CustomModelAdmin):
     )
     list_filter = ("coffee_shop", "category")
     search_fields = ("id", "product", "coffee_shop__city", "category__name")
+    exclude = ("addons",)  
 
     def get_queryset(self, request):
         user_role = request.user.role
@@ -107,3 +111,15 @@ class AddonAdmin(CustomModelAdmin):
 
 
 admin.site.register(SeasonMenu)
+
+
+# users/admin.py или любой другой admin.py
+from django.contrib import admin
+from django_celery_beat.models import PeriodicTask, CrontabSchedule, IntervalSchedule, SolarSchedule, ClockedSchedule
+
+# Отключаем их от админки
+admin.site.unregister(PeriodicTask)
+admin.site.unregister(CrontabSchedule)
+admin.site.unregister(IntervalSchedule)
+admin.site.unregister(SolarSchedule)
+admin.site.unregister(ClockedSchedule)

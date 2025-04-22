@@ -70,9 +70,10 @@ class CoffeeShop(models.Model):
     telegram_id = models.CharField(
         max_length=100,
         verbose_name="ID в Telegram. "
-        "Пример <@col1ecti0n>",
+        "Пример <123456789>",
         help_text="Введите ваш id "
-        "из Telegram",
+        "из Telegram"
+        "Посмотреть id можно в боте @getmyid_bot.",
         null=True,
         blank=True              
     )
@@ -122,18 +123,7 @@ class CoffeeShop(models.Model):
         verbose_name="Название слоя в CRM системе",
         help_text="Пожалуйста введите название слоя в CRM системе"
     )
-    lat = models.DecimalField(
-        max_digits=100,
-        decimal_places=10,
-        verbose_name=("Долгота"),
-        default=0
-    )
-    lon = models.DecimalField(
-        max_digits=10,
-        decimal_places=10,
-        verbose_name=("Широта"),
-        default=0
-    )
+    
 
     def __str__(self):
         return f"{self.street}, {self.city.name}"

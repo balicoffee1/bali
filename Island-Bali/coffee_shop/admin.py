@@ -24,15 +24,14 @@ class SeasonMenuInline(admin.TabularInline):
 class CoffeeShopAdmin(admin.ModelAdmin):
     list_display = (
         "__str__", "city", "street", "building_number", "email", "crm_system",
-        "acquiring", "time_open", "time_close", "lat",
-        "lon")
+        "acquiring", "time_open", "time_close",)
     list_filter = ("city",)
     search_fields = ("city__name", "street", "building_number")
     inlines = [ProductInline, SeasonMenuInline]
     fieldsets = (
         (None, {"fields": (
             "city", "street", "telegram_id", "building_number", "email",
-            "telegram_username", "lat", "lon", "crm_layer_name", "crm_password", 
+            "telegram_username", "crm_layer_name", "crm_password", 
             "bank_api_token", "bank_shop_id",)}),
         ("Дополнительная информация",
          {"fields": ("crm_system", "acquiring", "time_open", "time_close"),

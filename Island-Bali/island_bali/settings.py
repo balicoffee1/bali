@@ -58,7 +58,6 @@ YOUR_APPS = [
     "acquiring.apps.AcquiringConfig",
     "quickresto.apps.QuickrestoConfig",
     "seo.apps.SeoConfig",
-    "applications"
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + YOUR_APPS

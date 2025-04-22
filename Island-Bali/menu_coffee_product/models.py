@@ -3,6 +3,16 @@ from django.db import models
 from coffee_shop.models import CoffeeShop
 
 
+class AdditiveFlavors(models.Model):
+    """Вкусы добавок"""
+    name = models.CharField(max_length=255, verbose_name="Название вкуса")
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = 'Вкус добавки'
+        verbose_name_plural = 'Вкусы добавок'
+
 class Addon(models.Model):
     coffee_shop = models.ForeignKey(
         CoffeeShop, on_delete=models.CASCADE,
@@ -17,6 +27,12 @@ class Addon(models.Model):
                                 max_digits=10,
                                 verbose_name='Цена',
                                 default=0)
+    flavors = models.ManyToManyField(
+        AdditiveFlavors,
+        verbose_name="Вкусы добавки",
+        related_name="additive_flavors",
+        blank=True
+    )
 
     def __str__(self):
         return self.name
@@ -83,10 +99,6 @@ class Product(models.Model):
     product_type = models.CharField(max_length=50,
                                     choices=PRODUCT_TYPE_CHOICES,
                                     verbose_name="Тип продукта")
-
-    product_photo = models.ImageField(verbose_name='Фото продукта',
-                                      upload_to='images/', blank=True,
-                                      null=True)
     addons = models.ManyToManyField(Addon, verbose_name='Добавки', blank=True)
     can_be_hot_and_cold = models.BooleanField(
         default=False,
