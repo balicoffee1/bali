@@ -1,12 +1,21 @@
 from rest_framework import serializers
 
 from .models import Addon, Category, Product, SeasonMenu
+from .models import AdditiveFlavors
+
+
+class AdditiveFlavorsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AdditiveFlavors
+        fields = ['id', 'name']
 
 
 class AddonSerializer(serializers.ModelSerializer):
+    flavors = AdditiveFlavorsSerializer(many=True, read_only=True)
+    
     class Meta:
         model = Addon
-        fields = ['id', 'name', 'description', 'price', "coffee_shop"]
+        fields = ['id', 'name', 'description', 'price', "coffee_shop", "flavors"]
 
 
 class CategorySerializer(serializers.ModelSerializer):

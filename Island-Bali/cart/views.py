@@ -72,7 +72,7 @@ class AddToCartView(APIView):
                     except Addon.DoesNotExist:
                         return Response({"error": "Добавка не найдена"}, status=status.HTTP_400_BAD_REQUEST)
 
-            cart, created = ShoppingCart.objects.get_or_create(user=user)
+            cart, created = ShoppingCart.objects.get_or_create(user=user, is_active=True)
             cart_item, created = CartItem.objects.get_or_create(
                 cart=cart,
                 product=product,
@@ -179,7 +179,7 @@ class ViewCartView(APIView):
     )
     def get(self, request):
         user = request.user
-        cart = ShoppingCart.objects.get(user=user)
+        cart = ShoppingCart.objects.get(user=user, is_active=True)
         cart_items = cart.items.all()
 
         cart_items_data = []
@@ -217,7 +217,7 @@ class ViewCartView(APIView):
     def get(self, request):
         user = request.user
         try:
-            cart = ShoppingCart.objects.get(user=user)
+            cart = ShoppingCart.objects.get(user=user, is_active=True)
         except ShoppingCart.DoesNotExist:
             return Response({"error": "Корзина не найдена"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -230,3 +230,23 @@ class ViewCartView(APIView):
             'total_cart_price': total_cart_price
         }
         return Response(response_data, status=status.HTTP_200_OK)
+
+
+class DeactivateCartView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Метод используется для деактивации корзины.",
+        responses={200: "OK", 400: "Bad Request"},
+        tags=["Корзина пользователя"],
+        operation_id="Деактивировать корзину",
+    )
+    def delete(self, request, pk):
+        user = request.user
+        try:
+            cart = ShoppingCart.objects.get(user=user, pk=pk)
+            cart.is_active = False
+            cart.save()
+            return Response({"message": "Корзина деактивирована"}, status=status.HTTP_204_NO_CONTENT)
+        except ShoppingCart.DoesNotExist:
+            return Response({"error": "Корзина не найдена"}, status=status.HTTP_404_NOT_FOUND)

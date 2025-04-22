@@ -18,7 +18,5 @@ class CoffeeShopSerializer(serializers.ModelSerializer):
             "id",
             "city_name",
             "street",
-            "building_number",
-            "lat",
-            "lon"
+            "building_number"
         )

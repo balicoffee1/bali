@@ -18,6 +18,8 @@ from menu_coffee_product.serializers import (CategorySerializer,
 from menu_coffee_product.utils import get_weather
 from .models import SeasonMenu
 from .serializers import SeasonMenuSerializer
+from .models import AdditiveFlavors
+from .serializers import AdditiveFlavorsSerializer
 
 TAGS_MENU = ['Меню заведений']
 
@@ -167,3 +169,11 @@ class AddonList(generics.ListAPIView):
     )
     def get(self, request, *args, **kwargs):
         return super().get(request, *args, **kwargs)
+
+
+
+class AdditiveFlavorsList(generics.ListAPIView):
+    queryset = AdditiveFlavors.objects.all()
+    serializer_class = AdditiveFlavorsSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['addon'] 

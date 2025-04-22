@@ -5,11 +5,11 @@ from users.models import CustomUser
 
 
 class ShoppingCart(models.Model):
-    user = models.OneToOneField(
+    user = models.ForeignKey(
         CustomUser, on_delete=models.CASCADE, related_name="cart", null=True,
         blank=True
     )
-    is_active = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True, verbose_name="Активна ли корзина")
 
     class Meta:
         ordering = ['id']

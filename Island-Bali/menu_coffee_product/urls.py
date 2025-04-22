@@ -1,8 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
-from .views import (CategoryViewSet, ProductListInCategory, ProductViewSet,
-                    WeatherView, SeasonMenuViewSet, AddonList)
+from .views import (
+    CategoryViewSet, ProductListInCategory, ProductViewSet,
+    WeatherView, SeasonMenuViewSet, AddonList,
+    AdditiveFlavorsList
+)
 
 router = DefaultRouter()
 router.register(r'season-menus', SeasonMenuViewSet)
@@ -15,4 +18,7 @@ urlpatterns = [
     path('weather/', WeatherView.as_view(), name='weather'),
     path('', include(router.urls)),
     path('api/addons/', AddonList.as_view(), name='addon-list'),
+    path('api/additive_flavors/', AdditiveFlavorsList.as_view(),
+         name='additive-flavors-list'),
+    
 ]

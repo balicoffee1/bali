@@ -50,7 +50,6 @@ urlpatterns = [
     path("api/sub_total/", include("subtotal_api.urls")),
     path('api/quick-resto/', include("quickresto.urls")),
     path('api/seo/', include("seo.urls")),
-    path("api/applications/", include("applications.urls")),
 
     # Swagger
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
