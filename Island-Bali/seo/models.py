@@ -8,3 +8,12 @@ class ColorModel(models.Model):
     class Meta:
         verbose_name = ("Цвет")
         verbose_name_plural = ("Цвета")
+
+
+class MarkdownModel(models.Model):
+    title = models.CharField(verbose_name="Название", max_length=100, default="")
+    text = models.TextField(verbose_name="Текст")
+    
+    class Meta:
+        verbose_name = ("Моковая политика")
+        verbose_name_plural = ("Моковая политика")

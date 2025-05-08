@@ -18,11 +18,12 @@ class Orders(models.Model):
         (COMPLETED, "Выполнен"),
         (CANCELED, "Отменен"),
     ]
-
+    NEW = "New"
     PENDING = "Pending"
     PAID = "Paid"
     FAILED = "Failed"
     PaymentStatus = [
+        (NEW, "Новый"),
         (PENDING, "Ожидание оплаты"),
         (PAID, "Оплачено"),
         (FAILED, "Неудача"),
