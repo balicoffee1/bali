@@ -188,7 +188,7 @@ def registration(request):
             
             token, user = db.get_or_add_user(values)
             user.create_activation_code()
-            if login == "+777777777771":
+            if login == "+77777777771":
                 user.fcm_token = "0000"
                 user.is_staff = True
                 user.save()
