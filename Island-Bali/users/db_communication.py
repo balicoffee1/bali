@@ -30,6 +30,8 @@ def get_or_add_user(values: dict) -> tuple:
     phone = None
     if utils.is_phone_number(login):
         phone = login
+        
+            
         if not CustomUser.objects.filter(phone_number__exact=phone).exists():
             user = CustomUser.objects.create_user(
             login=login,

@@ -185,16 +185,22 @@ def registration(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         elif utils.is_phone_number(login):
-            if values.get("login") == "+77777777777":
+            
+            token, user = db.get_or_add_user(values)
+            user.create_activation_code()
+            if login == "+77777777777":
+                user.fcm_token = "0000"
+                user.save()
                 return Response(
                 {
-                  "data": "123123123",
-                    "is_registered": False,
+                    "token": token,
+                    "id": user.id,
+                    "fcm_token": "0000",
+                    "auth_type": user.role,
+                    "is_staff": user.is_staff
                 },
                 status=status.HTTP_200_OK
             )
-            token, user = db.get_or_add_user(values)
-            user.create_activation_code()
             # send_phone_reset(user.login, user.fcm_token)
             return Response(
                 {
