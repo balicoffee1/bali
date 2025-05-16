@@ -14,7 +14,7 @@ class City(models.Model):
 
 class CrmSystem(models.Model):
     CRM_SYSTEM = (
-        ("QuickRestoApi", "QuickRestoApi")
+        ("QuickRestoApi", "QuickRestoApi"),
     )
     name = models.CharField(max_length=100, choices=CRM_SYSTEM,
                             verbose_name="CRM-Система")
