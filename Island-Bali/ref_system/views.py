@@ -32,7 +32,7 @@ def send_ref_link(request: Request) -> Response:
     serializer = RefSystemSerializer(data={"user": user})
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    referral_link = (f"https://play.google.com/store/apps/details?"
-                     f"id=island_bali&referrer={user_id}")
+    referral_link = f"https://play.google.com/store/apps/details?id=happy.island&referrer={user_id}"
+
     return Response({"referral_link": referral_link},
                     status=status.HTTP_200_OK)
