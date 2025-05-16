@@ -56,9 +56,9 @@ class Orders(models.Model):
                               blank=True
     )
     status_orders = models.CharField(choices=StatusOrders, max_length=30,
-                                     verbose_name="Статус заказа")
+                                     verbose_name="Статус заказа", default=WAITING)
     payment_status = models.CharField(choices=PaymentStatus, max_length=30,
-                                      verbose_name="Статус оплаты")
+                                      verbose_name="Статус оплаты", default=NEW)
     receipt_photo = models.ImageField(upload_to='order_receipts/',
                                       blank=True, null=True,
                                       verbose_name='Фото чека заказа')

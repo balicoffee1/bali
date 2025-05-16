@@ -87,3 +87,22 @@ class CartItemCreateUpdateSerializer(serializers.ModelSerializer):
         instance.save()
         instance.addons.set(addon_ids)
         return instance
+
+
+class UpdateCartItemSerializer(serializers.Serializer):
+    cart_item_id = serializers.IntegerField(required=True, help_text="ID элемента корзины")
+    new_product_id = serializers.IntegerField(required=False, help_text="ID нового продукта")
+    quantity = serializers.IntegerField(required=True, help_text="Количество продукта")
+
+    def validate_new_product_id(self, value):
+        if value:
+            try:
+                Product.objects.get(id=value)
+            except Product.DoesNotExist:
+                raise serializers.ValidationError("Продукт с указанным ID не найден")
+        return value
+
+    def validate_quantity(self, value):
+        if value < 0:
+            raise serializers.ValidationError("Количество не может быть отрицательным")
+        return value

@@ -25,14 +25,13 @@ class ProductAdmin(CustomModelAdmin):
     list_display = (
         "id",
         "product",
-        "price",
         "coffee_shop",
         "category",
 
     )
     list_filter = ("coffee_shop", "category")
     search_fields = ("id", "product", "coffee_shop__city", "category__name")
-    exclude = ("addons",)  
+    exclude = ("addons", "price")  
 
     def get_queryset(self, request):
         user_role = request.user.role

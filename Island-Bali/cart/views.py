@@ -9,9 +9,12 @@ from coffee_shop.models import CoffeeShop
 from menu_coffee_product.models import Addon, Product
 
 from .models import CartItem, ShoppingCart
-from .serializers import (AddToCartSerializer, CartItemSerializer,
-                          ChangeCartSerializer, CartSerializer,
-                          RemoveProductFromCartSerializer)
+from .serializers import (
+    AddToCartSerializer, CartItemSerializer,
+    ChangeCartSerializer, CartSerializer,
+    RemoveProductFromCartSerializer,
+    UpdateCartItemSerializer
+)
 
 
 class AddToCartView(APIView):
@@ -250,3 +253,59 @@ class DeactivateCartView(APIView):
             return Response({"message": "Корзина деактивирована"}, status=status.HTTP_204_NO_CONTENT)
         except ShoppingCart.DoesNotExist:
             return Response({"error": "Корзина не найдена"}, status=status.HTTP_404_NOT_FOUND)
+
+
+class UpdateCartView(APIView):
+    """
+    API для обновления корзины и её элементов по ID корзины.
+    """
+    
+    @swagger_auto_schema(
+        request_body=UpdateCartItemSerializer(many=True),
+        operation_description="Обновляет элементы корзины по ID корзины.",
+        responses={200: "OK", 400: "Bad Request", 404: "Not Found"},
+        tags=["Корзина пользователя"],
+        operation_id="Обновляет элементы корзины по ID корзины"
+    )
+    def patch(self, request, cart_id, *args, **kwargs):
+        try:
+            cart = ShoppingCart.objects.get(id=cart_id)  # Получаем корзину по ID
+        except ShoppingCart.DoesNotExist:
+            return Response({"error": "Корзина не найдена"}, status=status.HTTP_404_NOT_FOUND)
+
+        items = request.data
+
+        if not isinstance(items, list):
+            return Response({"error": "Неверный формат данных. Ожидается список элементов."}, status=status.HTTP_400_BAD_REQUEST)
+
+        for item_data in items:
+            serializer = UpdateCartItemSerializer(data=item_data)
+            if serializer.is_valid():
+                validated_data = serializer.validated_data
+                cart_item_id = validated_data.get("cart_item_id")
+                new_product_id = validated_data.get("new_product_id")
+                quantity = validated_data.get("quantity")
+
+                try:
+                    cart_item = CartItem.objects.get(id=cart_item_id, cart=cart)
+                except CartItem.DoesNotExist:
+                    return Response({"error": f"Элемент корзины с ID {cart_item_id} не найден"}, status=status.HTTP_404_NOT_FOUND)
+
+                # Если передан новый продукт, обновляем его
+                if new_product_id:
+                    try:
+                        new_product = Product.objects.get(id=new_product_id)
+                        cart_item.product = new_product
+                    except Product.DoesNotExist:
+                        return Response({"error": f"Продукт с ID {new_product_id} не найден"}, status=status.HTTP_404_NOT_FOUND)
+
+                # Обновляем количество или удаляем элемент, если количество равно 0
+                if quantity > 0:
+                    cart_item.quantity = quantity
+                    cart_item.save()
+                else:
+                    cart_item.delete()
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({"message": "Корзина успешно обновлена"}, status=status.HTTP_200_OK)

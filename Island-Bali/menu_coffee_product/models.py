@@ -13,6 +13,7 @@ class AdditiveFlavors(models.Model):
         verbose_name = 'Вкус добавки'
         verbose_name_plural = 'Вкусы добавок'
 
+
 class Addon(models.Model):
     coffee_shop = models.ForeignKey(
         CoffeeShop, on_delete=models.CASCADE,

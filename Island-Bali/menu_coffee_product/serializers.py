@@ -34,7 +34,6 @@ class ProductSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'product',
-            'price',
             'availability',
             'temperature_type',
             'addon',
