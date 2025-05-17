@@ -12,8 +12,8 @@ from .views import (
 
 # Создаем роутер для ViewSets
 router = DefaultRouter()
-router.register(r'', OrderViewSet, basename='orders')
-router.register(r'notifications', NotificationViewSet, basename='notifications')
+router.register('orders', OrderViewSet, basename='orders')
+router.register('notifications', NotificationViewSet, basename='notifications')
 
 urlpatterns = [
     path('', include(router.urls)),
