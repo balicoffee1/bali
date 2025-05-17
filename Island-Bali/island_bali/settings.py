@@ -4,8 +4,8 @@ from pathlib import Path
 
 import environ
 
-CSRF_TRUSTED_ORIGINS = ['http://localhost', 'https://*.127.0.0.1',
-                        "http://79.174.81.151:8000"]
+# CSRF_TRUSTED_ORIGINS = ['http://localhost', 'https://*.127.0.0.1',
+#                         "http://79.174.81.151:8000"]
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE",
                       "island_bali.settings")
@@ -253,49 +253,49 @@ SERVER_EMAIL = env.str("EMAIL_HOST_USER")
 
 
 
-# LOGGING = {
-#     'version': 1,
-#     'disable_existing_loggers': False,
-#     'formatters': {
-#         'verbose': {
-#             'format': '{levelname} {asctime} {module} {message}',
-#             'style': '{',
-#         },
-#         'simple': {
-#             'format': '{levelname} {message}',
-#             'style': '{',
-#         },
-#     },
-#     'handlers': {
-#         'file': {
-#             'level': 'DEBUG',
-#             'class': 'logging.FileHandler',
-#             'filename': os.path.join(BASE_DIR, 'debug.log'),
-#             'formatter': 'verbose',
-#         },
-#         'console': {
-#             'class': 'logging.StreamHandler',
-#             'formatter': 'simple',
-#         },
-#     },
-#     'loggers': {
-#         'django': {
-#             'handlers': ['console', 'file'],
-#             'level': 'DEBUG',
-#             'propagate': True,
-#         },
-#         'django.request': {
-#             'handlers': ['file'],
-#             'level': 'ERROR',
-#             'propagate': False,
-#         },
-#         'island_bali': {  # Логирование вашего приложения (замените на название вашего приложения)
-#             'handlers': ['file'],
-#             'level': 'DEBUG',
-#             'propagate': True,
-#         },
-#     },
-# }
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'debug.log'),
+            'formatter': 'verbose',
+        },
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+        'django.request': {
+            'handlers': ['file'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'island_bali': {  # Логирование вашего приложения (замените на название вашего приложения)
+            'handlers': ['file'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+    },
+}
 
 
 
