@@ -47,7 +47,7 @@ TIME_FORMAT_ERROR = 'Неверный формат времени. Пожалу�
 @permission_classes([IsAuthenticated, CanViewOrders])
 def view_orders(request):
     user = request.user
-    orders = Orders.objects.filter(user=user)
+    orders = Orders.objects.filter(user=user).order_by('-created_at')
     serializer = OrdersSerializer(orders, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
 

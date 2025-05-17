@@ -44,7 +44,7 @@ class PendingOrdersAcceptView(APIView):
         """
         Просмотр списка заказов в статусе "Expectation"
         """
-        orders = Orders.objects.filter(status_orders="Expectation")
+        orders = Orders.objects.filter(status_orders="Expectation").order_by("-created_at")
         serializer = PendingOrdersAcceptSerializer(orders, many=True)
         return Response(serializer.data)
 
@@ -221,7 +221,7 @@ class OrdersByTimeView(generics.ListAPIView):
     serializer_class = PendingOrdersAcceptSerializer
 
     def get_queryset(self):
-        return Orders.objects.all().order_by('time_is_finish')
+        return Orders.objects.all().order_by('time_is_finish', '-created_at')
 
     @swagger_auto_schema(
         operation_description="Получение списка заказов, отсортированных по "

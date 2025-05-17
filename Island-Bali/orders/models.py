@@ -18,10 +18,12 @@ class Orders(models.Model):
         (COMPLETED, "Выполнен"),
         (CANCELED, "Отменен"),
     ]
+    
     NEW = "New"
     PENDING = "Pending"
     PAID = "Paid"
     FAILED = "Failed"
+    
     PaymentStatus = [
         (NEW, "Новый"),
         (PENDING, "Ожидание оплаты"),
@@ -76,7 +78,8 @@ class Orders(models.Model):
     
     def confirm_order(self, staff):
         """Подтверждает заказ и устанавливает его статус"""
-        self.status_orders = self.COMPLETED  
+        self.status_orders = self.COMPLETED
+        self.payment_status = self.PENDING
         self.staff = staff  
         self.save()  
 

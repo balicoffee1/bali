@@ -71,7 +71,7 @@ def cancel_order_with_comment(order, staff_comments):
 
 def get_completed_orders():
     """Получение списка заказов в статусе "Completed"."""
-    orders = Orders.objects.filter(status_orders="Completed")
+    orders = Orders.objects.filter(status_orders="Completed").order_by("-created_at")
     return orders
 
 
