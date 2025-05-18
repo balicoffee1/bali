@@ -11,7 +11,7 @@ TAGS_COFFEE_SHOP = ["Кофейня и все связанное с ней"]
 
 
 class CityViewSet(generics.ListAPIView):
-    queryset = City.objects.all()
+    queryset = City.objects.all().order_by("name")
     serializer_class = CitySerializer
     permission_classes = [AllowAny]
 

@@ -86,7 +86,7 @@ def change_order_status_to_completed(order_id):
 
     try:
         order = Orders.objects.get(id=order_id)
-        if order.status_orders != "Waiting":
+        if order.status_orders != "In Progress":
             return None, "Заказ не находится в состоянии «Ожидание»."
 
         order.status_orders = "Completed"

@@ -20,14 +20,13 @@ class AddonInline(admin.TabularInline):
 
 
 @admin.register(Product)
-class ProductAdmin(CustomModelAdmin):
+class ProductAdmin(admin.ModelAdmin):
     inlines = [AddonInline]
     list_display = (
         "id",
         "product",
         "coffee_shop",
         "category",
-
     )
     list_filter = ("coffee_shop", "category")
     search_fields = ("id", "product", "coffee_shop__city", "category__name")

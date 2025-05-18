@@ -27,7 +27,7 @@ class Addon(models.Model):
     price = models.DecimalField(decimal_places=2,
                                 max_digits=10,
                                 verbose_name='Цена',
-                                default=0)
+                                default=0,null=True, blank=True)
     flavors = models.ManyToManyField(
         AdditiveFlavors,
         verbose_name="Вкусы добавки",
@@ -93,6 +93,8 @@ class Product(models.Model):
     price = models.DecimalField(decimal_places=2,
                                 max_digits=10,
                                 verbose_name='Цена',
+                                null=True,
+                                blank=True,
                                 )
 
     availability = models.BooleanField(default=True, verbose_name='Наличие')

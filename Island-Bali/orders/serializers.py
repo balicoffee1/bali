@@ -6,7 +6,7 @@ from cart.models import ShoppingCart
 from coffee_shop.models import City, CoffeeShop
 from users.models import CustomUser
 
-from .models import Orders, Notification
+from .models import Orders, Notification, CheckOrder
 
 rus_standard = RussianStandard()
 
@@ -163,3 +163,10 @@ class PaymentSerializer(serializers.Serializer):
         if value not in ['СБП', 'Эквайринг']:
             raise serializers.ValidationError('Неверный метод оплаты')
         return value
+
+
+class CheckOrderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CheckOrder
+        fields = ['id', 'order', 'check_photo', 'created_at']
+        read_only_fields = ['created_at']

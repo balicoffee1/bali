@@ -140,3 +140,19 @@ class PaymentMethod:
         elif self.method_type == "Эквайринг":
             return "success"
         return "failed"
+
+
+class CheckOrder(models.Model):
+    order = models.ForeignKey(Orders, on_delete=models.CASCADE,
+                              related_name='check_orders',
+                              verbose_name='Заказ')
+    check_photo = models.ImageField(upload_to='check_orders/',
+                                    blank=True, null=True,
+                                    verbose_name='Фото чека заказа')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания', blank=True, null=True,)
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Дата обновления', blank=True, null=True,)
+    def __str__(self):
+        return f'Чек заказа {self.order.id}'
+    class Meta:
+        verbose_name = 'Чек заказа'
+        verbose_name_plural = 'Чеки заказов'

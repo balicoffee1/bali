@@ -8,10 +8,12 @@ from staff.models import Shift
 class PendingOrdersAcceptSerializer(serializers.ModelSerializer):
     cart = CartSerializer(read_only=True, help_text="Информация о корзине "
                                                     "заказа")
+    user_id = serializers.IntegerField(
+        source='user.id', read_only=True, help_text="ID пользователя")
 
     class Meta:
         model = Orders
-        fields = ("id", "cart", "time_is_finish", "status_orders",
+        fields = ("id", "user_id", "cart", "time_is_finish", "status_orders",
                   "client_comments", "payment_status", "receipt_photo")
 
 

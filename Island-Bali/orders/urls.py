@@ -7,13 +7,15 @@ from .views import (
     OrderViewSet, 
     NotificationViewSet, 
     OrderStatusUpdateView, 
-    PaymentView
+    PaymentView,
+    CheckOrderViewSet
 )
 
 # Создаем роутер для ViewSets
 router = DefaultRouter()
 router.register('orders', OrderViewSet, basename='orders')
 router.register('notifications', NotificationViewSet, basename='notifications')
+router.register('check_orders', CheckOrderViewSet, basename='check_orders')
 
 urlpatterns = [
     path('', include(router.urls)),

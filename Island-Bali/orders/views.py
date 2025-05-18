@@ -22,9 +22,9 @@ from coffee_shop.models import City
 from staff.models import Shift, Staff
 from users.permissions import CanViewOrders
 
-from .models import Notification, Orders, PaymentMethod
+from .models import Notification, Orders, PaymentMethod, CheckOrder
 from .serializers import (CheckoutSerializer, GetStatusPaymentSerializer, NotificationSerializer, OrderStatusUpdateSerializer, OrderTimeUpdateSerializer,
-                          OrdersCreateSerializer, OrdersSerializer, OrderSerializers, PaymentSerializer)
+                          OrdersCreateSerializer, OrdersSerializer, OrderSerializers, PaymentSerializer, CheckOrderSerializer)
 from .validators import validate_cafe_open_or_not
 from cart.models import ShoppingCart
 
@@ -213,3 +213,40 @@ class PaymentView(APIView):
             order.process_payment(PaymentMethod(payment_method))
             return Response({'status': 'Оплата обработана'})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CheckOrderViewSet(ModelViewSet):
+    queryset = CheckOrder.objects.all()
+    serializer_class = CheckOrderSerializer
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        manual_parameters=[
+            openapi.Parameter(
+                'coffee_shop',
+                openapi.IN_QUERY,
+                description="ID кофейни для фильтрации чеков",
+                type=openapi.TYPE_INTEGER
+            )
+        ],
+        operation_description="Возвращает список чеков, отфильтрованных по кофейне.",
+        responses={200: CheckOrderSerializer(many=True)},
+        tags=["Чеки"]
+    )
+    def list(self, request, *args, **kwargs):
+        """
+        Возвращает список чеков, отфильтрованных по coffee_shop, если параметр передан.
+        """
+        coffee_shop_id = self.request.query_params.get('coffee_shop', None)
+        queryset = self.queryset
+
+        if coffee_shop_id:
+            queryset = queryset.filter(coffee_shop_id=coffee_shop_id)
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)

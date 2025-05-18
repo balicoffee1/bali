@@ -1,6 +1,7 @@
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import generics
 
+from .utils import send_reset_password
 from .models import FranchiseInfo, FranchiseRequest
 from .serializers import FranchiseInfoSerializer, FranchiseRequestSerializer
 
@@ -16,6 +17,12 @@ class FranchiseRequestViewSet(generics.CreateAPIView):
         operation_id="Создание заявки на франшизу"
     )
     def post(self, request, *args, **kwargs):
+        text = f"""
+        ФИО - {request.data.get("name")}
+        Номер телефона - {request.data.get("number_phone")}
+        Текст: {request.data.get("text")}
+        """
+        send_reset_password(text)
         return super().post(request, *args, **kwargs)
 
 
