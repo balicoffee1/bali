@@ -5,6 +5,12 @@ from coffee_shop.models import CoffeeShop
 
 class AdditiveFlavors(models.Model):
     """Вкусы добавок"""
+    coffee_shop = models.ForeignKey(
+        CoffeeShop, on_delete=models.CASCADE,
+        verbose_name="Кофейня",
+        related_name="additiveflavors_coffe_shop",
+        null=True
+    )
     name = models.CharField(max_length=255, verbose_name="Название вкуса")
     def __str__(self):
         return self.name
