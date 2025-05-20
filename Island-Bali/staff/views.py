@@ -5,6 +5,8 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from datetime import datetime, timedelta
+from django.utils.timezone import now
 
 from orders.models import Orders
 from staff.models import Staff
@@ -44,7 +46,8 @@ class PendingOrdersAcceptView(APIView):
         """
         Просмотр списка заказов в статусе "Waiting"
         """
-        orders = Orders.objects.filter(status_orders="Waiting").order_by("-created_at")
+        one_hour_ago = now() - timedelta(hours=1)
+        orders = Orders.objects.filter(status_orders="Waiting", created_at__gte=one_hour_ago).order_by("-created_at")
         serializer = PendingOrdersAcceptSerializer(orders, many=True)
         return Response(serializer.data)
 
