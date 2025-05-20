@@ -1,16 +1,17 @@
 from rest_framework import serializers
 from cart.models import CartItem, ShoppingCart
 from menu_coffee_product.models import Product, Addon, AdditiveFlavors
-from menu_coffee_product.serializers import ProductSerializer, AddonSerializer
+from menu_coffee_product.serializers import ProductSerializer, AddonSerializer, AdditiveFlavorsSerializer
 
 class CartItemSerializer(serializers.ModelSerializer):
     addons = AddonSerializer(many=True, read_only=True)
     product = ProductSerializer()
     item_total_price = serializers.SerializerMethodField()
+    flavors = AdditiveFlavorsSerializer(many=True, read_only=True)
 
     class Meta:
         model = CartItem
-        fields = ['product', 'amount', 'item_total_price', 'size', 'addons']
+        fields = ['product', 'amount', 'item_total_price', 'size', 'addons', "flavors"]
 
     def get_item_total_price(self, obj):
         # product_price = obj.product.price
@@ -80,17 +81,21 @@ class CartItemCreateUpdateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         addon_ids = validated_data.pop('addon_ids', [])
+        flavors_ids = validated_data.pop('flavors_ids', [])
         cart_item = CartItem.objects.create(**validated_data)
         cart_item.addons.set(addon_ids)
+        cart_item.flavors.set(flavors_ids)
         return cart_item
 
     def update(self, instance, validated_data):
         addon_ids = validated_data.pop('addon_ids', [])
+        flavors_ids = validated_data.pop('flavors_ids', [])
         instance.product = validated_data.get('product', instance.product)
         instance.amount = validated_data.get('amount', instance.amount)
         instance.size = validated_data.get('size', instance.size)
         instance.save()
         instance.addons.set(addon_ids)
+        instance.flavors.set(flavors_ids)
         return instance
 
 
