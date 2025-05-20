@@ -79,8 +79,7 @@ class AddToCartView(APIView):
             if flavors:
                 for flavor_id in flavors:
                     try:
-                        flavor = AdditiveFlavors.objects.get(id=flavor_id)
-                        # Проверяем, привязан ли вкус к выбранным добавкам
+                        flavor = AdditiveFlavors.objects.get(id=flavor_id.id)
                         if any(flavor in addon.flavors.all() for addon in selected_addons):
                             selected_flavors.append(flavor)
                         else:
