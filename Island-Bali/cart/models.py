@@ -61,6 +61,12 @@ class CartItem(models.Model):
         null=True, blank=True, verbose_name="Продукт"
     )
     addons = models.ManyToManyField(Addon, related_name='cart_items', blank=True, verbose_name="Добавки")
+    flavors = models.ManyToManyField(
+        'menu_coffee_product.AdditiveFlavors',
+        related_name='cart_items',
+        blank=True,
+        verbose_name="Вкусовые добавки"
+    )
     amount = models.PositiveIntegerField(default=0, verbose_name="Колличество")
     size = models.CharField(
         max_length=1,

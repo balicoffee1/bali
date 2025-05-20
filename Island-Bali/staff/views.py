@@ -33,7 +33,7 @@ class PendingOrdersAcceptView(APIView):
 
     @staticmethod
     @swagger_auto_schema(
-        operation_description="Просмотр списка заказов в статусе Expectation",
+        operation_description="Просмотр списка заказов в статусе Waiting",
         tags=TAGS_STAFF,
         operation_id="Просмотр списка заказов",
         responses={200: openapi.Response(description="Успешный запрос",
@@ -42,9 +42,9 @@ class PendingOrdersAcceptView(APIView):
     )
     def get(request: Request):
         """
-        Просмотр списка заказов в статусе "Expectation"
+        Просмотр списка заказов в статусе "Waiting"
         """
-        orders = Orders.objects.filter(status_orders="Expectation").order_by("-created_at")
+        orders = Orders.objects.filter(status_orders="Waiting").order_by("-created_at")
         serializer = PendingOrdersAcceptSerializer(orders, many=True)
         return Response(serializer.data)
 

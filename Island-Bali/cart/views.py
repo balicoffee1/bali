@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 from drf_yasg import openapi
 
 from coffee_shop.models import CoffeeShop
-from menu_coffee_product.models import Addon, Product
+from menu_coffee_product.models import Addon, Product, AdditiveFlavors
 
 from .models import CartItem, ShoppingCart
 from .serializers import (
@@ -15,7 +15,6 @@ from .serializers import (
     RemoveProductFromCartSerializer,
     UpdateCartItemSerializer
 )
-
 
 class AddToCartView(APIView):
     permission_classes = [IsAuthenticated]
@@ -37,6 +36,7 @@ class AddToCartView(APIView):
             addons = validated_data.get("addons")
             size = validated_data.get("size")
             user = request.user
+            flavors = validated_data.get("flavors")
 
             if not user.is_authenticated:
                 return Response({"error": "Необходимо авторизоваться (Передайте токен пользователя)"},
@@ -62,6 +62,7 @@ class AddToCartView(APIView):
                                 status=status.HTTP_400_BAD_REQUEST)
 
             selected_addons = []
+            selected_flavors = []
             print(addons)
             if addons:
                 for addon_obj in addons:
@@ -74,6 +75,20 @@ class AddToCartView(APIView):
                                             status=status.HTTP_400_BAD_REQUEST)
                     except Addon.DoesNotExist:
                         return Response({"error": "Добавка не найдена"}, status=status.HTTP_400_BAD_REQUEST)
+                    
+            if flavors:
+                for flavor_id in flavors:
+                    try:
+                        flavor = AdditiveFlavors.objects.get(id=flavor_id)
+                        # Проверяем, привязан ли вкус к выбранным добавкам
+                        if any(flavor in addon.flavors.all() for addon in selected_addons):
+                            selected_flavors.append(flavor)
+                        else:
+                            return Response({"error": f"Вкус с ID {flavor_id} не доступен для выбранных добавок"},
+                                            status=status.HTTP_400_BAD_REQUEST)
+                    except AdditiveFlavors.DoesNotExist:
+                        return Response({"error": f"Вкус добавки с ID {flavor_id} не найден"},
+                                        status=status.HTTP_400_BAD_REQUEST)
 
             cart, created = ShoppingCart.objects.get_or_create(user=user, is_active=True)
             cart_item, created = CartItem.objects.get_or_create(
@@ -88,6 +103,7 @@ class AddToCartView(APIView):
             cart_item.temperature_type = temperature_type
             cart_item.save()
             cart_item.addons.set(selected_addons)
+            cart_item.flavors.set(selected_flavors)
 
             serializer = CartItemSerializer(cart_item)
             return Response({"Добавлен товар в корзину": serializer.data}, status=status.HTTP_200_OK)

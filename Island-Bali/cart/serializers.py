@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from cart.models import CartItem, ShoppingCart
-from menu_coffee_product.models import Product, Addon
+from menu_coffee_product.models import Product, Addon, AdditiveFlavors
 from menu_coffee_product.serializers import ProductSerializer, AddonSerializer
 
 class CartItemSerializer(serializers.ModelSerializer):
@@ -48,6 +48,11 @@ class AddToCartSerializer(serializers.Serializer):
         required=False,
         help_text="Введите размер продукта",  
         label="Выберите размер"
+    )
+    flavors = serializers.ListField(
+        child=serializers.PrimaryKeyRelatedField(queryset=AdditiveFlavors.objects.all()),
+        required=False,
+        help_text="Список ID вкусов добавок"
     )
 
 class ChangeCartSerializer(serializers.Serializer):
