@@ -274,7 +274,7 @@ class UpdateCartView(APIView):
     """
     API для обновления корзины и её элементов по ID корзины.
     """
-    
+
     @swagger_auto_schema(
         request_body=UpdateCartItemSerializer(many=True),
         operation_description="Обновляет элементы корзины по ID корзины.",
@@ -300,6 +300,7 @@ class UpdateCartView(APIView):
                 cart_item_id = validated_data.get("cart_item_id")
                 new_product_id = validated_data.get("new_product_id")
                 quantity = validated_data.get("quantity")
+                size = validated_data.get("size")  # Новый параметр для размера
 
                 try:
                     cart_item = CartItem.objects.get(id=cart_item_id, cart=cart)
@@ -314,9 +315,15 @@ class UpdateCartView(APIView):
                     except Product.DoesNotExist:
                         return Response({"error": f"Продукт с ID {new_product_id} не найден"}, status=status.HTTP_404_NOT_FOUND)
 
+                # Обновляем размер, если он передан
+                if size:
+                    if size not in dict(CartItem.SizeChoices.choices):
+                        return Response({"error": f"Недопустимый размер: {size}"}, status=status.HTTP_400_BAD_REQUEST)
+                    cart_item.size = size
+
                 # Обновляем количество или удаляем элемент, если количество равно 0
                 if quantity > 0:
-                    cart_item.quantity = quantity
+                    cart_item.amount = quantity
                     cart_item.save()
                 else:
                     cart_item.delete()

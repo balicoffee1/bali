@@ -103,6 +103,11 @@ class UpdateCartItemSerializer(serializers.Serializer):
     cart_item_id = serializers.IntegerField(required=True, help_text="ID элемента корзины")
     new_product_id = serializers.IntegerField(required=False, help_text="ID нового продукта")
     quantity = serializers.IntegerField(required=True, help_text="Количество продукта")
+    size = serializers.ChoiceField(
+        choices=CartItem.SizeChoices.choices,
+        required=False,
+        help_text="Новый размер продукта (S, M, L)"
+    )
 
     def validate_new_product_id(self, value):
         if value:
@@ -115,4 +120,9 @@ class UpdateCartItemSerializer(serializers.Serializer):
     def validate_quantity(self, value):
         if value < 0:
             raise serializers.ValidationError("Количество не может быть отрицательным")
+        return value
+
+    def validate_size(self, value):
+        if value not in dict(CartItem.SizeChoices.choices):
+            raise serializers.ValidationError(f"Недопустимый размер: {value}")
         return value
