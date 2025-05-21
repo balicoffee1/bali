@@ -176,3 +176,22 @@ class RSBTransactionView(APIView):
             "message": "Invalid data.",
             "errors": serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class SBPPaymentCreateView(APIView):
+    # @swagger_auto_schema(
+    #     request_body=PaymentRequestSerializer,
+    #     responses={200: openapi.Response('Успешная оплата', openapi.Schema(type=openapi.TYPE_OBJECT))},
+    #     operation_description="Создание платежного заказа через SBP"
+    # )
+    def post(self, request, order_id, *args, **kwargs):
+        
+
+        try:
+            order = Orders.objects.get(id=order_id)
+            order.status_orders = Orders.IN_PROGRESS
+            order.payment_status = Orders.PAID
+            order.save()
+            
+        except requests.exceptions.HTTPError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)

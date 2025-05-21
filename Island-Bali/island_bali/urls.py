@@ -8,7 +8,7 @@ from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 
 from acquiring.views import (
     RussianStandardPaymentView, RussianStandardCheckPaymentView, AlphaCreatePaymentOrderView, \
-    AlphaGetPaymentStatusView, TBCreateOrderView, TBGetOrderView, RSBTransactionView
+    AlphaGetPaymentStatusView, TBCreateOrderView, TBGetOrderView, RSBTransactionView, SBPPaymentCreateView
 )
 
 admin.site.site_header = 'Кофейня'
@@ -63,6 +63,8 @@ urlpatterns = [
     path('api/payment/tinkoff/create/<int:coffee_shop_id>/', TBCreateOrderView.as_view(), name='tinkoff-create-order'),
     path('api/payment/tinkoff/order/<int:coffee_shop_id>/<str:order_id>/', TBGetOrderView.as_view(), name='tinkoff-get-order'),
     path('api/payment/rsb/transaction/<int:coffee_shop_id>/', RSBTransactionView.as_view(), name='rsb-transaction'),
+    
+    path('api/payment/sbp/<int:order_id>/', SBPPaymentCreateView.as_view(), name='sbp-create-payment'),
 ]
 
 # Статические и медиафайлы в режиме DEBUG
