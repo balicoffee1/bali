@@ -332,9 +332,12 @@ class PaymentChangeStatus(APIView):
     """
     Этот класс обрабатывает изменение статуса платежа.
     Он принимает POST-запрос с ID заказа и новым статусом.
+    {
+        "order_id": 123
+    }
     """
     permission_classes = [AllowAny]
-
+    
     def post(self, request, *args, **kwargs):
         order_id = request.data.get("order_id")
 
