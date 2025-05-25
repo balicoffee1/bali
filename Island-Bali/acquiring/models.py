@@ -54,4 +54,3 @@ class LifepayInvoice(models.Model):
         verbose_name_plural = "Инвойсы LifePay"
         ordering = ['-created_at']
         unique_together = ('transaction_number', 'order')
-

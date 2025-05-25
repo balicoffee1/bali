@@ -326,3 +326,22 @@ class LifePayCallbackView(APIView):
                 order.save()
 
         return Response({"success": True}, status=status.HTTP_200_OK)
+
+
+class PaymentChangeStatus(APIView):
+    """
+    Этот класс обрабатывает изменение статуса платежа.
+    Он принимает POST-запрос с ID заказа и новым статусом.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        order_id = request.data.get("order_id")
+
+        try:
+            order = Orders.objects.get(id=order_id)
+            order.payment_status = Orders.PAID  # Обновляем статус платежа
+            order.save()
+            return Response({"success": True}, status=status.HTTP_200_OK)
+        except Orders.DoesNotExist:
+            return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
