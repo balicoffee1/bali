@@ -8,7 +8,8 @@ from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 
 from acquiring.views import (
     RussianStandardPaymentView, RussianStandardCheckPaymentView, AlphaCreatePaymentOrderView, \
-    AlphaGetPaymentStatusView, TBCreateOrderView, TBGetOrderView, RSBTransactionView, SBPPaymentCreateView
+    AlphaGetPaymentStatusView, TBCreateOrderView, TBGetOrderView, RSBTransactionView, SBPPaymentCreateView,
+    create_invoice, lifepay_callback, get_lifepay_invoice_view, LifePayCallbackView
 )
 
 admin.site.site_header = 'Кофейня'
@@ -65,6 +66,10 @@ urlpatterns = [
     path('api/payment/rsb/transaction/<int:coffee_shop_id>/', RSBTransactionView.as_view(), name='rsb-transaction'),
     
     path('api/payment/sbp/<int:order_id>/', SBPPaymentCreateView.as_view(), name='sbp-create-payment'),
+    path('create-invoice/', create_invoice, name='create-invoice'),
+    path('lifepay-callback/', lifepay_callback, name='lifepay-callback'),
+    path('lifepay-invoice/', get_lifepay_invoice_view, name='lifepay-invoice'),
+    path("api/lifepay/callback/", LifePayCallbackView.as_view(), name="lifepay-callback"),
 ]
 
 # Статические и медиафайлы в режиме DEBUG

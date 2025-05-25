@@ -116,10 +116,10 @@ class OrderSerializers(serializers.ModelSerializer):
         fields = [
             'id', 'user', 'city_choose', 'coffee_shop', 'cart', 'client_comments', 
             'staff_comments', 'time_is_finish', 'staff', 'status_orders', 
-            'payment_status', 'receipt_photo', 'created_at', 'updated_at',
+            'payment_status', 'receipt_photo', 'created_at', 'updated_at', 'updated_time'
             
         ]
-        read_only_fields = ['created_at', 'updated_at']
+        read_only_fields = ['created_at']
 
 
     def validate_time_is_finish(self, value):

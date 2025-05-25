@@ -11,18 +11,19 @@ class Orders(models.Model):
     IN_PROGRESS = "In Progress"
     COMPLETED = "Completed"
     CANCELED = "Canceled"
-    # WAITING_BARIST = 
-    StatusOrders = [
-        (WAITING, "Ожидание"),
-        (IN_PROGRESS, "Выполняется"),
-        (COMPLETED, "Выполнен"),
-        (CANCELED, "Отменен"),
-    ]
     
     NEW = "New"
     PENDING = "Pending"
     PAID = "Paid"
     FAILED = "Failed"
+    # WAITING_BARIST = 
+    StatusOrders = [
+        (NEW, "Новый"),
+        (WAITING, "Ожидание"),
+        (IN_PROGRESS, "Выполняется"),
+        (COMPLETED, "Выполнен"),
+        (CANCELED, "Отменен"),
+    ]
     
     PaymentStatus = [
         (NEW, "Новый"),
@@ -58,7 +59,7 @@ class Orders(models.Model):
                               blank=True
     )
     status_orders = models.CharField(choices=StatusOrders, max_length=30,
-                                     verbose_name="Статус заказа", default=WAITING)
+                                     verbose_name="Статус заказа", default=NEW)
     payment_status = models.CharField(choices=PaymentStatus, max_length=30,
                                       verbose_name="Статус оплаты", default=NEW)
     receipt_photo = models.ImageField(upload_to='order_receipts/',
@@ -66,6 +67,19 @@ class Orders(models.Model):
                                       verbose_name='Фото чека заказа')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания', blank=True, null=True,)
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Дата обновления', blank=True, null=True,)
+    issued = models.BooleanField(default=False, verbose_name='Оформлен', null=True)
+    full_price = models.DecimalField(
+        max_digits=10, decimal_places=2, verbose_name='Полная стоимость заказа', default=0
+    )
+    updated_time = models.DateTimeField(
+        verbose_name='Время обновления заказа', blank=True, null=True,
+    )
+    cancellation_reason = models.TextField(
+        blank=True, null=True, verbose_name='Причина отмены заказа'
+    )
+    client_confirmed = models.BooleanField(
+        default=False, verbose_name='Клиент подтвердил заказ'
+    )
 
 
     def __str__(self):

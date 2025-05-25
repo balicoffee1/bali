@@ -437,7 +437,8 @@ class UploadReceiptPhotoView(APIView):
             photo_data = request.data.get('photo')
 
             change_receipt_photo(order, photo_data)
-            order.payment_status = "Paid"
+            order.issued = True
+            order.save()
 
             serializer = PendingOrdersAcceptSerializer(order)
             return Response(serializer.data, status=status.HTTP_200_OK)

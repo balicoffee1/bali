@@ -306,3 +306,6 @@ CA_CERT_PATH = os.path.join(BASE_DIR, 'cert/chain-ecomm-ca-root-ca.crt')
 
 ONESIGNAL_APP_ID = "b522f8d7-ccd4-4fda-9e85-e73baa42aaf3"
 ONESIGNAL_API_KEY = "os_v2_app_wurprv6m2rh5vhuf4452uqvk6prcnvlpoudeft4763v3672gyearsk7r3uvtixonozwkyatvpup7f774na2ijksizxfrmaqparqpz5q"
+
+
+LIFEPAY_CALLBACK_URL = 'https://example.com/api/orders/lifepay-callback/'

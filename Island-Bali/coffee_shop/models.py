@@ -84,28 +84,6 @@ class CoffeeShop(models.Model):
     acquiring = models.ForeignKey(Acquiring, verbose_name="Эквайринг",
                                      on_delete=models.CASCADE)
     
-    bank_api_token = models.CharField(
-        max_length=255,
-        verbose_name="API токен банка",
-        blank=True,
-        null=True
-    )
-    bank_shop_id = models.CharField(
-        max_length=255,
-        verbose_name="ID магазина в банке",
-        blank=True, null=True
-    )
-    bank_user = models.CharField(
-        max_length=255,
-        verbose_name="Пользователь банка (для RSB)",
-        blank=True, null=True
-    )
-    bank_password = models.CharField(
-        max_length=255,
-        verbose_name="Пароль банка (для RSB)",
-        blank=True, null=True
-    )
-    
     time_open = models.TimeField(verbose_name="Время открытия заведения",
                                  default='10:00')
     time_close = models.TimeField(verbose_name="Время закрытия заведения",
@@ -121,6 +99,20 @@ class CoffeeShop(models.Model):
         null=True,
         verbose_name="Название слоя в CRM системе",
         help_text="Пожалуйста введите название слоя в CRM системе"
+    )
+    lifepay_api_key = models.CharField(
+        max_length=255,
+        verbose_name="API ключ LifePay",
+        blank=True,
+        null=True,
+        help_text="Ваш API ключ от LifePay"
+    )
+    lifepay_login = models.CharField(
+        max_length=20,
+        verbose_name="Логин LifePay",
+        blank=True,
+        null=True,
+        help_text="Логин администратора в LifePay, обычно номер телефона"
     )
     
 

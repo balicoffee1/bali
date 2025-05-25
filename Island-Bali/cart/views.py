@@ -63,7 +63,6 @@ class AddToCartView(APIView):
 
             selected_addons = []
             selected_flavors = []
-            print(addons)
             if addons:
                 for addon_obj in addons:
                     try:

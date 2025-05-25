@@ -1,4 +1,6 @@
 from rest_framework import serializers
+from orders.models import Orders
+from .models import LifepayInvoice
 
 class PaymentRequestSerializer(serializers.Serializer):
     amount = serializers.IntegerField(help_text="Сумма оплаты")
@@ -18,3 +20,17 @@ class RSBTransactionSerializer(serializers.Serializer):
     amount = serializers.FloatField(help_text="Сумма транзакции")
     currency = serializers.CharField(max_length=3, help_text="Валюта транзакции")
     description = serializers.CharField(max_length=255, help_text="Описание транзакции")
+
+
+class OrderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Orders
+        fields = '__all__'
+
+
+class LifepayInvoiceSerializer(serializers.ModelSerializer):
+    order = OrderSerializer(read_only=True)
+    class Meta:
+        model = LifepayInvoice
+        fields = ['id', 'user', 'transaction_number', 'payment_url', 'payment_url_web', 'created_at', 'order']
+        read_only_fields = ['id', 'user', 'transaction_number', 'payment_url', 'payment_url_web', 'created_at']

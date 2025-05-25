@@ -195,3 +195,134 @@ class SBPPaymentCreateView(APIView):
             
         except requests.exceptions.HTTPError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
+
+import requests
+from django.conf import settings
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+from .models import LifepayInvoice
+
+LIFEPAY_API_URL = "https://api.life-pay.ru/v1/bill"
+LIFEPAY_STATUS_URL = "https://api.life-pay.ru/v1/bill/status"
+
+@api_view(['POST'])
+def create_invoice(request):
+    """
+    Создание счета через LifePay и сохранение инвойса.
+    """
+    order_id = request.data.get('order_id')
+    try:
+        order = Orders.objects.get(id=order_id)
+    except Orders.DoesNotExist:
+        return Response({"error": "Order not found"}, status=404)
+    
+    coffee_shop = order.coffee_shop
+
+    data = {
+        "apikey": coffee_shop.lifepay_api_key,
+        "login": coffee_shop.lifepay_login,
+        "amount": str(order.total_amount),
+        "description": f"Оплата заказа #{order.id}",
+        "customer_phone": order.customer_phone,
+        "customer_email": order.customer_email,
+        "method": "sbp",
+        "callback_url": "http://79.174.81.151//api/lifepay/callback/"
+    }
+
+    response = requests.post(LIFEPAY_API_URL, json=data, verify=False)
+    result = response.json()
+
+    if result.get("code") == 0:
+        invoice_data = result["data"]
+        LifepayInvoice.objects.create(
+            user=request.user,
+            order=order,
+            transaction_number=invoice_data["number"],
+            payment_url=invoice_data["paymentUrl"],
+            payment_url_web=invoice_data["paymentUrlWeb"]
+        )
+        order.status = 'pending'
+        order.save()
+        return Response({"payment_url": invoice_data["paymentUrlWeb"]})
+    else:
+        return Response({"error": result.get("message")}, status=400)
+
+
+@csrf_exempt
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def lifepay_callback(request):
+    """
+    Обработка callback от LifePay для обновления статуса заказа.
+    """
+    try:
+        payload = request.data
+        number = payload.get("number")
+        status = payload.get("status")
+
+        if not number or status is None:
+            return JsonResponse({"error": "Invalid data"}, status=400)
+
+        try:
+            invoice = LifepayInvoice.objects.select_related('order').get(transaction_number=number)
+        except LifepayInvoice.DoesNotExist:
+            return JsonResponse({"error": "Invoice not found"}, status=404)
+
+        order = invoice.order
+
+        if status == 10:
+            order.status = 'paid'
+        elif status in [20, 30]:
+            order.status = 'cancelled'
+        elif status == 15:
+            order.status = 'pending'
+
+        order.save()
+        return JsonResponse({"message": "Status updated"})
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+ 
+@api_view(['GET'])
+def get_lifepay_invoice_view(request):
+    from .serializers import LifepayInvoiceSerializer
+    """
+    Получение инвойса LifePay для заказа через API.
+    """
+    invoice = LifepayInvoice.objects.filter(user=request.user)
+    serializer = LifepayInvoiceSerializer(invoice, many=True)
+    if serializer.data:
+        return Response(serializer.data, status=200)
+    else:
+        return Response([], status=404)
+
+
+class LifePayCallbackView(APIView):
+    """
+    Этот класс обрабатывает callback от LifePay.
+    LifePay отправляет POST-запрос на наш callback_url
+    с информацией о статусе транзакции.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        data = request.data.get("data", {})
+        
+        for transaction_number, info in data.items():
+            status_code = info.get("status")
+            invoice = LifepayInvoice.objects.filter(transaction_number=transaction_number)
+            order = invoice.order if invoice else None
+            if not order:
+                continue
+
+            if status_code == 10:
+                order.status = Orders.PAID
+                order.save()
+
+        return Response({"success": True}, status=status.HTTP_200_OK)

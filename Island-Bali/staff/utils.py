@@ -91,6 +91,8 @@ def change_order_status_to_completed(order_id):
 
         order.status_orders = "Completed"
         order.save()
+        order.cart.is_active = False
+        order.cart.save()
         return order, None
 
     except Orders.DoesNotExist:

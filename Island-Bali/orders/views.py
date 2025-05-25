@@ -173,6 +173,17 @@ class OrderViewSet(ModelViewSet):
         payment_method = serializer.validated_data['payment_method']
         order.process_payment(PaymentMethod(payment_method))
         return Response({'status': 'Оплата обработана'})
+    
+    @action(detail=True, methods=['post'], url_path='client_confirmation')
+    def client_confirmation(self, request, pk=None):
+        """Подтверждение заказа клиентом"""
+        order = self.get_object()
+        if order.user != request.user:
+            return Response({'error': 'Вы не можете подтвердить этот заказ'}, status=status.HTTP_403_FORBIDDEN)
+        
+        order.client_confirmed = True
+        order.save()
+        return Response({'status': 'Заказ подтвержден клиентом'})
 
 
 # ViewSet для уведомлений

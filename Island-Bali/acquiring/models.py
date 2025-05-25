@@ -1,5 +1,6 @@
 from django.db import models
 from orders.models import Orders
+from users.models import CustomUser
 
 class Payment(models.Model):
     PAYMENT_STATUS_CHOICES = [
@@ -25,3 +26,26 @@ class Payment(models.Model):
         verbose_name = "Оплата"
         verbose_name_plural = "Оплаты"
         ordering = ['-created_at']
+
+
+
+class LifepayInvoice(models.Model):
+    """
+    Эта модель хранит только данные счета LifePay.
+    Статус оплаты управляется через связанный Order.
+    """
+    user = models.ForeignKey(
+        CustomUser, on_delete=models.CASCADE,
+        related_name='lifepay_invoices',
+        verbose_name="Пользователь",
+        null=True, blank=True
+    )
+    order = models.OneToOneField(Orders, on_delete=models.CASCADE, related_name='invoice')
+    transaction_number = models.CharField(max_length=50, unique=True)
+    payment_url = models.URLField()
+    payment_url_web = models.URLField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Инвойс для заказа #{self.order.id}"
+
