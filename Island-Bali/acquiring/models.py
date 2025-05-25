@@ -48,4 +48,10 @@ class LifepayInvoice(models.Model):
 
     def __str__(self):
         return f"Инвойс для заказа #{self.order.id}"
+    
+    class Meta:
+        verbose_name = "Инвойс LifePay"
+        verbose_name_plural = "Инвойсы LifePay"
+        ordering = ['-created_at']
+        unique_together = ('transaction_number', 'order')
 
