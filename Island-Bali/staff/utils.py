@@ -32,6 +32,19 @@ def get_order_if_pending(order_id):
         return None, "Order not found"
 
 
+def get_order_if_new(order_id):
+    """Эта функция будет отвечать за получение заказа и проверку его
+    новизны.
+    """
+    try:
+        order = Orders.objects.get(id=order_id)
+        if order.status_orders != "New":
+            return None, "Заказ не находится в состоянии «Новый»."
+        return order, None
+    except Orders.DoesNotExist:
+        return None, "Order not found"
+
+
 def update_order_status(order):
     """Эта функция обновит статус и платежный статус заказа."""
     order.status_orders = "In Progress"
