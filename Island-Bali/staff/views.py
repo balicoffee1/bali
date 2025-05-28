@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from datetime import datetime, timedelta
 from django.utils.timezone import now
+from django.db import models
 
 from orders.models import Orders
 from staff.models import Staff
