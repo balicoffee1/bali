@@ -335,6 +335,9 @@ class FilterOrdersByStatus(APIView):
         Возвращает список заказов с указанным статусом.
         В случае неверного статуса вернет ошибку.
         """
+        city = request.query_params.get('city_id', None)
+        coffee_shop = request.query_params.get('coffee_shop_id', None)
+        
         serializer = FilterOrdersByStatusSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -342,7 +345,11 @@ class FilterOrdersByStatus(APIView):
         order_status = serializer.validated_data.get("status")
 
         # Фильтрация заказов по статусу
-        filtered_orders = Orders.objects.filter(status_orders=order_status)
+        filtered_orders = Orders.objects.filter(
+            status_orders=order_status,
+            city_choose=city,
+            coffee_shop=coffee_shop
+        ).order_by("-created_at")
         serialized_data = self.serializer_class(filtered_orders, many=True).data
 
         return Response(serialized_data, status=status.HTTP_200_OK)
