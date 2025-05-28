@@ -29,6 +29,32 @@ from .utils import (cancel_order_with_comment,
 
 TAGS_STAFF = ['Персонал']
 
+# class NewOrdersView(APIView):
+#     permission_classes = [IsAuthenticated]
+
+#     @staticmethod
+#     @swagger_auto_schema(
+#         operation_description="Просмотр списка новых заказов",
+#         tags=TAGS_STAFF,
+#         operation_id="Просмотр новых заказов",
+#         responses={200: openapi.Response(description="Успешный запрос",
+#                                          schema=PendingOrdersAcceptSerializer),
+#                    400: "Некорректный запрос"}
+#     )
+#     def get(request: Request):
+#         """
+#         Просмотр списка новых заказов
+#         query_params:
+#         - city: Фильтр по городу (необязательный)
+#         - name: Фильтр по имени клиента (необязательный)
+#         """
+#         city = request.query_params.get('city', None)
+#         name = request.query_params.get('name', None)
+#         one_hour_ago = now() - timedelta(hours=1)
+#         orders = Orders.objects.filter(status_orders="New", created_at__gte=one_hour_ago, city).order_by("-created_at")
+#         serializer = PendingOrdersAcceptSerializer(orders, many=True)
+#         return Response(serializer.data)
+
 
 class PendingOrdersAcceptView(APIView):
     permission_classes = [IsAuthenticated]
@@ -46,8 +72,15 @@ class PendingOrdersAcceptView(APIView):
         """
         Просмотр списка заказов в статусе "Waiting"
         """
+        city_id = request.query_params.get('city_id', None)
+        coffee_shop_id = request.query_params.get('coffee_shop_id', None)
         one_hour_ago = now() - timedelta(hours=1)
-        orders = Orders.objects.filter(status_orders="Waiting", created_at__gte=one_hour_ago).order_by("-created_at")
+        orders = Orders.objects.filter(
+            status_orders="Waiting",
+            created_at__gte=one_hour_ago,
+            city_choose=city_id,
+            coffee_shop=coffee_shop_id
+        ).order_by("-created_at")
         serializer = PendingOrdersAcceptSerializer(orders, many=True)
         return Response(serializer.data)
 
@@ -219,12 +252,16 @@ class OrdersByTimeView(generics.ListAPIView):
     с дополнительной информацией о количестве
     заказов для каждого статуса (Expectation, In Progress, Completed,
     Canceled).
+    query_params:
+    - city_id: ID города для фильтрации заказов (необязательный)
+    - coffee_shop_id: ID кофейни для фильтрации заказов (необязательный)
     """
     permission_classes = [IsAuthenticated]
     serializer_class = PendingOrdersAcceptSerializer
 
     def get_queryset(self):
-        return Orders.objects.all().order_by('time_is_finish', '-created_at')
+        one_hour_ago = now() - timedelta(hours=1)
+        return Orders.objects.all().filter(created_at__gte=one_hour_ago).order_by('time_is_finish', '-created_at')
 
     @swagger_auto_schema(
         operation_description="Получение списка заказов, отсортированных по "
@@ -238,22 +275,41 @@ class OrdersByTimeView(generics.ListAPIView):
         operation_id="Получение списка заказов"
     )
     def get(self, request: Request, *args, **kwargs):
+        city = request.query_params.get('city_id', None)
+        coffee_shop = request.query_params.get('coffee_shop_id', None)
         queryset = self.get_queryset()
+        queryset = queryset.filter(city_choose=city, coffee_shop=coffee_shop)
         serialized_data = self.serializer_class(queryset, many=True).data
 
         status_counts = {
             "Expectation": Orders.objects.filter(
-                status_orders="Expectation").count(),
+                status_orders="Waiting").count(),
             "In Progress": Orders.objects.filter(
                 status_orders="In Progress").count(),
             "Completed": Orders.objects.filter(
                 status_orders="Completed").count(),
             "Canceled": Orders.objects.filter(status_orders="Canceled").count()
         }
+        payment_totals = {
+            "New": Orders.objects.filter(payment_status="New").aggregate(total=models.Sum('full_price'))['total'] or 0,
+            "Pending": Orders.objects.filter(payment_status="Pending").aggregate(total=models.Sum('full_price'))['total'] or 0,
+            "Paid": Orders.objects.filter(payment_status="Paid").aggregate(total=models.Sum('full_price'))['total'] or 0,
+            "Failed": Orders.objects.filter(payment_status="Failed").aggregate(total=models.Sum('full_price'))['total'] or 0,
+        }
+
+        # Общая сумма по статусам заказов
+        order_totals = {
+            "Waiting": Orders.objects.filter(status_orders="Waiting").aggregate(total=models.Sum('full_price'))['total'] or 0,
+            "In Progress": Orders.objects.filter(status_orders="In Progress").aggregate(total=models.Sum('full_price'))['total'] or 0,
+            "Completed": Orders.objects.filter(status_orders="Completed").aggregate(total=models.Sum('full_price'))['total'] or 0,
+            "Canceled": Orders.objects.filter(status_orders="Canceled").aggregate(total=models.Sum('full_price'))['total'] or 0,
+        }
 
         response_data = {
             "orders": serialized_data,
-            "status_counts": status_counts
+            "status_counts": status_counts,
+            "payment_totals": payment_totals,
+            "order_totals": order_totals,
         }
 
         return Response(response_data)
@@ -546,3 +602,33 @@ class StaffDetailView(APIView):
         except Staff.DoesNotExist:
             return Response({"error": "Сотрудник не найден"},
                             status=status.HTTP_404_NOT_FOUND)
+
+
+class GetCanceledOrdersView(APIView):
+    """
+    Представление для получения списка отмененных заказов.
+    """
+
+    @swagger_auto_schema(
+        operation_description="Получение списка отмененных заказов.",
+        responses={
+            status.HTTP_200_OK: openapi.Response(
+                description="Список отмененных заказов",
+                schema=PendingOrdersAcceptSerializer(many=True)),
+            status.HTTP_404_NOT_FOUND: "Не найдено"
+        },
+        tags=TAGS_STAFF,
+        operation_id="GetCanceledOrders"
+    )
+    def get(self, request: Request):
+        city_id = request.query_params.get('city_id', None)
+        coffee_shop_id = request.query_params.get('coffee_shop_id', None)
+        today = now().date()
+        canceled_orders = Orders.objects.filter(
+            status_orders="Canceled",
+            created_at__date=today,
+            city_choose=city_id,
+            coffee_shop=coffee_shop_id
+        ).order_by("-created_at")
+        serializer = PendingOrdersAcceptSerializer(canceled_orders, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)

@@ -275,7 +275,8 @@ def lifepay_callback(request):
         order = invoice.order
 
         if status == 10:
-            order.status = 'paid'
+            order.payment_status = Orders.PAID
+            order.status_orders = Orders.IN_PROGRESS
         elif status in [20, 30]:
             order.status = 'cancelled'
         elif status == 15:
@@ -322,7 +323,8 @@ class LifePayCallbackView(APIView):
                 continue
 
             if status_code == 10:
-                order.status = Orders.PAID
+                order.payment_status = Orders.PAID
+                order.status_orders = Orders.IN_PROGRESS  # Обновляем статус заказа
                 order.save()
 
         return Response({"success": True}, status=status.HTTP_200_OK)
@@ -344,6 +346,7 @@ class PaymentChangeStatus(APIView):
         try:
             order = Orders.objects.get(id=order_id)
             order.payment_status = Orders.PAID  # Обновляем статус платежа
+            order.status_orders = Orders.IN_PROGRESS  # Обновляем статус заказа
             order.save()
             return Response({"success": True}, status=status.HTTP_200_OK)
         except Orders.DoesNotExist:

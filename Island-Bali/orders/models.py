@@ -80,6 +80,9 @@ class Orders(models.Model):
     client_confirmed = models.BooleanField(
         default=False, verbose_name='Клиент подтвердил заказ'
     )
+    is_appreciated = models.BooleanField(
+        default=False, verbose_name='Клиент оценил заказ'
+    )
 
 
     def __str__(self):

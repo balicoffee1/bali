@@ -1,6 +1,8 @@
 import base64
 
 from django.core.files.base import ContentFile
+from datetime import datetime, timedelta
+from django.utils.timezone import now
 
 from orders.models import Orders
 from staff.models import Shift
@@ -34,7 +36,7 @@ def get_order_if_pending(order_id):
 
 def update_order_status(order):
     """Эта функция обновит статус и платежный статус заказа."""
-    order.status_orders = "In Progress"
+    order.status_orders = "Waiting"
     order.payment_status = "Pending"
     order.save()
     return order
@@ -71,7 +73,11 @@ def cancel_order_with_comment(order, staff_comments):
 
 def get_completed_orders():
     """Получение списка заказов в статусе "Completed"."""
-    orders = Orders.objects.filter(status_orders="Completed").order_by("-created_at")
+    today = now().date()
+    orders = Orders.objects.filter(
+        status_orders=Orders.COMPLETED,
+        created_at__date=today
+    ).order_by("-created_at")
     return orders
 
 

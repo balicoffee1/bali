@@ -17,5 +17,6 @@ urlpatterns = [
          name='staff-detail'),
     path('shift/close-open/', ShiftCloseOpenView.as_view(),
          name='shift-close-open'),
+#     path("new-orders/", views.NewOrdersView.as_view(), name="new-orders"),
 
 ]
