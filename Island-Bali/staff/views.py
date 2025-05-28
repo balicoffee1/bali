@@ -24,7 +24,7 @@ from .serializers import StaffSerializer
 from .utils import (cancel_order_with_comment,
                     change_order_status_to_completed, change_receipt_photo,
                     close_shift, filter_orders_by_status, get_completed_orders,
-                    get_order_if_pending, is_valid_order_status, open_shift,
+                    get_order_if_pending, get_order_if_new, is_valid_order_status, open_shift,
                     update_order_status)
 
 TAGS_STAFF = ['Персонал']
@@ -111,7 +111,7 @@ class PendingOrdersAcceptView(APIView):
             return Response({"error": "Нужен order_id"},
                             status=status.HTTP_400_BAD_REQUEST)
 
-        order, error = get_order_if_pending(data['order_id'])
+        order, error = get_order_if_new(data['order_id'])
 
         if error:
             return Response({"error": error},
