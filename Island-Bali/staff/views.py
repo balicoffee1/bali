@@ -283,7 +283,7 @@ class OrdersByTimeView(generics.ListAPIView):
         serialized_data = self.serializer_class(queryset, many=True).data
 
         status_counts = {
-            "Expectation": Orders.objects.filter(
+            "Waiting": Orders.objects.filter(
                 status_orders="Waiting").count(),
             "In Progress": Orders.objects.filter(
                 status_orders="In Progress").count(),
