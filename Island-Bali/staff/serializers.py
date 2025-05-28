@@ -1,8 +1,10 @@
 from rest_framework import serializers
 
 from cart.serializers import CartSerializer
+from users.serializers import UsersSerializer
 from orders.models import Orders
 from staff.models import Shift
+from coffee_shop.serializers import CoffeeShopSerializer
 
 
 class PendingOrdersAcceptSerializer(serializers.ModelSerializer):
@@ -18,6 +20,15 @@ class PendingOrdersAcceptSerializer(serializers.ModelSerializer):
 
 
 class StaffSerializer(serializers.ModelSerializer):
+    user = UsersSerializer(
+        read_only=True, help_text="Информация о сотруднике",
+        source='users'
+    )
+    coffee_shop = CoffeeShopSerializer(
+        read_only=True, help_text="Информация о кофейне",
+        source='place_of_work'
+    )
+    
     class Meta:
         fields = "__all__"
 

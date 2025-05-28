@@ -11,6 +11,7 @@ class CitySerializer(serializers.ModelSerializer):
 
 class CoffeeShopSerializer(serializers.ModelSerializer):
     city_name = serializers.CharField(source="city.name", read_only=True)
+    city_id = serializers.IntegerField(source="city.id", read_only=True)
 
     class Meta:
         model = CoffeeShop
@@ -20,5 +21,6 @@ class CoffeeShopSerializer(serializers.ModelSerializer):
             "street",
             "building_number",
             "time_open",
-            "time_close"
+            "time_close",
+            'city_id'
         )

@@ -640,3 +640,31 @@ class GetCanceledOrdersView(APIView):
         ).order_by("-created_at")
         serializer = PendingOrdersAcceptSerializer(canceled_orders, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class GetStaffProfileView(APIView):
+    """
+    Представление для получения профиля сотрудника по токену.
+    """
+    permission_classes = [IsAuthenticated]
+
+    # @swagger_auto_schema(
+    #     responses={
+    #         status.HTTP_200_OK: openapi.Response(
+    #             description="Профиль сотрудника",
+    #             schema=StaffSerializer()),
+    #         status.HTTP_404_NOT_FOUND: openapi.Response(
+    #             description="Сотрудник не найден",
+    #             schema=openapi.Schema(type=openapi.TYPE_OBJECT, properties={
+    #                 "error": openapi.Schema(type=openapi.TYPE_STRING)})),
+    #     },
+    # )
+    def get(self, request: Request):
+        try:
+            user = request.user
+            staff = Staff.objects.get(users=user)
+            serializer = StaffSerializer(staff)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Staff.DoesNotExist:
+            return Response({"error": "Сотрудник не найден"},
+                            status=status.HTTP_404_NOT_FOUND)
