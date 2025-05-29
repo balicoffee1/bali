@@ -40,8 +40,6 @@ def get_order_if_new(order_id):
     """
     try:
         order = Orders.objects.get(id=order_id)
-        if order.status_orders != "New":
-            return None, "Заказ не находится в состоянии «Новый»."
         return order, None
     except Orders.DoesNotExist:
         return None, "Order not found"

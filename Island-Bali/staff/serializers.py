@@ -72,7 +72,7 @@ class PatchOrderSerializer(serializers.Serializer):
             instance.comments = new_comments
         if payment_status:
             instance.payment_status = payment_status
-        instance.status_orders = Orders.StatusOrders.WAITING
+        instance.status_orders = Orders.WAITING
 
         instance.save()
         return instance
