@@ -83,6 +83,11 @@ class Orders(models.Model):
     is_appreciated = models.BooleanField(
         default=False, verbose_name='Клиент оценил заказ'
     )
+    
+    # grade = models.IntegerField(
+    #     default=0, verbose_name='Оценка клиента', blank=True, null=True
+    # )
+    
 
 
     def __str__(self):

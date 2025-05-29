@@ -6,6 +6,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+
 from .serializers import ReviewsCoffeeShopSerializer
 from .tasks import send_review_for_email
 from .telegram_bot import send_review_to_user  # Импорт функции отправки
@@ -57,6 +58,13 @@ class CreateReviewAPIView(APIView):
                 email_coffeeshop=email_coffeeshop,
                 telegram_username=telegram_contact
             )
+            from orders.models import Orders
+            order = Orders.objects.filter(
+                id=serializer.validated_data.get('orders')
+            ).first()
+            if order:
+                order.is_appreciated = True
+                order.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

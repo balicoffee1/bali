@@ -345,7 +345,7 @@ class PaymentChangeStatus(APIView):
 
         try:
             order = Orders.objects.get(id=order_id)
-            order.payment_status = Orders.PAID  # Обновляем статус платежа
+            order.payment_status = Orders.PAID 
             order.status_orders = Orders.IN_PROGRESS  # Обновляем статус заказа
             order.save()
             return Response({"success": True}, status=status.HTTP_200_OK)
