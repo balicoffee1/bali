@@ -14,7 +14,7 @@ class ReviewsCoffeeShop(models.Model):
                              verbose_name="Пользователь, оставивший отзыв")
     orders = models.OneToOneField(Orders, on_delete=models.CASCADE,
                                   verbose_name="Заказ, к которому "
-                                               "оставлен отзыв")
+                                               "оставлен отзыв", related_name='review')
     evaluation = models.IntegerField(
         verbose_name="Оценка заказа",
         help_text="Оцените заказ от 1 до 5",
