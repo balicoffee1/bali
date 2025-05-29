@@ -60,7 +60,7 @@ class CreateReviewAPIView(APIView):
             )
             from orders.models import Orders
             order = Orders.objects.filter(
-                id=serializer.validated_data.get('orders')
+                id=serializer.validated_data.get('orders').id
             ).first()
             if order:
                 order.is_appreciated = True
