@@ -32,7 +32,7 @@ class CoffeeShopAdmin(admin.ModelAdmin):
         (None, {"fields": (
             "city", "street", "telegram_id", "building_number", "email",
             "telegram_username", "crm_layer_name", "crm_password", 
-            "bank_api_token", "bank_shop_id",)}),
+            "lifepay_api_key", "lifepay_login",)}),
         ("Дополнительная информация",
          {"fields": ("crm_system", "acquiring", "time_open", "time_close"),
           "classes": ("collapse",),
