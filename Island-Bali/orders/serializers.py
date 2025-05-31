@@ -30,14 +30,6 @@ class OrdersSerializer(serializers.ModelSerializer):
             "receipt_photo"
         ]
 
-    def validate_time_is_finish(self, value):
-        now = timezone.now()
-        if value < now:
-            raise serializers.ValidationError(
-                "Время завершения заказа не может быть в прошлом."
-            )
-        return value
-
 
 class OrdersCreateSerializer(serializers.Serializer):
     client_comments = serializers.CharField(
@@ -123,18 +115,6 @@ class OrderSerializers(serializers.ModelSerializer):
             
         ]
         read_only_fields = ['created_at']
-
-
-    def validate_time_is_finish(self, value):
-        from django.utils import timezone
-        from datetime import timedelta
-        if not value:
-            raise serializers.ValidationError("Время получения заказа должно быть указано.")
-        min_time = timezone.now() + timedelta(minutes=5)
-        max_time = timezone.now() + timedelta(minutes=25)
-        if not (min_time <= value <= max_time):
-            raise serializers.ValidationError("Время получения заказа должно быть от 5 до 25 минут от текущего времени.")
-        return value
 
 
 

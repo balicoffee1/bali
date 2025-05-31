@@ -25,7 +25,7 @@ from users.permissions import CanViewOrders
 from .models import Notification, Orders, PaymentMethod, CheckOrder
 from .serializers import (CheckoutSerializer, GetStatusPaymentSerializer, NotificationSerializer, OrderStatusUpdateSerializer, OrderTimeUpdateSerializer,
                           OrdersCreateSerializer, OrdersSerializer, OrderSerializers, PaymentSerializer, CheckOrderSerializer)
-from .validators import validate_cafe_open_or_not
+# from .validators import validate_cafe_open_or_not
 from cart.models import ShoppingCart
 
 rus_standard = RussianStandard()
