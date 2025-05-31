@@ -225,16 +225,18 @@ def create_invoice(request):
     data = {
         "apikey": coffee_shop.lifepay_api_key,
         "login": coffee_shop.lifepay_login,
-        "amount": str(order.total_amount),
+        "amount": str(order.full_price),
         "description": f"Оплата заказа #{order.id}",
-        "customer_phone": order.customer_phone,
-        "customer_email": order.customer_email,
+        "customer_phone": str(order.user.login).replace("+", "") if order.user else None,
+        "customer_email": order.user.email if order.user else None,
         "method": "sbp",
         "callback_url": "http://79.174.81.151//api/lifepay/callback/"
     }
+    print(data)
 
     response = requests.post(LIFEPAY_API_URL, json=data, verify=False)
     result = response.json()
+    print(result)
 
     if result.get("code") == 0:
         invoice_data = result["data"]

@@ -9,15 +9,12 @@ class CartItemInline(admin.TabularInline):
     readonly_fields = ("item_total_price",)
 
     def item_total_price(self, obj):
-        return obj.product.price * obj.amount
+        return obj.product.price * obj.amount if obj.product and obj.amount else "-"
     item_total_price.short_description = "Полная цена товара"
 
-class CartItemAdmin(admin.ModelAdmin):
-    list_display = ("product", "amount")
-    list_filter = ("product",)
-    search_fields = ("product__name",)
+class ShoppingCartAdmin(admin.ModelAdmin):
+    list_display = ("user", "is_active")
     inlines = [CartItemInline]
 
-
-admin.site.register(CartItem, CartItemAdmin)
-admin.site.register(ShoppingCart)
+admin.site.register(ShoppingCart, ShoppingCartAdmin)
+admin.site.register(CartItem)  
