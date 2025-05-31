@@ -75,13 +75,20 @@ class PendingOrdersAcceptView(APIView):
         """
         city_id = request.query_params.get('city_id', None)
         coffee_shop_id = request.query_params.get('coffee_shop_id', None)
-        one_hour_ago = now() - timedelta(hours=1)
-        orders = Orders.objects.filter(
-            status_orders="Waiting",
-            created_at__gte=one_hour_ago,
-            city_choose=city_id,
-            coffee_shop=coffee_shop_id
-        ).order_by("-created_at")
+        sorting_time = request.query_params.get('sorting_time',)
+        if sorting_time:
+            orders = Orders.objects.filter(
+                status_orders="Waiting",
+                time_is_finish__gte=sorting_time,
+                city_choose=city_id,
+                coffee_shop=coffee_shop_id
+            ).order_by("-created_at")
+        else:
+            orders = Orders.objects.filter(
+                status_orders="Waiting",
+                city_choose=city_id,
+                coffee_shop=coffee_shop_id
+            ).order_by("-created_at")
         serializer = PendingOrdersAcceptSerializer(orders, many=True)
         return Response(serializer.data)
 
@@ -206,7 +213,13 @@ class CompleteOrdersView(APIView):
         """
         Просмотр списка заказов в статусе "Completed"
         """
-        orders = get_completed_orders()
+        sorting_datevalue = request.query_params.get('sorting_date', None)
+        if sorting_datevalue:
+            orders = get_completed_orders(sorting_datevalue)
+        else:
+            orders = Orders.objects.filter(status_orders="Completed").order_by(
+                "-created_at", "time_is_finish"
+            )
         serializer = PendingOrdersAcceptSerializer(orders, many=True)
         return Response(serializer.data)
 
@@ -261,8 +274,10 @@ class OrdersByTimeView(generics.ListAPIView):
     serializer_class = PendingOrdersAcceptSerializer
 
     def get_queryset(self):
-        one_hour_ago = now() - timedelta(hours=1)
-        return Orders.objects.all().filter(created_at__gte=one_hour_ago).order_by('time_is_finish', '-created_at')
+        sorting_time = self.request.query_params.get('sorting_time',)
+        if sorting_time:
+            return Orders.objects.all().filter(time_is_finish__gte=sorting_time).order_by('time_is_finish', '-created_at')
+        return Orders.objects.all().order_by('time_is_finish', '-created_at')
 
     @swagger_auto_schema(
         operation_description="Получение списка заказов, отсортированных по "

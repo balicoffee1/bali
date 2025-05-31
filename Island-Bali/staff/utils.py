@@ -82,13 +82,12 @@ def cancel_order_with_comment(order, staff_comments):
     return order
 
 
-def get_completed_orders():
+def get_completed_orders(sorting_datevalue):
     """Получение списка заказов в статусе "Completed"."""
-    today = now().date()
     orders = Orders.objects.filter(
         status_orders=Orders.COMPLETED,
-        created_at__date=today
-    ).order_by("-created_at")
+        time_is_finish__date=sorting_datevalue
+    ).order_by("-created_at", "time_is_finish")
     return orders
 
 
