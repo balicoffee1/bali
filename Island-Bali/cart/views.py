@@ -273,6 +273,7 @@ class UpdateCartView(APIView):
     """
     API для обновления корзины и её элементов по ID корзины.
     """
+    permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         request_body=UpdateCartItemSerializer(many=True),
@@ -283,50 +284,94 @@ class UpdateCartView(APIView):
     )
     def patch(self, request, cart_id, *args, **kwargs):
         try:
-            cart = ShoppingCart.objects.get(id=cart_id)  # Получаем корзину по ID
+            cart = ShoppingCart.objects.get(id=cart_id, user=request.user)
         except ShoppingCart.DoesNotExist:
             return Response({"error": "Корзина не найдена"}, status=status.HTTP_404_NOT_FOUND)
 
         items = request.data
 
         if not isinstance(items, list):
-            return Response({"error": "Неверный формат данных. Ожидается список элементов."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Ожидается список элементов"}, status=status.HTTP_400_BAD_REQUEST)
 
         for item_data in items:
             serializer = UpdateCartItemSerializer(data=item_data)
-            if serializer.is_valid():
-                validated_data = serializer.validated_data
-                cart_item_id = validated_data.get("cart_item_id")
-                new_product_id = validated_data.get("new_product_id")
-                quantity = validated_data.get("quantity")
-                size = validated_data.get("size")  # Новый параметр для размера
-
-                try:
-                    cart_item = CartItem.objects.get(id=cart_item_id, cart=cart)
-                except CartItem.DoesNotExist:
-                    return Response({"error": f"Элемент корзины с ID {cart_item_id} не найден"}, status=status.HTTP_404_NOT_FOUND)
-
-                # Если передан новый продукт, обновляем его
-                if new_product_id:
-                    try:
-                        new_product = Product.objects.get(id=new_product_id)
-                        cart_item.product = new_product
-                    except Product.DoesNotExist:
-                        return Response({"error": f"Продукт с ID {new_product_id} не найден"}, status=status.HTTP_404_NOT_FOUND)
-
-                # Обновляем размер, если он передан
-                if size:
-                    if size not in dict(CartItem.SizeChoices.choices):
-                        return Response({"error": f"Недопустимый размер: {size}"}, status=status.HTTP_400_BAD_REQUEST)
-                    cart_item.size = size
-
-                # Обновляем количество или удаляем элемент, если количество равно 0
-                if quantity > 0:
-                    cart_item.amount = quantity
-                    cart_item.save()
-                else:
-                    cart_item.delete()
-            else:
+            if not serializer.is_valid():
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response({"message": "Корзина успешно обновлена"}, status=status.HTTP_200_OK)
+            validated_data = serializer.validated_data
+            cart_item_id = validated_data.get("cart_item_id")
+            new_product_id = validated_data.get("new_product_id")
+            quantity = validated_data.get("quantity")
+            size = validated_data.get("size")
+            temperature_type = validated_data.get("temperature_type")
+            addons = validated_data.get("addons")
+            flavors = validated_data.get("flavors")
+
+            try:
+                cart_item = CartItem.objects.get(id=cart_item_id, cart=cart)
+            except CartItem.DoesNotExist:
+                return Response({"error": f"Элемент с ID {cart_item_id} не найден"}, status=status.HTTP_404_NOT_FOUND)
+
+            # Обновление продукта
+            if new_product_id:
+                try:
+                    new_product = Product.objects.get(id=new_product_id)
+                    if not new_product.availability:
+                        return Response({"error": "Выбранный продукт недоступен"}, status=status.HTTP_400_BAD_REQUEST)
+                    cart_item.product = new_product
+                except Product.DoesNotExist:
+                    return Response({"error": f"Продукт с ID {new_product_id} не найден"}, status=status.HTTP_404_NOT_FOUND)
+
+            product = cart_item.product  # Обновлённый или текущий
+
+            # Проверка температуры
+            if product.temperature_type == "All" and not temperature_type:
+                return Response({"error": "Укажите температуру: горячий или холодный"}, status=status.HTTP_400_BAD_REQUEST)
+            if temperature_type and temperature_type not in dict(Product.TEMPERATURE_TYPE_CHOICES):
+                return Response({"error": "Недопустимая температура"}, status=status.HTTP_400_BAD_REQUEST)
+
+            cart_item.temperature_type = temperature_type
+
+            # Проверка и установка размера
+            if size:
+                if size not in dict(CartItem.SizeChoices.choices):
+                    return Response({"error": f"Неверный размер: {size}"}, status=status.HTTP_400_BAD_REQUEST)
+                cart_item.size = size
+
+            # Обработка добавок
+            selected_addons = []
+            if addons:
+                for addon_id in addons:
+                    try:
+                        addon = Addon.objects.get(id=addon_id)
+                        if addon not in product.addons.all():
+                            return Response({"error": f"Добавка {addon.name} не совместима с выбранным продуктом"}, status=status.HTTP_400_BAD_REQUEST)
+                        selected_addons.append(addon)
+                    except Addon.DoesNotExist:
+                        return Response({"error": f"Добавка с ID {addon_id} не найдена"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Обработка вкусов
+            selected_flavors = []
+            if flavors:
+                for flavor_id in flavors:
+                    try:
+                        flavor = AdditiveFlavors.objects.get(id=flavor_id)
+                        if not any(flavor in addon.flavors.all() for addon in selected_addons):
+                            return Response({"error": f"Вкус ID {flavor_id} недоступен для выбранных добавок"}, status=status.HTTP_400_BAD_REQUEST)
+                        selected_flavors.append(flavor)
+                    except AdditiveFlavors.DoesNotExist:
+                        return Response({"error": f"Вкус с ID {flavor_id} не найден"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Обновление количества
+            if quantity == 0:
+                cart_item.delete()
+                continue
+            else:
+                cart_item.amount = quantity
+                cart_item.save()
+
+            # Обновление ManyToMany
+            cart_item.addons.set(selected_addons)
+            cart_item.flavors.set(selected_flavors)
+
+        return Response({"message": "Элементы корзины обновлены"}, status=status.HTTP_200_OK)

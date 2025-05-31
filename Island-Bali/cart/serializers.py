@@ -100,29 +100,49 @@ class CartItemCreateUpdateSerializer(serializers.ModelSerializer):
 
 
 class UpdateCartItemSerializer(serializers.Serializer):
-    cart_item_id = serializers.IntegerField(required=True, help_text="ID элемента корзины")
-    new_product_id = serializers.IntegerField(required=False, help_text="ID нового продукта")
-    quantity = serializers.IntegerField(required=True, help_text="Количество продукта")
+    cart_item_id = serializers.IntegerField(
+        required=True,
+        help_text="ID элемента корзины"
+    )
+    new_product_id = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        help_text="ID нового продукта (необязательно)"
+    )
+    quantity = serializers.IntegerField(
+        required=True,
+        help_text="Количество продукта (0 - удалить)"
+    )
     size = serializers.ChoiceField(
         choices=CartItem.SizeChoices.choices,
         required=False,
-        help_text="Новый размер продукта (S, M, L)"
+        allow_null=True,
+        help_text="Размер продукта: S, M, L"
+    )
+    temperature_type = serializers.ChoiceField(
+        choices=Product.TEMPERATURE_TYPE_CHOICES,
+        required=False,
+        allow_null=True,
+        help_text="Температура напитка: Hot или Cold"
+    )
+    addons = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        help_text="Список ID добавок"
+    )
+    flavors = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        help_text="Список ID вкусов"
     )
 
     def validate_new_product_id(self, value):
         if value:
-            try:
-                Product.objects.get(id=value)
-            except Product.DoesNotExist:
+            if not Product.objects.filter(id=value).exists():
                 raise serializers.ValidationError("Продукт с указанным ID не найден")
         return value
 
     def validate_quantity(self, value):
         if value < 0:
             raise serializers.ValidationError("Количество не может быть отрицательным")
-        return value
-
-    def validate_size(self, value):
-        if value not in dict(CartItem.SizeChoices.choices):
-            raise serializers.ValidationError(f"Недопустимый размер: {value}")
         return value
