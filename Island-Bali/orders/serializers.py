@@ -7,6 +7,7 @@ from coffee_shop.models import City, CoffeeShop
 from users.models import CustomUser
 
 from .models import Orders, Notification, CheckOrder
+from cart.serializers import CartSerializer
 
 rus_standard = RussianStandard()
 
@@ -110,6 +111,7 @@ class OrderSerializers(serializers.ModelSerializer):
     city_choose = serializers.PrimaryKeyRelatedField(queryset=City.objects.all())
     coffee_shop = serializers.PrimaryKeyRelatedField(queryset=CoffeeShop.objects.all())
     cart = serializers.PrimaryKeyRelatedField(queryset=ShoppingCart.objects.all(), required=False)
+    cart_data = CartSerializer(source='cart', read_only=True)
 
     class Meta:
         model = Orders
