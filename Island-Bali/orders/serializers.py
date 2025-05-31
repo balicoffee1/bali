@@ -119,7 +119,7 @@ class OrderSerializers(serializers.ModelSerializer):
             'id', 'user', 'city_choose', 'coffee_shop', 'cart', 'client_comments', 
             'staff_comments', 'time_is_finish', 'staff', 'status_orders', 
             'payment_status', 'receipt_photo', 'created_at', 'updated_at', 'updated_time', "issued",
-            'full_price', 'cancellation_reason', 'client_confirmed', 'is_appreciated'
+            'full_price', 'cancellation_reason', 'client_confirmed', 'is_appreciated', "cart_data"
             
         ]
         read_only_fields = ['created_at']
