@@ -44,7 +44,7 @@ class AddToCartView(APIView):
 
             try:
                 coffee_shop = CoffeeShop.objects.get(city__name=city_name, street=street_name)
-                product = Product.objects.get(product=product_name, coffee_shop=coffee_shop)
+                product = Product.objects.get(product=product_name)
             except CoffeeShop.DoesNotExist:
                 return Response({"error": "Кофейня не найдена"}, status=status.HTTP_404_NOT_FOUND)
             except Product.DoesNotExist:
