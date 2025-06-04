@@ -67,11 +67,7 @@ class AddToCartView(APIView):
                 for addon_obj in addons:
                     try:
                         addon = Addon.objects.get(id=addon_obj.id)
-                        if addon in product.addons.all():
-                            selected_addons.append(addon)
-                        else:
-                            return Response({"error": "Выбранная добавка не доступна для данного продукта"},
-                                            status=status.HTTP_400_BAD_REQUEST)
+                        selected_addons.append(addon)
                     except Addon.DoesNotExist:
                         return Response({"error": "Добавка не найдена"}, status=status.HTTP_400_BAD_REQUEST)
                     
