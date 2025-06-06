@@ -239,6 +239,7 @@ class ViewCartView(APIView):
         total_cart_price = sum(item['item_total_price'] for item in serializer.data)
 
         response_data = {
+            'cart_id': cart.id,
             'basket': serializer.data,
             'total_cart_price': total_cart_price
         }
