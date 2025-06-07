@@ -5,6 +5,7 @@ from users.serializers import UsersSerializer
 from orders.models import Orders
 from staff.models import Shift
 from coffee_shop.serializers import CoffeeShopSerializer
+from staff.models import Staff
 
 
 class PendingOrdersAcceptSerializer(serializers.ModelSerializer):
@@ -30,6 +31,7 @@ class StaffSerializer(serializers.ModelSerializer):
     )
     
     class Meta:
+        model = Staff
         fields = "__all__"
 
 
