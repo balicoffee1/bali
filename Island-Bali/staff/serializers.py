@@ -17,7 +17,7 @@ class PendingOrdersAcceptSerializer(serializers.ModelSerializer):
     class Meta:
         model = Orders
         fields = ("id", "user_id", "cart", "time_is_finish", "status_orders",
-                  "client_comments", "payment_status", "receipt_photo")
+                  "client_comments", "payment_status", "receipt_photo", "staff_comments")
 
 
 class StaffSerializer(serializers.ModelSerializer):
@@ -69,9 +69,10 @@ class PatchOrderSerializer(serializers.Serializer):
         payment_status = validated_data.get('payment_status')
 
         if new_time_to_finish:
-            instance.time_to_finish = new_time_to_finish
+            instance.time_is_finish = new_time_to_finish
+            
         if new_comments:
-            instance.comments = new_comments
+            instance.staff_comments = new_comments
         if payment_status:
             instance.payment_status = payment_status
         instance.status_orders = Orders.WAITING

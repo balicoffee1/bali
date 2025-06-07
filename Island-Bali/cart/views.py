@@ -341,8 +341,6 @@ class UpdateCartView(APIView):
                 for addon_id in addons:
                     try:
                         addon = Addon.objects.get(id=addon_id)
-                        if addon not in product.addons.all():
-                            return Response({"error": f"Добавка {addon.name} не совместима с выбранным продуктом"}, status=status.HTTP_400_BAD_REQUEST)
                         selected_addons.append(addon)
                     except Addon.DoesNotExist:
                         return Response({"error": f"Добавка с ID {addon_id} не найдена"}, status=status.HTTP_400_BAD_REQUEST)
@@ -353,8 +351,6 @@ class UpdateCartView(APIView):
                 for flavor_id in flavors:
                     try:
                         flavor = AdditiveFlavors.objects.get(id=flavor_id)
-                        if not any(flavor in addon.flavors.all() for addon in selected_addons):
-                            return Response({"error": f"Вкус ID {flavor_id} недоступен для выбранных добавок"}, status=status.HTTP_400_BAD_REQUEST)
                         selected_flavors.append(flavor)
                     except AdditiveFlavors.DoesNotExist:
                         return Response({"error": f"Вкус с ID {flavor_id} не найден"}, status=status.HTTP_400_BAD_REQUEST)

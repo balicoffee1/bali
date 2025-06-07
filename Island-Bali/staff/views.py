@@ -677,7 +677,7 @@ class GetStaffProfileView(APIView):
     def get(self, request: Request):
         try:
             user = request.user
-            staff = Staff.objects.get(users=user)
+            staff = Staff.objects.filter(users=user).first()
             serializer = StaffSerializer(staff)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Staff.DoesNotExist:

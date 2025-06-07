@@ -126,9 +126,6 @@ class OrderViewSet(ModelViewSet):
     def get_queryset(self):
         """Возвращает заказы, относящиеся к текущему пользователю"""
         user = self.request.user
-        if hasattr(user, 'staff'):
-            # Если это сотрудник, возвращаем заказы для его кофейни
-            return Orders.objects.filter(coffee_shop=user.staff.coffee_shop)
         return Orders.objects.filter(user=user)
 
     def perform_create(self, serializer):
