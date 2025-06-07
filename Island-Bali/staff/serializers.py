@@ -69,7 +69,7 @@ class PatchOrderSerializer(serializers.Serializer):
         payment_status = validated_data.get('payment_status')
 
         if new_time_to_finish:
-            instance.time_is_finish = new_time_to_finish
+            instance.updated_time = new_time_to_finish
             
         if new_comments:
             instance.staff_comments = new_comments
