@@ -153,3 +153,9 @@ class CheckOrderSerializer(serializers.ModelSerializer):
         model = CheckOrder
         fields = ['id', 'order', 'check_photo', 'created_at']
         read_only_fields = ['created_at']
+        
+
+class StaffOrderUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Orders
+        exclude = ['user', 'created_at', 'cart']

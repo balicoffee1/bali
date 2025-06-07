@@ -125,8 +125,11 @@ class OrderViewSet(ModelViewSet):
 
     def get_queryset(self):
         """Возвращает заказы, относящиеся к текущему пользователю"""
-        
-        return Orders.objects.filter(user=self.request.user)
+        user = self.request.user
+        if hasattr(user, 'staff'):
+            # Если это сотрудник, возвращаем заказы для его кофейни
+            return Orders.objects.filter(coffee_shop=user.staff.coffee_shop)
+        return Orders.objects.filter(user=user)
 
     def perform_create(self, serializer):
         """Создание нового заказа с валидацией времени"""
@@ -184,6 +187,20 @@ class OrderViewSet(ModelViewSet):
         order.client_confirmed = True
         order.save()
         return Response({'status': 'Заказ подтвержден клиентом'})
+    
+    @action(detail=True, methods=['patch'], url_path='staff-update')
+    def staff_update(self, request, pk=None):
+        from orders.serializers import StaffOrderUpdateSerializer
+        """Обновление заказа со стороны сотрудника (может изменить все поля)"""
+        order = self.get_object()
+
+        serializer = StaffOrderUpdateSerializer(order, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response({'status': 'Заказ обновлен сотрудником', 'order': serializer.data})
+
+        
 
 
 # ViewSet для уведомлений
