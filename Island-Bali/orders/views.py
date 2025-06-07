@@ -143,7 +143,8 @@ class OrderViewSet(ModelViewSet):
     @action(detail=True, methods=['patch'], url_path='cancel')
     def cancel_order(self, request, pk=None):
         """Отмена заказа бариста с указанием причины"""
-        order = self.get_object()
+        order = Orders.objects.get(pk=pk)
+        print(order)
         reason = request.data.get('reason', 'Не указана')
         order.cancel_order(reason)
         return Response({'status': 'Заказ отменен'})
