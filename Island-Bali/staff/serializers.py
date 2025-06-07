@@ -56,12 +56,6 @@ class PatchOrderSerializer(serializers.Serializer):
         help_text="Новый комментарий к заказу",
         label="New Comments"
     )
-    payment_status = serializers.ChoiceField(
-        choices=Orders.PaymentStatus,
-        required=False,
-        help_text="Статус оплаты заказа",
-        label="Payment Status"
-    )
 
     def update_order(self, instance, validated_data):
         new_time_to_finish = validated_data.get('new_time_to_finish')
@@ -73,9 +67,6 @@ class PatchOrderSerializer(serializers.Serializer):
             
         if new_comments:
             instance.staff_comments = new_comments
-        if payment_status:
-            instance.payment_status = payment_status
-        instance.status_orders = Orders.WAITING
 
         instance.save()
         return instance
