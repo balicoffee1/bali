@@ -65,8 +65,8 @@ class Orders(models.Model):
     receipt_photo = models.ImageField(upload_to='order_receipts/',
                                       blank=True, null=True,
                                       verbose_name='Фото чека заказа')
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания', blank=True, null=True,)
-    updated_at = models.DateTimeField(auto_now=True, verbose_name='Дата обновления', blank=True, null=True,)
+    created_at = models.DateTimeField(verbose_name='Дата создания', blank=True, null=True,)
+    updated_at = models.DateTimeField(verbose_name='Дата обновления', blank=True, null=True,)
     issued = models.BooleanField(default=False, verbose_name='Оформлен', null=True)
     full_price = models.DecimalField(
         max_digits=10, decimal_places=2, verbose_name='Полная стоимость заказа', default=0
@@ -80,10 +80,13 @@ class Orders(models.Model):
     client_confirmed = models.BooleanField(
         default=False, verbose_name='Клиент подтвердил заказ'
     )
+    
     is_appreciated = models.BooleanField(
         default=False, verbose_name='Клиент оценил заказ'
     )
-    
+    is_updated = models.BooleanField(
+        default=False, verbose_name='Клиент оценил заказ'
+    )
     # grade = models.IntegerField(
     #     default=0, verbose_name='Оценка клиента', blank=True, null=True
     # )
