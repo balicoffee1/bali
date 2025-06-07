@@ -114,7 +114,7 @@ class OrderSerializers(serializers.ModelSerializer):
             'full_price', 'cancellation_reason', 'client_confirmed', 'is_appreciated', "cart_data"
             
         ]
-        read_only_fields = ['created_at']
+        
 
 
 
@@ -124,7 +124,7 @@ class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = ['id', 'order', 'user', 'message', 'is_read', 'created_at']
-        read_only_fields = ['created_at']
+        
 
 
 class OrderStatusUpdateSerializer(serializers.ModelSerializer):
@@ -152,7 +152,6 @@ class CheckOrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = CheckOrder
         fields = ['id', 'order', 'check_photo', 'created_at']
-        read_only_fields = ['created_at']
         
 
 class StaffOrderUpdateSerializer(serializers.ModelSerializer):
