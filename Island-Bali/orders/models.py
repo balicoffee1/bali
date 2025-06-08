@@ -87,6 +87,12 @@ class Orders(models.Model):
     is_updated = models.BooleanField(
         default=False, verbose_name='Клиент оценил заказ'
     )
+    isThankYouDialogOpen = models.BooleanField(
+        default=False, verbose_name= 'Диалог благодарности открыт'
+    )
+    isOrderCancelled = models.BooleanField(
+        default=False, verbose_name='Заказ отменен'
+    )
     # grade = models.IntegerField(
     #     default=0, verbose_name='Оценка клиента', blank=True, null=True
     # )

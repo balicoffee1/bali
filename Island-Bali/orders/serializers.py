@@ -104,6 +104,8 @@ class OrderSerializers(serializers.ModelSerializer):
     coffee_shop = serializers.PrimaryKeyRelatedField(queryset=CoffeeShop.objects.all())
     cart = serializers.PrimaryKeyRelatedField(queryset=ShoppingCart.objects.all(), required=False)
     cart_data = CartSerializer(source='cart', read_only=True)
+    city_choose_name = serializers.CharField(source='city_choose.name', read_only=True)
+    coffee_shop_name = serializers.StringRelatedField(source='coffee_shop')
 
     class Meta:
         model = Orders
@@ -111,8 +113,8 @@ class OrderSerializers(serializers.ModelSerializer):
             'id', 'user', 'city_choose', 'coffee_shop', 'cart', 'client_comments', 
             'staff_comments', 'time_is_finish', 'staff', 'status_orders', 
             'payment_status', 'receipt_photo', 'created_at', 'updated_at', 'updated_time', "issued",
-            'full_price', 'cancellation_reason', 'client_confirmed', 'is_appreciated', "cart_data"
-            
+            'full_price', 'cancellation_reason', 'client_confirmed', 'is_appreciated', "cart_data",
+            'isThankYouDialogOpen', 'isOrderCancelled', "city_choose_name", "coffee_shop_name", "is_updated"
         ]
         
 

@@ -276,3 +276,27 @@ class CheckOrderViewSet(ModelViewSet):
 
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+
+class UpdateThankYouDialogView(APIView):
+    """API для обновления поля isThankYouDialogOpen"""
+    def patch(self, request, order_id):
+        order = get_object_or_404(Orders, id=order_id)
+        is_open = request.data.get('isThankYouDialogOpen')
+        if is_open is not None:
+            order.isThankYouDialogOpen = is_open
+            order.save()
+            return Response({'message': 'Поле isThankYouDialogOpen обновлено'}, status=status.HTTP_200_OK)
+        return Response({'error': 'Поле isThankYouDialogOpen не указано'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class UpdateOrderCancelledView(APIView):
+    """API для обновления поля isOrderCancelled"""
+    def patch(self, request, order_id):
+        order = get_object_or_404(Orders, id=order_id)
+        is_cancelled = request.data.get('isOrderCancelled')
+        if is_cancelled is not None:
+            order.isOrderCancelled = is_cancelled
+            order.save()
+            return Response({'message': 'Поле isOrderCancelled обновлено'}, status=status.HTTP_200_OK)
+        return Response({'error': 'Поле isOrderCancelled не указано'}, status=status.HTTP_400_BAD_REQUEST)

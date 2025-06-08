@@ -8,7 +8,9 @@ from .views import (
     NotificationViewSet, 
     OrderStatusUpdateView, 
     PaymentView,
-    CheckOrderViewSet
+    CheckOrderViewSet,
+    UpdateThankYouDialogView,
+    UpdateOrderCancelledView
 )
 
 # Создаем роутер для ViewSets
@@ -24,4 +26,6 @@ urlpatterns = [
     path('payment/status/', get_status_payment_for_cart, name='payment_status'),
     path('orders/<int:pk>/status/', OrderStatusUpdateView.as_view(), name='order_status_update'),
     path('orders/<int:pk>/pay/', PaymentView.as_view(), name='order_pay'),
+    path('update-thank-you-dialog/<int:order_id>/', UpdateThankYouDialogView.as_view(), name='update_thank_you_dialog'),
+    path('update-order-cancelled/<int:order_id>/', UpdateOrderCancelledView.as_view(), name='update_order_cancelled'),
 ]
