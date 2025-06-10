@@ -17,7 +17,8 @@ class PendingOrdersAcceptSerializer(serializers.ModelSerializer):
     class Meta:
         model = Orders
         fields = ("id", "user_id", "cart", "time_is_finish", "status_orders",
-                  "client_comments", "payment_status", "receipt_photo", "staff_comments", "updated_time")
+                  "client_comments", "payment_status", "receipt_photo", "staff_comments", "updated_time",
+                "updated_at", "created_at")
 
 
 class StaffSerializer(serializers.ModelSerializer):
@@ -56,6 +57,16 @@ class PatchOrderSerializer(serializers.Serializer):
         help_text="Новый комментарий к заказу",
         label="New Comments"
     )
+    created_at = serializers.DateTimeField(
+        required=False,
+        help_text="Дата создания заказа",
+        label="Created At"
+    )
+    updated_at = serializers.DateTimeField(
+        required=False,
+        help_text="Дата обновления заказа",
+        label="Updated At"
+    )
 
     def update_order(self, instance, validated_data):
         new_time_to_finish = validated_data.get('new_time_to_finish')
@@ -67,6 +78,11 @@ class PatchOrderSerializer(serializers.Serializer):
             
         if new_comments:
             instance.staff_comments = new_comments
+        
+        if created_at := validated_data.get('created_at'):
+            instance.created_at = created_at
+        if updated_at := validated_data.get('updated_at'):
+            instance.updated_at = updated_at
 
         instance.save()
         return instance
