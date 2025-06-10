@@ -18,7 +18,7 @@ class PendingOrdersAcceptSerializer(serializers.ModelSerializer):
         model = Orders
         fields = ("id", "user_id", "cart", "time_is_finish", "status_orders",
                   "client_comments", "payment_status", "receipt_photo", "staff_comments", "updated_time",
-                "updated_at", "created_at")
+                "updated_at", "created_at", "isTimeChangedDialog", "isOrderCancelled", "isThankYouDialogOpen")
 
 
 class StaffSerializer(serializers.ModelSerializer):
@@ -67,7 +67,22 @@ class PatchOrderSerializer(serializers.Serializer):
         help_text="Дата обновления заказа",
         label="Updated At"
     )
-
+    isTimeChangedDialog = serializers.BooleanField(
+        default=False,
+        help_text="Флаг, указывающий, открыт ли диалог изменения времени",
+        label="Is Time Changed Dialog"
+    )
+    isOrderCancelled = serializers.BooleanField(
+        default=False,
+        help_text="Флаг, указывающий, отменен ли заказ",
+        label="Is Order Cancelled"
+    )
+    isThankYouDialogOpen = serializers.BooleanField(
+        default=False,
+        help_text="Флаг, указывающий, открыт ли диалог благодарности",
+        label="Is Thank You Dialog Open"
+    )
+    
     def update_order(self, instance, validated_data):
         new_time_to_finish = validated_data.get('new_time_to_finish')
         new_comments = validated_data.get('new_comments')
@@ -83,6 +98,12 @@ class PatchOrderSerializer(serializers.Serializer):
             instance.created_at = created_at
         if updated_at := validated_data.get('updated_at'):
             instance.updated_at = updated_at
+        if isTimeChangedDialog := validated_data.get('isTimeChangedDialog'):
+            instance.isTimeChangedDialog = isTimeChangedDialog
+        if isOrderCancelled := validated_data.get('isOrderCancelled'):
+            instance.isOrderCancelled = isOrderCancelled
+        if isThankYouDialogOpen := validated_data.get('isThankYouDialogOpen'):
+            instance.isThankYouDialogOpen = isThankYouDialogOpen
 
         instance.save()
         return instance

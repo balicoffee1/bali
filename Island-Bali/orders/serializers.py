@@ -114,7 +114,7 @@ class OrderSerializers(serializers.ModelSerializer):
             'staff_comments', 'time_is_finish', 'staff', 'status_orders', 
             'payment_status', 'receipt_photo', 'created_at', 'updated_at', 'updated_time', "issued",
             'full_price', 'cancellation_reason', 'client_confirmed', 'is_appreciated', "cart_data",
-            'isThankYouDialogOpen', 'isOrderCancelled', "city_choose_name", "coffee_shop_name", "is_updated"
+            'isThankYouDialogOpen', 'isOrderCancelled', "city_choose_name", "coffee_shop_name", "is_updated", "isTimeChangedDialog"
         ]
         
 

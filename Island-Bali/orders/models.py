@@ -93,6 +93,9 @@ class Orders(models.Model):
     isOrderCancelled = models.BooleanField(
         default=False, verbose_name='Заказ отменен'
     )
+    isTimeChangedDialog = models.BooleanField(
+        default=False, verbose_name='Диалог изменения времени открыт'
+    )
     # grade = models.IntegerField(
     #     default=0, verbose_name='Оценка клиента', blank=True, null=True
     # )
