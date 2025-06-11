@@ -115,12 +115,14 @@ class Orders(models.Model):
         self.status_orders = self.COMPLETED
         self.payment_status = self.PENDING
         self.staff = staff  
+        self.isTimeChangedDialog = True
         self.save()  
 
     def cancel_order(self, reason):
         """Отменяет заказ и записывает причину отмены"""
         self.status_orders = self.CANCELED  
         self.cancellation_reason = reason  
+        self.isTimeChangedDialog = True
         self.save()
     
     def complete_order(self, reason):
