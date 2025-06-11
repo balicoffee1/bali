@@ -134,14 +134,14 @@ class OrderViewSet(ModelViewSet):
         serializer.save(user=self.request.user, cart=cart)
 
     @action(detail=True, methods=['patch'], url_path='confirm')
-    def confirm_order(self, request, pk=None):
+    def confirm_orders(self, request, pk=None):
         """Подтверждение заказа бариста"""
-        order = self.get_object()
+        order = Orders.objects.get(pk=pk)
         order.confirm_order(staff=request.user.staff)  
         return Response({'status': 'Заказ подтвержден'})
 
     @action(detail=True, methods=['patch'], url_path='cancel')
-    def cancel_order(self, request, pk=None):
+    def cancel_orders(self, request, pk=None):
         """Отмена заказа бариста с указанием причины"""
         order = Orders.objects.get(pk=pk)
         print(order)
