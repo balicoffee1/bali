@@ -130,8 +130,8 @@ class OrderViewSet(ModelViewSet):
 
     def perform_create(self, serializer):
         """Создание нового заказа с валидацией времени"""
-        cart = ShoppingCart.objects.get(user=self.request.user, is_active=True, isTimeChangedDialog=True)
-        serializer.save(user=self.request.user, cart=cart)
+        cart = ShoppingCart.objects.get(user=self.request.user, is_active=True)
+        serializer.save(user=self.request.user, cart=cart, isTimeChangedDialog=True)
 
     @action(detail=True, methods=['patch'], url_path='confirm')
     def confirm_orders(self, request, pk=None):
