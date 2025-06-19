@@ -18,7 +18,7 @@ class PendingOrdersAcceptSerializer(serializers.ModelSerializer):
         model = Orders
         fields = ("id", "user_id", "cart", "time_is_finish", "status_orders",
                   "client_comments", "payment_status", "receipt_photo", "staff_comments", "updated_time",
-                "updated_at", "created_at", "isTimeChangedDialog", "isOrderCancelled", "isThankYouDialogOpen")
+                "updated_at", "created_at", "isTimeChangedDialog", "isOrderCancelled", "isThankYouDialogOpen", "client_confirmed")
 
 
 class StaffSerializer(serializers.ModelSerializer):
