@@ -11,6 +11,7 @@ from acquiring.views import (
     AlphaGetPaymentStatusView, TBCreateOrderView, TBGetOrderView, RSBTransactionView, SBPPaymentCreateView,
     create_invoice, lifepay_callback, get_lifepay_invoice_view, LifePayCallbackView, PaymentChangeStatus
 )
+from orders.views import SendNotifications
 
 admin.site.site_header = 'Кофейня'
 admin.site.site_title = 'Администрирование кофейни'
@@ -71,6 +72,7 @@ urlpatterns = [
     path('lifepay-invoice/', get_lifepay_invoice_view, name='lifepay-invoice'),
     path("api/lifepay/callback/", LifePayCallbackView.as_view(), name="lifepay-callback"),
     path("api/payment/change-status/", PaymentChangeStatus.as_view(), name="payment-change-status"),
+    path("api/send_notifications/", SendNotifications.as_vew(), name="send_notifications")
 ]
 
 # Статические и медиафайлы в режиме DEBUG
