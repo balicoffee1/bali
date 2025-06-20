@@ -27,6 +27,8 @@ from .serializers import (CheckoutSerializer, GetStatusPaymentSerializer, Notifi
                           OrdersCreateSerializer, OrdersSerializer, OrderSerializers, PaymentSerializer, CheckOrderSerializer)
 # from .validators import validate_cafe_open_or_not
 from cart.models import ShoppingCart
+from users.models import CustomUser
+from notifications.main import send_push_notification
 
 rus_standard = RussianStandard()
 
@@ -300,3 +302,12 @@ class UpdateOrderCancelledView(APIView):
             order.save()
             return Response({'message': 'Поле isOrderCancelled обновлено'}, status=status.HTTP_200_OK)
         return Response({'error': 'Поле isOrderCancelled не указано'}, status=status.HTTP_400_BAD_REQUEST)
+    
+
+class SendNotifications(APIView):
+    """API для отправки уведомлений"""
+    def post(self, request, order_id):
+        order = get_object_or_404(Orders, id=order_id)
+        message = request.data.get("message")
+        send_push_notification(order.user, "Новое сообщение", message)
+        return Response({'message': 'Уведомление отправлено'}, status=status.HTTP_200_OK)
