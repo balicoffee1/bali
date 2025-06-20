@@ -72,7 +72,7 @@ urlpatterns = [
     path('lifepay-invoice/', get_lifepay_invoice_view, name='lifepay-invoice'),
     path("api/lifepay/callback/", LifePayCallbackView.as_view(), name="lifepay-callback"),
     path("api/payment/change-status/", PaymentChangeStatus.as_view(), name="payment-change-status"),
-    path("api/send_notifications/", SendNotifications.as_vew(), name="send_notifications")
+    path("api/send_notifications/<int:order_id>/", SendNotifications.as_view(), name="send_notifications")
 ]
 
 # Статические и медиафайлы в режиме DEBUG
