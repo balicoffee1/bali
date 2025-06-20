@@ -5,6 +5,7 @@ from django.utils.crypto import get_random_string
 
 from django.db import models
 from phonenumber_field.modelfields import PhoneNumberField
+from fcm_django.models import FCMDevice
 
 
 class CustomUserManager(BaseUserManager):
@@ -95,6 +96,10 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return f"{self.first_name} {self.last_name}"
+
+    def has_device(self):
+        return FCMDevice.objects.filter(user=self).exists()
+
 
 
 class EncryptionKey(models.Model):
