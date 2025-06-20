@@ -16,7 +16,7 @@ requests==2.31.0
 Telethon==1.33.1
 yandex-music==2.1.1
 gunicorn==20.0.4
-psycopg2-binary==2.9.1
+psycopg2-binary
 python-dotenv==1.0.0
 django-environ==0.10.0
 django-jazzmin==2.6.0
@@ -26,3 +26,5 @@ Pillow==10.1.0
 redis
 sqlalchemy
 django-colorfield
+firebase-admin
+fcm-django

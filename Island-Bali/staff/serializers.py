@@ -13,12 +13,14 @@ class PendingOrdersAcceptSerializer(serializers.ModelSerializer):
                                                     "заказа")
     user_id = serializers.IntegerField(
         source='user.id', read_only=True, help_text="ID пользователя")
+    login = serializers.CharField(source="user.login",  read_only=True, help_text="Номер телефона пользователя")
 
     class Meta:
         model = Orders
         fields = ("id", "user_id", "cart", "time_is_finish", "status_orders",
                   "client_comments", "payment_status", "receipt_photo", "staff_comments", "updated_time",
-                "updated_at", "created_at", "isTimeChangedDialog", "isOrderCancelled", "isThankYouDialogOpen", "client_confirmed")
+                "updated_at", "created_at", "isTimeChangedDialog", "isOrderCancelled", "isThankYouDialogOpen", "client_confirmed",
+                "is_used_discount", "login")
 
 
 class StaffSerializer(serializers.ModelSerializer):

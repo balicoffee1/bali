@@ -39,7 +39,8 @@ THIRD_PARTY_APPS = [
     "django_celery_beat",
     "django_extensions",
     'colorfield',
-    "django_filters"
+    "django_filters",
+    "fcm_django"
 ]
 
 YOUR_APPS = [
