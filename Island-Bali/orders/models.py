@@ -99,6 +99,9 @@ class Orders(models.Model):
     # grade = models.IntegerField(
     #     default=0, verbose_name='Оценка клиента', blank=True, null=True
     # )
+    is_used_discount = models.BooleanField(
+        default=False, verbose_name='Скидка применена'
+    )
     
 
 
