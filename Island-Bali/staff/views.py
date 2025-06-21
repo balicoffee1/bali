@@ -127,6 +127,8 @@ class PendingOrdersAcceptView(APIView):
                             status=status.HTTP_400_BAD_REQUEST)
 
         order = update_order_status(order)
+        send_push_notification(order.user, "Новое сообщение", "Ваш заказ подтвержден")
+        send_push_notification(order.user, "Новое сообщение", "Оплатите заказ в течение 1,5 минут")
 
         serializer = PendingOrdersAcceptSerializer(order)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -152,6 +154,8 @@ class PendingOrdersAcceptView(APIView):
                 serializer.update_order(order, serializer.validated_data)
 
                 serializer = PendingOrdersAcceptSerializer(order)
+                send_push_notification(order.user, "Новое сообщение", "Ваш заказ изменен")
+
                 return Response(serializer.data, status=status.HTTP_200_OK)
 
             except Orders.DoesNotExist:
@@ -185,6 +189,8 @@ class PendingOrdersAcceptView(APIView):
                 order = cancel_order_with_comment(order, cancellation_reason)
 
                 serializer = PendingOrdersAcceptSerializer(order)
+                send_push_notification(order.user, "Новое сообщение", "Ваш заказ отменен")
+
                 return Response(serializer.data, status=status.HTTP_200_OK)
 
             except Orders.DoesNotExist:
@@ -253,6 +259,8 @@ class CompleteOrdersView(APIView):
                 return Response({"error": error}, status=status_code)
 
             serializer = PendingOrdersAcceptSerializer(order)
+            send_push_notification(order.user, "Новое сообщение", "Ваш заказ готов")
+
             return Response(serializer.data, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
