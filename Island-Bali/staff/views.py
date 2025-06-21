@@ -177,12 +177,12 @@ class PendingOrdersAcceptView(APIView):
         serializer = CancelOrderSerializer(data=request.data)
         if serializer.is_valid():
             order_id = serializer.validated_data.get("order_id")
-            staff_comments = serializer.validated_data.get("staff_comments",
+            cancellation_reason = serializer.validated_data.get("cancellation_reason",
                                                            "")
 
             try:
                 order = Orders.objects.get(id=order_id)
-                order = cancel_order_with_comment(order, staff_comments)
+                order = cancel_order_with_comment(order, cancellation_reason)
 
                 serializer = PendingOrdersAcceptSerializer(order)
                 return Response(serializer.data, status=status.HTTP_200_OK)

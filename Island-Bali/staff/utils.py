@@ -74,9 +74,9 @@ def update_payment_status(order, payment_status):
         order.save()
 
 
-def cancel_order_with_comment(order, staff_comments):
+def cancel_order_with_comment(order, cancellation_reason):
     """Функция для удаления заказа с комментарием"""
-    order.staff_comments = staff_comments
+    order.cancellation_reason = cancellation_reason
     order.status_orders = order.CANCELED
     order.save()
     return order
