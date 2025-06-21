@@ -526,6 +526,7 @@ class UploadReceiptPhotoView(APIView):
 
             change_receipt_photo(order, photo_data)
             order.issued = True
+            order.checkLoaded = True
             order.save()
 
             serializer = PendingOrdersAcceptSerializer(order)

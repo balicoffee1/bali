@@ -102,7 +102,7 @@ class Orders(models.Model):
     is_used_discount = models.BooleanField(
         default=False, verbose_name='Скидка применена'
     )
-    
+    checkLoaded = models.BooleanField(default=False, verbose_name='Чек загружен', null=True)
 
 
     def __str__(self):
