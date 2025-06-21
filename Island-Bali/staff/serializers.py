@@ -20,7 +20,7 @@ class PendingOrdersAcceptSerializer(serializers.ModelSerializer):
         fields = ("id", "user_id", "cart", "time_is_finish", "status_orders",
                   "client_comments", "payment_status", "receipt_photo", "staff_comments", "updated_time",
                 "updated_at", "created_at", "isTimeChangedDialog", "isOrderCancelled", "isThankYouDialogOpen", "client_confirmed",
-                "is_used_discount", "login")
+                "is_used_discount", "login", "cancellation_reason")
 
 
 class StaffSerializer(serializers.ModelSerializer):
@@ -114,7 +114,7 @@ class PatchOrderSerializer(serializers.Serializer):
 class CancelOrderSerializer(serializers.Serializer):
     order_id = serializers.IntegerField(help_text="ID заказа",
                                         label="ID заказа")
-    staff_comments = serializers.CharField(
+    cancellation_reason = serializers.CharField(
         required=False,
         allow_blank=True,
         help_text="Комментарии персонала",
