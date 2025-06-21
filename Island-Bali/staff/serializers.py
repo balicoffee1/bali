@@ -94,7 +94,7 @@ class PatchOrderSerializer(serializers.Serializer):
             instance.updated_time = new_time_to_finish
             
         if new_comments:
-            instance.staff_comments = new_comments
+            instance.cancellation_reason = new_comments
         
         if created_at := validated_data.get('created_at'):
             instance.created_at = created_at
