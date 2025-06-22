@@ -40,7 +40,7 @@ class LifepayInvoice(models.Model):
         verbose_name="Пользователь",
         null=True, blank=True
     )
-    order = models.OneToOneField(Orders, on_delete=models.CASCADE, related_name='invoice')
+    order = models.ForeignKey(Orders, on_delete=models.CASCADE, related_name='invoice')
     transaction_number = models.CharField(max_length=50, unique=True)
     payment_url = models.URLField()
     payment_url_web = models.URLField()
