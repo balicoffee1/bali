@@ -189,7 +189,7 @@ class SBPPaymentCreateView(APIView):
 
         try:
             order = Orders.objects.get(id=order_id)
-            order.status_orders = Orders.IN_PROGRESS
+            order.status_orders = Orders.COMPLETED
             order.payment_status = Orders.PAID
             order.save()
             
