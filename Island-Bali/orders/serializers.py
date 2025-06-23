@@ -116,7 +116,7 @@ class OrderSerializers(serializers.ModelSerializer):
             'full_price', 'cancellation_reason', 'client_confirmed', 'is_appreciated', "cart_data",
             'isThankYouDialogOpen', 'isOrderCancelled', "city_choose_name", "coffee_shop_name",
             "is_updated", "isTimeChangedDialog",
-            "is_used_discount", 
+            "is_used_discount", "is_testing"
         ]
         
 

@@ -1,4 +1,6 @@
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 from cart.models import ShoppingCart
 from coffee_shop.models import City, CoffeeShop
@@ -96,13 +98,13 @@ class Orders(models.Model):
     isTimeChangedDialog = models.BooleanField(
         default=False, verbose_name='Диалог изменения времени открыт'
     )
-    # grade = models.IntegerField(
-    #     default=0, verbose_name='Оценка клиента', blank=True, null=True
-    # )
     is_used_discount = models.BooleanField(
         default=False, verbose_name='Скидка применена'
     )
     checkLoaded = models.BooleanField(default=False, verbose_name='Чек загружен', null=True)
+    is_testing = models.BooleanField(
+        default=False, verbose_name='Заказ тестовый'
+    )
 
 
     def __str__(self):

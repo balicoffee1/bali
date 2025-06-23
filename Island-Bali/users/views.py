@@ -202,7 +202,7 @@ def registration(request):
                 },
                 status=status.HTTP_200_OK
             )
-            # send_phone_reset(user.login, user.fcm_token)
+            send_phone_reset(user.login, user.fcm_token)
             return Response(
                 {
                     "token": token,
