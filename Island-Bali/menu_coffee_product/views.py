@@ -173,7 +173,7 @@ class AddonList(generics.ListAPIView):
 
 
 class AdditiveFlavorsList(generics.ListAPIView):
-    queryset = AdditiveFlavors.objects.all()
+    queryset = AdditiveFlavors.objects.all().prefetch_related("additive_flavors")
     serializer_class = AdditiveFlavorsSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['addon'] 
