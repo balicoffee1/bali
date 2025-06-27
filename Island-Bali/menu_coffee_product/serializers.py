@@ -31,7 +31,7 @@ class CategorySerializer(serializers.ModelSerializer):
 
 
 class ProductSerializer(serializers.ModelSerializer):
-    addon = AddonSerializer(many=True, read_only=True)
+    addons = AddonSerializer(many=True, read_only=True)
     coffee_shop = serializers.StringRelatedField()
     category = CategorySerializer(read_only=True)
 
@@ -42,7 +42,7 @@ class ProductSerializer(serializers.ModelSerializer):
             'product',
             'availability',
             'temperature_type',
-            'addon',
+            'addons',
             "coffee_shop",
             "category",
             "price_s",
