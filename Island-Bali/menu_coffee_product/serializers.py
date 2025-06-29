@@ -10,7 +10,7 @@ class AdditiveFlavorsAddonSerializer(serializers.ModelSerializer):
         fields = ['id', 'name',]
 
 class AdditiveFlavorsSerializer(serializers.ModelSerializer):
-    additive_flavors = AdditiveFlavorsAddonSerializer(read_only=True)
+    additive_flavors = AdditiveFlavorsAddonSerializer(read_only=True, many=True)
     class Meta:
         model = AdditiveFlavors
         fields = ['id', 'name', "additive_flavors"]
