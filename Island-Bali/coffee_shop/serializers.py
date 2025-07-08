@@ -22,5 +22,12 @@ class CoffeeShopSerializer(serializers.ModelSerializer):
             "building_number",
             "time_open",
             "time_close",
-            'city_id'
+            'city_id',
+            "email",
+            "telegram_username",
+            "telegram_id",
+            "crm_system",
+            "acquiring",
+            "inn",
+            "phone_number",
         )

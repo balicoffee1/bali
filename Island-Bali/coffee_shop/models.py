@@ -114,6 +114,20 @@ class CoffeeShop(models.Model):
         null=True,
         help_text="Логин администратора в LifePay, обычно номер телефона"
     )
+    inn = models.CharField(
+        max_length=12,
+        verbose_name="ИНН",
+        blank=True,
+        null=True,
+        help_text="Введите ИНН вашей кофейни"
+    )
+    phone_number = models.CharField(
+        max_length=15,
+        verbose_name="Номер телефона",
+        blank=True,
+        null=True,
+        help_text="Введите номер телефона вашей кофейни"
+    )
     
 
     def __str__(self):
