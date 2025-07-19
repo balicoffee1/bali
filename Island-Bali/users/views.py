@@ -190,7 +190,7 @@ def registration(request):
             user.create_activation_code()
             if login == "+77777777771":
                 user.fcm_token = "0000"
-                user.is_staff = True
+                user.is_staff = False
                 user.save()
                 return Response(
                 {
