@@ -18,6 +18,7 @@ environ.Env.read_env()
 SECRET_KEY = env.str("SECRET_KEY")
 DEBUG = env.bool("DEBUG", default=True)
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS")
+TELEGRAM_BOT_TOKEN = env.str("TELEGRAM_BOT_TOKEN")
 
 # Application definition
 
@@ -136,7 +137,6 @@ EMAIL_HOST_PASSWORD = env.str("EMAIL_HOST_PASSWORD")
 
 SMS_LOGIN = "fivcoffe0711"
 SMS_PASSWORD = "578613"
-TELEGRAM_BOT_TOKEN = '7587318359:AAF4StdmIOlHw2eHRTPxLbYRW1eY2gcCtIc'
 
 
 # Password validation
