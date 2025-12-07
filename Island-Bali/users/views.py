@@ -576,3 +576,30 @@ class ActivationView(APIView):
             )
         except Exception:
             return Response({"msg": 'user not found'}, status=400)
+
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from fcm_django.models import FCMDevice
+
+class RegisterFCMToken(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        token = request.data.get("registration_id")
+        type_device = request.data.get("type_device")
+
+        if not token:
+            return Response({"error": "FCM token is required"}, status=400)
+
+        device, created = FCMDevice.objects.update_or_create(
+            registration_id=token,
+            defaults={
+                "user": request.user,
+                "type": type_device,
+                "active": True,
+            }
+        )
+
+        return Response({"status": "ok"})
