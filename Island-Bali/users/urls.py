@@ -24,5 +24,5 @@ urlpatterns = [
     
     path("qr_code/", qr_code_view.GenerateQRCodeView.as_view(), name='qr_code'),
     path("activate/", ActivationView.as_view(), name='activate'),
-    path("/fcm/register/", RegisterFCMToken.as_view()),
+    path("fcm/register/", RegisterFCMToken.as_view()),
 ]
