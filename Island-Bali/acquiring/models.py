@@ -40,11 +40,11 @@ class LifepayInvoice(models.Model):
         verbose_name="Пользователь",
         null=True, blank=True
     )
-    order = models.ForeignKey(Orders, on_delete=models.CASCADE, related_name='invoice')
-    transaction_number = models.CharField(max_length=50, unique=True)
-    payment_url = models.URLField()
-    payment_url_web = models.URLField()
-    created_at = models.DateTimeField(auto_now_add=True)
+    order = models.ForeignKey(Orders, on_delete=models.CASCADE, related_name='invoice', verbose_name="Заказ")
+    transaction_number = models.CharField(max_length=50, unique=True, verbose_name="Номер транзакции")
+    payment_url = models.URLField(verbose_name="URL для оплаты")
+    payment_url_web = models.URLField(verbose_name="URL для веб-оплаты")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
 
     def __str__(self):
         return f"Инвойс для заказа #{self.order.id}"

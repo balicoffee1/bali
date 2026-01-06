@@ -56,7 +56,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     )
     fcm_token = models.CharField(max_length=500, null=True, blank=True)
     role = models.CharField(default="user", choices=ROLE_CHOICES,
-                            max_length=12)
+                            max_length=12, verbose_name="Роль пользователя")
     chosen_card = models.OneToOneField(
         "UserCard",
         null=True,
@@ -128,6 +128,9 @@ class UserCard(models.Model):
         if self.card_number:
             return self.card_number
         return None
+    
+    def __str__(self):
+        return f"Карта пользователя {self.user.login} с номером {self.card_number}"
     
     class Meta:
         verbose_name = ("Карта пользователя")

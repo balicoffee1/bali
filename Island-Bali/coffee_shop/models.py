@@ -35,9 +35,9 @@ class Acquiring(models.Model):
     )
     for_coffeeshop = models.CharField(verbose_name="Название кофейни",
                                       max_length=120)
-    name = models.CharField(max_length=100, choices=ACQUIRING)
+    name = models.CharField(max_length=100, choices=ACQUIRING, verbose_name="Эквайринг")
     login = models.CharField(max_length=100, verbose_name="Логин")
-    password = models.CharField(max_length=100, editable=True)
+    password = models.CharField(max_length=100, editable=True, verbose_name="Пароль")
 
     def __str__(self):
         return f'{self.name} {self.for_coffeeshop}'
@@ -93,7 +93,9 @@ class CoffeeShop(models.Model):
         null=True,
         help_text="Пожалуйста введите вашу почту чтобы вы "
                   "могли контролировать отзывы")
-    crm_password = models.CharField(max_length=20, default='')
+    crm_password = models.CharField(max_length=20, default='', 
+                                    verbose_name="Пароль для CRM системы",
+                                    )
     crm_layer_name = models.CharField(
         max_length=100, blank=False,
         null=True,

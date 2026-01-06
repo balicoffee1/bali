@@ -7,7 +7,7 @@ from users.models import CustomUser
 class ShoppingCart(models.Model):
     user = models.ForeignKey(
         CustomUser, on_delete=models.CASCADE, related_name="cart", null=True,
-        blank=True
+        blank=True, verbose_name="Владелец корзины"
     )
     is_active = models.BooleanField(default=True, verbose_name="Активна ли корзина")
 
@@ -54,7 +54,8 @@ class CartItem(models.Model):
         M = "M", "Medium"
         L = "L", "Large"
     cart = models.ForeignKey(
-        ShoppingCart, on_delete=models.CASCADE, related_name="items"
+        ShoppingCart, on_delete=models.CASCADE, related_name="items",
+        verbose_name="Корзина"
     )
     product = models.ForeignKey(
         Product, related_name="cart_items", on_delete=models.CASCADE,
