@@ -87,7 +87,7 @@ class Product(models.Model):
 
     coffee_shop = models.ForeignKey(CoffeeShop, verbose_name='Кофейня',
                                     on_delete=models.CASCADE)
-    category = models.ForeignKey(Category, on_delete=models.SET('undefined'),
+    category = models.ForeignKey(Category, on_delete=models.CASCADE,
                                  related_name='products',
                                  verbose_name='Категория')
     product = models.CharField(
