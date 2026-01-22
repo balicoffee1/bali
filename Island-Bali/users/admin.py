@@ -18,13 +18,13 @@ class UsersAdmin(BaseUserAdmin):
             "fields": (
                 "login", "email", "first_name", "last_name", "phone_number",
                 "role", "is_active", 'password1', 'password2', "is_superuser",
-                "is_staff")
+                "is_staff", "phone_number",)
 
         }),)
     fieldsets = (
         (None, {"fields": ("login", "password")}),
         (_("Personal info"),
-         {"fields": ("first_name", "last_name", "email", "role")}),
+         {"fields": ("first_name", "last_name", "email", "role", "phone_number", "photo")}),
         (
             _("Permissions"),
             {
