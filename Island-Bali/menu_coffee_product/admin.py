@@ -27,9 +27,10 @@ class ProductAdmin(admin.ModelAdmin):
         "product",
         "coffee_shop",
         "category",
+        "which_menu",
     )
     list_filter = ("coffee_shop", "category")
-    search_fields = ("id", "product", "coffee_shop__city", "category__name")
+    search_fields = ("id", "product", "coffee_shop__city__name", "category__name")
     exclude = ("addons", "price")  
 
     def get_queryset(self, request):
@@ -65,9 +66,9 @@ class ProductAdmin(admin.ModelAdmin):
 
 @admin.register(Category)
 class CategoryAdmin(CustomModelAdmin):
-    list_display = ("name", "coffee_shop")
+    list_display = ("name", "coffee_shop", "which_menu")
     list_filter = ("coffee_shop",)
-    search_fields = ("name", "coffee_shop__city")
+    search_fields = ("name", "coffee_shop__city__name")
 
     def get_queryset(self, request):
         user_role = request.user.role

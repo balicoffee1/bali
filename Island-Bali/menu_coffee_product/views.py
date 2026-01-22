@@ -29,6 +29,15 @@ class CategoryViewSet(generics.ListAPIView):
     queryset = Category.objects.all()
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['coffee_shop']  # Поле для фильтрации
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        coffee_shop_id = self.request.query_params.get('coffee_shop', None)
+        if coffee_shop_id is not None:
+            queryset = queryset.filter(coffee_shop__id=coffee_shop_id)
+        
+        queryset = queryset.filter(which_menu__in=['main_menu', 'both'])
+        return queryset
 
     @swagger_auto_schema(
         operation_description="С помощью этого метода можно "
@@ -62,6 +71,8 @@ class ProductViewSet(generics.ListAPIView):
             queryset = queryset.filter(coffee_shop__city__name=city_name)
         if street_name is not None:
             queryset = queryset.filter(coffee_shop__street=street_name)
+        
+        queryset = queryset.filter(which_menu__in=['main_menu', 'both'])
         return queryset
 
     @swagger_auto_schema(
@@ -84,7 +95,7 @@ class ProductListInCategory(generics.ListAPIView):
     def get_queryset(self):
         category_id = self.kwargs.get('id')
         category = get_object_or_404(Category, id=category_id)
-        return Product.objects.filter(category=category)
+        return Product.objects.filter(category=category, which_menu__in=['main_menu', 'both'])
 
     @swagger_auto_schema(
         operation_description="Используя id товара можно посмотреть "

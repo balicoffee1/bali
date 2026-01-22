@@ -30,21 +30,21 @@ def get_or_add_user(values: dict) -> tuple:
     phone = None
     if utils.is_phone_number(login):
         phone = login
-        
-            
-        if not CustomUser.objects.filter(phone_number__exact=phone).exists():
-            user = CustomUser.objects.create_user(
-            login=login,
-            email=email,
+        user, created = CustomUser.objects.get_or_create(
             phone_number=phone,
-            first_name=first_name,
-            last_name=last_name
+            defaults={
+                "login": login,
+                "email": email,
+                "first_name": first_name,
+                "last_name": last_name,
+            }
         )
-        else:
-            user = CustomUser.objects.get(login=login)
+        if not created and user.login != login:
+            user.login = login
+            user.save()
+    else:
+        raise Exception("Login must be a phone number")
 
-    
-    
     if photo:
         change_photo(user, photo)
 

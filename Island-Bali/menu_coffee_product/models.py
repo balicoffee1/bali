@@ -51,11 +51,22 @@ class Addon(models.Model):
 
 class Category(models.Model):
     """Разделы меню"""
+    WHICH_MENYU_CHOICES = (
+        ('main_menu', 'Основное меню'),
+        ('season_menu', 'Сезонное меню'),
+        ("both", "Оба меню"),
+    )
     coffee_shop = models.ForeignKey(CoffeeShop,
                                     on_delete=models.CASCADE,
                                     related_name='categories',
                                     verbose_name='Кофейня')
     name = models.CharField(max_length=255, verbose_name='Название категории')
+    which_menu = models.CharField(
+        max_length=20,
+        choices=WHICH_MENYU_CHOICES,
+        default='main_menu',
+        verbose_name='В каком меню находится категория'
+    )
 
     def __str__(self):
         return self.name
@@ -66,6 +77,11 @@ class Category(models.Model):
 
 
 class Product(models.Model):
+    WHICH_MENYU_CHOICES = (
+        ('main_menu', 'Основное меню'),
+        ('season_menu', 'Сезонное меню'),
+        ("both", "Оба меню"),
+    )
     PRODUCT_TYPE_CHOICES = (
         ('coffee', 'Кофе'),
         ('ice_cream', 'Мороженое'),
@@ -140,6 +156,12 @@ class Product(models.Model):
         verbose_name='Цена размера L',
         null=True,
         blank=True
+    )
+    which_menu = models.CharField(
+        max_length=20,
+        choices=WHICH_MENYU_CHOICES,
+        default='main_menu',
+        verbose_name='В каком меню находится продукт'
     )
 
     def __str__(self):

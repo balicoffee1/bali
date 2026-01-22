@@ -18,8 +18,8 @@ environ.Env.read_env()
 SECRET_KEY = env.str("SECRET_KEY")
 DEBUG = env.bool("DEBUG", default=True)
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS")
-TELEGRAM_BOT_TOKEN = env.str("TELEGRAM_BOT_TOKEN")
 
+TELEGRAM_BOT_TOKEN = env.str("TELEGRAM_BOT_TOKEN")
 # Application definition
 
 DJANGO_APPS = [
