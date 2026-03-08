@@ -230,7 +230,7 @@ def create_invoice(request):
         "customer_phone": str(order.user.login).replace("+", "") if order.user else None,
         "customer_email": order.user.email if order.user else None,
         "method": "sbp",
-        "callback_url": "http://79.174.81.151//api/lifepay/callback/"
+        "callback_url": "http://79.174.81.151/api/lifepay/callback/"
     }
     print(data)
 
