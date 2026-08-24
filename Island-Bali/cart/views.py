@@ -85,19 +85,40 @@ class AddToCartView(APIView):
                                         status=status.HTTP_400_BAD_REQUEST)
 
             cart, created = ShoppingCart.objects.get_or_create(user=user, is_active=True)
-            cart_item, created = CartItem.objects.get_or_create(
+            
+            if not size:
+                size = CartItem.SizeChoices.S
+
+            existing_items = CartItem.objects.filter(
                 cart=cart,
                 product=product,
                 size=size,
-                defaults={'amount': quantity}
             )
-
-            if not created:
-                cart_item.amount += int(quantity)
-            cart_item.temperature_type = temperature_type
-            cart_item.save()
-            cart_item.addons.set(selected_addons)
-            cart_item.flavors.set(selected_flavors)
+            
+            target_addons_set = set(selected_addons)
+            target_flavors_set = set(selected_flavors)
+            
+            matching_item = None
+            for item in existing_items:
+                if set(item.addons.all()) == target_addons_set and set(item.flavors.all()) == target_flavors_set:
+                    matching_item = item
+                    break
+            
+            if matching_item:
+                matching_item.amount += int(quantity)
+                matching_item.save()
+                cart_item = matching_item
+            else:
+                cart_item = CartItem.objects.create(
+                    cart=cart,
+                    product=product,
+                    size=size,
+                    amount=quantity
+                )
+                cart_item.temperature_type = temperature_type
+                cart_item.save()
+                cart_item.addons.set(selected_addons)
+                cart_item.flavors.set(selected_flavors)
 
             serializer = CartItemSerializer(cart_item)
             return Response({"Добавлен товар в корзину": serializer.data}, status=status.HTTP_200_OK)
@@ -119,32 +140,38 @@ class ChangeQuantityView(APIView):
         serializer = ChangeCartSerializer(data=request.data)
         if serializer.is_valid():
             validated_data = serializer.validated_data
+            cart_item_id = validated_data.get("cart_item_id")
             product_name = validated_data.get("product_name")
             quantity = validated_data.get("quantity")
-
-            if not product_name or not quantity:
-                return Response({"error": "Введите название продукта и новое количество"}, status=status.HTTP_400_BAD_REQUEST)
 
             user = request.user
             if not user.is_authenticated:
                 return Response({"error": "Необходимо авторизоваться (Передайте токен пользователя)"}, status=status.HTTP_401_UNAUTHORIZED)
 
             try:
-                product = Product.objects.get(product=product_name)
-                cart_item = CartItem.objects.get(product=product, cart__user=user)
+                if cart_item_id:
+                    cart_item = CartItem.objects.get(id=cart_item_id, cart__user=user)
+                else:
+                    product = Product.objects.get(product=product_name)
+                    cart_item = CartItem.objects.filter(product=product, cart__user=user).first()
+                    if not cart_item:
+                        raise CartItem.DoesNotExist
+
                 cart_item.amount = int(quantity)
                 cart_item.save()
-                cart = ShoppingCart.objects.get(items=cart_item)
+                cart = cart_item.cart
                 if not cart:
                     return Response({"error": "Корзина не найдена"}, status=status.HTTP_404_NOT_FOUND)
                 cart_serializer = CartSerializer(cart)  
 
                 return Response({
-                    "Сообщение": f"Количество товара '{product_name}' изменено на {quantity}",
+                    "Сообщение": "Количество товара изменено",
                     "data": cart_serializer.data
                 }, status=status.HTTP_200_OK)
             except CartItem.DoesNotExist:
-                return Response({"error": f"Товар '{product_name}' не найден в корзине пользователя"}, status=status.HTTP_404_NOT_FOUND)
+                return Response({"error": "Товар не найден в корзине пользователя"}, status=status.HTTP_404_NOT_FOUND)
+            except Product.DoesNotExist:
+                return Response({"error": f"Товар '{product_name}' не найден в кофейне"}, status=status.HTTP_404_NOT_FOUND)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -164,12 +191,23 @@ class RemoveFromCartView(APIView):
         serializer = RemoveProductFromCartSerializer(data=request.data)
         if serializer.is_valid():
             validated_data = serializer.validated_data
+            cart_item_id = validated_data.get("cart_item_id")
             product_name = validated_data.get("product_name")
 
+            user = request.user
+            if not user.is_authenticated:
+                return Response({"error": "Необходимо авторизоваться (Передайте токен пользователя)"}, status=status.HTTP_401_UNAUTHORIZED)
+
             try:
-                product = Product.objects.get(product=product_name)
-                cart_item = CartItem.objects.get(product=product, cart__user=request.user)
-                cart_item.delete()
+                if cart_item_id:
+                    cart_item = CartItem.objects.get(id=cart_item_id, cart__user=user)
+                    cart_item.delete()
+                else:
+                    product = Product.objects.get(product=product_name)
+                    cart_item = CartItem.objects.filter(product=product, cart__user=user).first()
+                    if not cart_item:
+                        raise CartItem.DoesNotExist
+                    cart_item.delete()
                 return Response({"message": "Товар удален из корзины"}, status=status.HTTP_204_NO_CONTENT)
             except Product.DoesNotExist:
                 return Response({"error": "Такого товара в кофейне не существует"}, status=status.HTTP_404_NOT_FOUND)
@@ -177,45 +215,6 @@ class RemoveFromCartView(APIView):
                 return Response({"error": "Товар в корзине пользователя не найден"}, status=status.HTTP_404_NOT_FOUND)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-class ViewCartView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    @swagger_auto_schema(
-        operation_description="Метод используется"
-                              "для просмотра содержимого корзины.",
-
-        responses={200: "OK", 400: "Bad Request"},
-        tags=["Корзина пользователя"],
-        operation_id="Просмотреть корзину",
-    )
-    def get(self, request):
-        user = request.user
-        cart = ShoppingCart.objects.get(user=user, is_active=True)
-        cart_items = cart.items.all()
-
-        cart_items_data = []
-        total_cart_price = 0
-
-        for cart_item in cart_items:
-            item_price = cart_item.item_total_price
-            total_cart_price += item_price
-
-            cart_item_data = {
-                "product": cart_item.product.product,
-                "addon": cart_item.product.addons,
-                "amount": cart_item.amount,
-                "size": cart_item.size,
-                "total_price": item_price,
-            }
-            cart_items_data.append(cart_item_data)
-
-        response_data = {
-            'basket': cart_items_data,
-            'total_cart_price': total_cart_price
-        }
-        return Response(response_data, status=status.HTTP_200_OK)
 
 
 class ViewCartView(APIView):

@@ -10,7 +10,7 @@ from django.utils.timezone import now
 from django.db import models
 
 from orders.models import Orders
-from staff.models import Staff
+from staff.models import Staff, Shift
 from staff.serializers import (CancelOrderSerializer, CompleteOrdersSerializer,
                                CreateOrderSerializer,
                                FilterOrdersByStatusSerializer,
@@ -384,6 +384,36 @@ class ShiftToggleView(APIView):
     """Проверка и изменения статуса сотрудника на работе"""
 
     @swagger_auto_schema(
+        manual_parameters=[
+            openapi.Parameter('id', openapi.IN_QUERY,
+                               description="ID пользователя",
+                               type=openapi.TYPE_INTEGER)
+        ],
+        operation_description="Получение статуса сотрудника по его ID через GET-запрос.",
+        responses={200: ShiftSerializer()},
+        tags=TAGS_STAFF,
+        operation_id="Получение статуса сотрудника GET"
+    )
+    def get(self, request):
+        user_id = request.query_params.get('id')
+        if user_id is None:
+            user_id = request.user.id
+
+        if user_id is None:
+            return Response({"error": "ID пользователя не указан"},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        staff = self.get_staff(user_id)
+        if staff:
+            shift = Shift.objects.filter(staff=staff).order_by('-id').first()
+            if not shift:
+                shift = Shift.objects.create(staff=staff, status_shift="Closed")
+            serializer = ShiftSerializer(shift)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response({"error": "Staff not found"},
+                        status=status.HTTP_404_NOT_FOUND)
+
+    @swagger_auto_schema(
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             required=['id'],
@@ -405,7 +435,11 @@ class ShiftToggleView(APIView):
 
         staff = self.get_staff(user_id)
         if staff:
-            serializer = ShiftSerializer(staff)
+            shift = Shift.objects.filter(staff=staff).order_by('-id').first()
+            if not shift:
+                # Если смен еще нет, создаем дефолтную закрытую
+                shift = Shift.objects.create(staff=staff, status_shift="Closed")
+            serializer = ShiftSerializer(shift)
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response({"error": "Staff not found"},
                         status=status.HTTP_404_NOT_FOUND)
@@ -423,9 +457,9 @@ class ShiftToggleView(APIView):
             user_id = serializer.validated_data['id']
             staff = self.get_staff(user_id)
             if staff:
-                self.toggle_staff_status(staff)
+                shift = self.toggle_staff_status(staff)
                 response_serializer = ShiftToggleResponseSerializer({
-                    "status_shift": staff.status_shift,
+                    "status_shift": shift.status_shift,
                     "users": staff.users.first_name
                 })
                 return Response(response_serializer.data,
@@ -441,11 +475,17 @@ class ShiftToggleView(APIView):
             return None
 
     def toggle_staff_status(self, staff):
-        if staff.status_shift == "Open":
-            staff.status_shift = "Closed"
+        shift = Shift.objects.filter(staff=staff).order_by('-id').first()
+        if not shift or shift.status_shift == "Closed":
+            # Открываем новую смену
+            shift = Shift.objects.create(staff=staff, status_shift="Open", start_time=now())
         else:
-            staff.status_shift = "Open"
-        staff.save()
+            # Закрываем текущую смену
+            shift.status_shift = "Closed"
+            shift.end_time = now()
+            shift.update_shift_statistics()
+            shift.save()
+        return shift
 
 
 class UploadReceiptPhotoView(APIView):

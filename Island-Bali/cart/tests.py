@@ -1,0 +1,224 @@
+from decimal import Decimal
+from django.test import TestCase
+from users.models import CustomUser
+from coffee_shop.models import City, CoffeeShop, CrmSystem, Acquiring
+from menu_coffee_product.models import Product, Addon, AdditiveFlavors, Category
+from cart.models import ShoppingCart, CartItem
+
+class CartItemPriceTestCase(TestCase):
+    def setUp(self):
+        # Create user
+        self.user = CustomUser.objects.create_user(login='+79998887766', password='password123')
+        
+        # Create relations for CoffeeShop
+        self.city = City.objects.create(name="Moscow")
+        self.crm = CrmSystem.objects.create(name="QuickRestoApi")
+        self.acquiring = Acquiring.objects.create(for_coffeeshop="Test", name="RussianStandart", login="login", password="password")
+        
+        # Create CoffeeShop
+        self.coffeeshop = CoffeeShop.objects.create(
+            city=self.city,
+            street="Arbat",
+            building_number="1",
+            email="test@test.com",
+            telegram_username="@test",
+            crm_system=self.crm,
+            acquiring=self.acquiring
+        )
+        
+        # Create Category
+        self.category = Category.objects.create(coffee_shop=self.coffeeshop, name="Coffee")
+        
+        # Create Product
+        self.product = Product.objects.create(
+            coffee_shop=self.coffeeshop,
+            category=self.category,
+            product="Lathe",
+            price_s=Decimal('100.00'),
+            price_m=Decimal('150.00'),
+            price_l=Decimal('200.00'),
+            product_type="coffee"
+        )
+        
+        # Create Addon and Flavors
+        self.addon_caramel = Addon.objects.create(
+            coffee_shop=self.coffeeshop,
+            name="Caramel",
+            price=Decimal('20.00')
+        )
+        self.flavor_bubble = AdditiveFlavors.objects.create(
+            coffee_shop=self.coffeeshop,
+            name="bubble"
+        )
+        self.addon_caramel.flavors.add(self.flavor_bubble)
+        
+        # Create Cart and CartItem
+        self.cart = ShoppingCart.objects.create(user=self.user, is_active=True)
+        self.cart_item = CartItem.objects.create(
+            cart=self.cart,
+            product=self.product,
+            amount=2,
+            size=CartItem.SizeChoices.S
+        )
+
+    def test_item_total_price_base(self):
+        # Base product price for S size is 100.00. amount=2.
+        # Total should be (100.00 + 0 + 0) * 2 = 200.00
+        self.assertEqual(self.cart_item.item_total_price, Decimal('200.00'))
+
+    def test_item_total_price_with_addon(self):
+        # Add caramel addon (price 20.00)
+        self.cart_item.addons.add(self.addon_caramel)
+        # Total should be (100.00 + 20.00) * 2 = 240.00
+        self.assertEqual(self.cart_item.item_total_price, Decimal('240.00'))
+
+    def test_item_total_price_with_addon_and_flavor(self):
+        # Add caramel addon (price 20.00) and bubble flavor (adds price of addon: 20.00)
+        self.cart_item.addons.add(self.addon_caramel)
+        self.cart_item.flavors.add(self.flavor_bubble)
+        # Total should be (100.00 + 20.00 + 20.00) * 2 = 280.00
+        self.assertEqual(self.cart_item.item_total_price, Decimal('280.00'))
+
+
+class CartItemSplitViewTestCase(TestCase):
+    def setUp(self):
+        # Create user
+        self.user = CustomUser.objects.create_user(login='+79998887766', password='password123')
+        
+        # Authenticate client using JWT token
+        from rest_framework_simplejwt.tokens import RefreshToken
+        refresh = RefreshToken.for_user(self.user)
+        self.client.defaults['HTTP_AUTHORIZATION'] = f'Bearer {refresh.access_token}'
+        
+        # Create relations for CoffeeShop
+        self.city = City.objects.create(name="Moscow")
+        self.crm = CrmSystem.objects.create(name="QuickRestoApi")
+        self.acquiring = Acquiring.objects.create(for_coffeeshop="Test", name="RussianStandart", login="login", password="password")
+        
+        # Create CoffeeShop
+        self.coffeeshop = CoffeeShop.objects.create(
+            city=self.city,
+            street="Arbat",
+            building_number="1",
+            email="test@test.com",
+            telegram_username="@test",
+            crm_system=self.crm,
+            acquiring=self.acquiring
+        )
+        
+        # Create Category
+        self.category = Category.objects.create(coffee_shop=self.coffeeshop, name="Coffee")
+        
+        # Create Product
+        self.product = Product.objects.create(
+            coffee_shop=self.coffeeshop,
+            category=self.category,
+            product="Lathe",
+            price_s=Decimal('100.00'),
+            price_m=Decimal('150.00'),
+            price_l=Decimal('200.00'),
+            product_type="coffee",
+            availability=True
+        )
+        
+        # Create Addon and Flavors
+        self.addon_caramel = Addon.objects.create(
+            coffee_shop=self.coffeeshop,
+            name="Caramel",
+            price=Decimal('20.00')
+        )
+        self.flavor_bubble = AdditiveFlavors.objects.create(
+            coffee_shop=self.coffeeshop,
+            name="bubble"
+        )
+        self.addon_caramel.flavors.add(self.flavor_bubble)
+
+        from django.urls import reverse
+        self.url = reverse('add_to_cart', kwargs={'city_name': 'Moscow', 'street_name': 'Arbat'})
+
+    def test_add_same_product_same_config_merges(self):
+        # Add once
+        data1 = {
+            "product_name": "Lathe",
+            "quantity": 1,
+            "size": "S",
+            "temperature_type": "Hot",
+            "addons": [self.addon_caramel.id],
+            "flavors": [self.flavor_bubble.id]
+        }
+        response1 = self.client.post(self.url, data1, content_type='application/json')
+        self.assertEqual(response1.status_code, 200)
+
+        # Add second time with identical config
+        response2 = self.client.post(self.url, data1, content_type='application/json')
+        self.assertEqual(response2.status_code, 200)
+
+        # Verify there is only 1 item in the cart, and its amount is 2
+        cart = ShoppingCart.objects.get(user=self.user, is_active=True)
+        self.assertEqual(cart.items.count(), 1)
+        self.assertEqual(cart.items.first().amount, 2)
+
+    def test_add_same_product_different_config_splits(self):
+        # Add with caramel addon and bubble flavor
+        data1 = {
+            "product_name": "Lathe",
+            "quantity": 1,
+            "size": "S",
+            "temperature_type": "Hot",
+            "addons": [self.addon_caramel.id],
+            "flavors": [self.flavor_bubble.id]
+        }
+        response1 = self.client.post(self.url, data1, content_type='application/json')
+        self.assertEqual(response1.status_code, 200)
+
+        # Add same product but with no addons/flavors
+        data2 = {
+            "product_name": "Lathe",
+            "quantity": 1,
+            "size": "S",
+            "temperature_type": "Hot",
+            "addons": [],
+            "flavors": []
+        }
+        response2 = self.client.post(self.url, data2, content_type='application/json')
+        self.assertEqual(response2.status_code, 200)
+
+        # Verify there are 2 separate items in the cart
+        cart = ShoppingCart.objects.get(user=self.user, is_active=True)
+        self.assertEqual(cart.items.count(), 2)
+
+    def test_remove_product_fallback_deletes_only_one(self):
+        # Add product once
+        data1 = {
+            "product_name": "Lathe",
+            "quantity": 1,
+            "size": "S",
+            "temperature_type": "Hot",
+            "addons": [self.addon_caramel.id],
+            "flavors": [self.flavor_bubble.id]
+        }
+        self.client.post(self.url, data1, content_type='application/json')
+
+        # Add second time with different config
+        data2 = {
+            "product_name": "Lathe",
+            "quantity": 1,
+            "size": "S",
+            "temperature_type": "Hot",
+            "addons": [],
+            "flavors": []
+        }
+        self.client.post(self.url, data2, content_type='application/json')
+
+        # We have 2 items in cart
+        cart = ShoppingCart.objects.get(user=self.user, is_active=True)
+        self.assertEqual(cart.items.count(), 2)
+
+        # Call remove using product_name fallback
+        from django.urls import reverse
+        remove_url = reverse('remove_from_cart')
+        response = self.client.delete(remove_url, {"product_name": "Lathe"}, content_type='application/json')
+        self.assertEqual(response.status_code, 204)
+
+        # Verify only 1 item remains in the cart, not 0!
+        self.assertEqual(cart.items.count(), 1)

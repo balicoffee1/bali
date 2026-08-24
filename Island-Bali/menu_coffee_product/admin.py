@@ -35,20 +35,19 @@ class ProductAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         user_role = request.user.role
-        if user_role == "admin":
+        if request.user.is_superuser or user_role == "owner":
+            return Product.objects.all()
+        elif user_role == "admin":
             place_of_work = Staff.objects.filter(
                 users=request.user).first().place_of_work
             return Product.objects.filter(coffee_shop=place_of_work)
-        elif user_role == "owner":
-            return Product.objects.all()
-
         else:
             return Product.objects.none()
 
     def save_model(self, request, obj, form, change) -> None:
         user_creating_menu = request.user
         if not change:
-            if user_creating_menu.role == 'owner':
+            if user_creating_menu.is_superuser or user_creating_menu.role == 'owner':
                 obj.save()
             elif user_creating_menu.role == 'admin':
                 place_of_work = Staff.objects.filter(
@@ -73,13 +72,13 @@ class CategoryAdmin(CustomModelAdmin):
     def get_queryset(self, request):
         user_role = request.user.role
 
-        if user_role == "admin":
+        if request.user.is_superuser or user_role == "owner":
+            return Category.objects.all()
+
+        elif user_role == "admin":
             place_of_work = Staff.objects.filter(
                 users=request.user).first().place_of_work
             return Category.objects.filter(coffee_shop=place_of_work)
-
-        elif user_role == "owner":
-            return Category.objects.all()
 
         else:
             return Category.objects.none()
@@ -87,7 +86,7 @@ class CategoryAdmin(CustomModelAdmin):
     def save_model(self, request, obj, form, change) -> None:
         user_creating_category = request.user
         if not change:
-            if user_creating_category.role == 'owner':
+            if user_creating_category.is_superuser or user_creating_category.role == 'owner':
                 obj.save()
             elif user_creating_category.role == 'admin':
                 place_of_work = Staff.objects.filter(

@@ -3,17 +3,10 @@ from rest_framework import serializers
 from .models import Addon, Category, Product, SeasonMenu
 from .models import AdditiveFlavors
 
-class AdditiveFlavorsAddonSerializer(serializers.ModelSerializer):
-    
-    class Meta:
-        model = Addon
-        fields = ['id', 'name',]
-
 class AdditiveFlavorsSerializer(serializers.ModelSerializer):
-    additive_flavors = AdditiveFlavorsAddonSerializer(read_only=True, many=True)
     class Meta:
         model = AdditiveFlavors
-        fields = ['id', 'name', "additive_flavors"]
+        fields = ['id', 'name']
 
 
 class AddonSerializer(serializers.ModelSerializer):

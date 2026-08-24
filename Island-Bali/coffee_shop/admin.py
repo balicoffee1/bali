@@ -42,13 +42,13 @@ class CoffeeShopAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         user_role = request.user.role
 
-        if user_role == "admin":
+        if request.user.is_superuser or user_role == "owner":
+            return CoffeeShop.objects.all()
+
+        elif user_role == "admin":
             place_of_work = Staff.objects.filter(
                 users=request.user).first().place_of_work.building_number
             return CoffeeShop.objects.filter(building_number=place_of_work)
-
-        elif user_role == "owner":
-            return CoffeeShop.objects.all()
 
         else:
             return CoffeeShop.objects.none()
@@ -56,7 +56,7 @@ class CoffeeShopAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change) -> None:
         user_creating_staff = request.user
         if not change:
-            if user_creating_staff.role == 'owner':
+            if user_creating_staff.is_superuser or user_creating_staff.role == 'owner':
                 obj.save()
             elif user_creating_staff.role == 'admin':
                 raise Exception('Вы не можете создавать точки')

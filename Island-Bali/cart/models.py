@@ -80,12 +80,6 @@ class CartItem(models.Model):
         ordering = ['id']
         verbose_name = "Продукт в корзине"
         verbose_name_plural = "Продукты в корзине"
-        constraints = [
-            models.UniqueConstraint(
-                fields=('cart', 'product'),
-                name='unique_cart_product'
-            )
-        ]
 
     def __str__(self):
         return (f"Продукт {self.product.product} в "
@@ -93,13 +87,23 @@ class CartItem(models.Model):
 
     @property
     def item_total_price(self):
+        from decimal import Decimal
         size_prices = {
             self.SizeChoices.S: self.product.price_s,
             self.SizeChoices.M: self.product.price_m,
             self.SizeChoices.L: self.product.price_l
         }
-        product_price = size_prices.get(self.size)
+        product_price = size_prices.get(self.size) or Decimal('0.00')
         
-        addons_price = sum(addon.price for addon in self.addons.all())
+        addons_price = sum((addon.price for addon in self.addons.all() if addon.price), Decimal('0.00'))
         
-        return (product_price + addons_price) * self.amount
+        # Calculate flavors price: each flavor price equals the price of the addon it belongs to
+        flavors_price = Decimal('0.00')
+        selected_addons = list(self.addons.all())
+        for flavor in self.flavors.all():
+            for addon in selected_addons:
+                if flavor in addon.flavors.all():
+                    flavors_price += addon.price or Decimal('0.00')
+                    break
+        
+        return (product_price + addons_price + flavors_price) * self.amount

@@ -4,8 +4,14 @@ from pathlib import Path
 
 import environ
 
-# CSRF_TRUSTED_ORIGINS = ['http://localhost', 'https://*.127.0.0.1',
-#                         "http://79.174.81.151:8000"]
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost',
+    'http://127.0.0.1',
+    'https://*.ngrok-free.app',
+    'https://*.ngrok.io',
+    'http://79.174.81.151',
+    'https://79.174.81.151',
+]
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE",
                       "island_bali.settings")
@@ -228,8 +234,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
 
-CELERY_BROKER_URL = "redis://localhost:6379/0"
-CELERY_RESULT_BACKEND = "redis://localhost:6379/1"
+CELERY_BROKER_URL = env.str("CELERY_BROKER_URL", default="redis://redis:6379/0")
+CELERY_RESULT_BACKEND = env.str("CELERY_RESULT_BACKEND", default="redis://redis:6379/1")
 # в течение какого срока храним результаты, после чего они удаляются
 CELERY_TASK_RESULT_EXPIRES = 7 * 86400  # 7 days
 # это нужно для мониторинга наших воркеров

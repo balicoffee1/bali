@@ -48,7 +48,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     )
     is_staff = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
-    is_active = models.BooleanField(default=False,
+    is_active = models.BooleanField(default=True,
                                     verbose_name="Статус активности")
     phone_number = PhoneNumberField(verbose_name="Телефон", max_length=23)
     email = models.CharField(

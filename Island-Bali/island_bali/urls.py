@@ -9,7 +9,8 @@ from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 from acquiring.views import (
     RussianStandardPaymentView, RussianStandardCheckPaymentView, AlphaCreatePaymentOrderView, \
     AlphaGetPaymentStatusView, TBCreateOrderView, TBGetOrderView, RSBTransactionView, SBPPaymentCreateView,
-    create_invoice, lifepay_callback, get_lifepay_invoice_view, LifePayCallbackView, PaymentChangeStatus
+    create_invoice, lifepay_callback, get_lifepay_invoice_view, LifePayCallbackView, PaymentChangeStatus,
+    check_lifepay_status
 )
 from orders.views import SendNotifications
 
@@ -72,6 +73,7 @@ urlpatterns = [
     path('lifepay-invoice/', get_lifepay_invoice_view, name='lifepay-invoice'),
     path("api/lifepay/callback/", LifePayCallbackView.as_view(), name="lifepay-callback"),
     path("api/payment/change-status/", PaymentChangeStatus.as_view(), name="payment-change-status"),
+    path("api/payment/lifepay/status/<int:order_id>/", check_lifepay_status, name="check-lifepay-status"),
     path("api/send_notifications/<int:order_id>/", SendNotifications.as_view(), name="send_notifications")
 ]
 

@@ -20,13 +20,13 @@ class OrdersAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         user_role = request.user.role
 
-        if user_role == "admin":
+        if request.user.is_superuser or user_role == "owner":
+            return Orders.objects.all()
+
+        elif user_role == "admin":
             place_of_work = (
                 Staff.objects.filter(users=request.user).first().place_of_work)
             return Orders.objects.filter(coffee_shop=place_of_work)
-
-        elif user_role == "owner":
-            return Orders.objects.all()
 
         else:
             return Orders.objects.none()
@@ -34,7 +34,7 @@ class OrdersAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change) -> None:
         user_creating_order = request.user
         if not change:
-            if user_creating_order.role == 'owner':
+            if user_creating_order.is_superuser or user_creating_order.role == 'owner':
                 obj.save()
 
             elif user_creating_order.role == 'admin':

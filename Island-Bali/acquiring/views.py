@@ -200,7 +200,7 @@ class SBPPaymentCreateView(APIView):
 import requests
 from django.conf import settings
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
@@ -319,7 +319,7 @@ class LifePayCallbackView(APIView):
         
         for transaction_number, info in data.items():
             status_code = info.get("status")
-            invoice = LifepayInvoice.objects.filter(transaction_number=transaction_number)
+            invoice = LifepayInvoice.objects.filter(transaction_number=transaction_number).first()
             order = invoice.order if invoice else None
             if not order:
                 continue
@@ -353,3 +353,59 @@ class PaymentChangeStatus(APIView):
             return Response({"success": True}, status=status.HTTP_200_OK)
         except Orders.DoesNotExist:
             return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def check_lifepay_status(request, order_id):
+    """
+    Опрос статуса счета LifePay напрямую через API LifePay и обновление БД.
+    """
+    from .models import LifepayInvoice
+    try:
+        order = Orders.objects.get(id=order_id, user=request.user)
+    except Orders.DoesNotExist:
+        return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    invoice = LifepayInvoice.objects.filter(order=order).last()
+    if not invoice:
+        return Response({"error": "No LifePay invoice found for this order"}, status=status.HTTP_404_NOT_FOUND)
+
+    coffee_shop = order.coffee_shop
+    params = {
+        "apikey": coffee_shop.lifepay_api_key,
+        "login": coffee_shop.lifepay_login,
+        "number": invoice.transaction_number
+    }
+
+    try:
+        response = requests.get(LIFEPAY_STATUS_URL, params=params, verify=False)
+        result = response.json()
+
+        if result.get("code") == 0:
+            transaction_data = result.get("data", {}).get(invoice.transaction_number, {})
+            status_code = transaction_data.get("status")
+
+            if status_code == 10:
+                order.payment_status = Orders.PAID
+                order.status_orders = Orders.IN_PROGRESS
+            elif status_code in [20, 30]:
+                order.status_orders = Orders.CANCELED
+                order.payment_status = Orders.FAILED
+            elif status_code == 15:
+                order.payment_status = Orders.PENDING
+
+            order.save()
+
+            return Response({
+                "order_id": order.id,
+                "payment_status": order.payment_status,
+                "status_orders": order.status_orders,
+                "lifepay_status": status_code,
+                "message": transaction_data.get("msg", "")
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({"error": result.get("message", "Error from LifePay")}, status=status.HTTP_400_BAD_REQUEST)
+
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

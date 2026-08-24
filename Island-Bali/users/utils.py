@@ -29,28 +29,15 @@ def is_phone_number(string: str):
         return False
 
 
-def send_phone_reset(phone, code):
-    body = json.dumps(
-        {
-            "messages": [
-                {
-                    "phone": phone,
-                    "sender": "Island_Baly",
-                    "clientId": f"{phone}",
-                    "text": "Ваш код подтверждения приложения Islandbali: "
-                            + str(code)
-                            + ". Не говорите код!",
-                }
-            ],
-            "statusQueueName": "myQueue",
-            "showBillingDetails": True,
-            "login": SMS_LOGIN,
-            "password": SMS_PASSWORD,
-        }
-    )
-    response = requests.post("https://api.iqsms.ru/messages/v2/send.json", data=body)
-    if response.json().get('messages')[0].get("status") != "accepted":
-        raise Exception('Сервер отправки СМС в данный момент не работает. Попробуйте позже')
+def send_phone_reset(phone, code=None):
+    if code is None:
+        code = str(random.randint(1000, 9999))
+    
+    print("\n" + "=" * 50)
+    print(f"[MOCK SMS] To: {phone}")
+    print(f"[MOCK SMS] Text: Ваш код подтверждения приложения Islandbali: {code}. Не говорите код!")
+    print("=" * 50 + "\n", flush=True)
+    
     return code
 
 

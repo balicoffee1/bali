@@ -15,13 +15,13 @@ class StaffAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         user_role = request.user.role
 
-        if user_role == "admin":
+        if request.user.is_superuser or user_role == "owner":
+            return Staff.objects.all()
+
+        elif user_role == "admin":
             staff_instance = Staff.objects.filter(users=request.user).first()
             return Staff.objects.filter(
                 place_of_work=staff_instance.place_of_work)
-
-        elif user_role == "owner":
-            return Staff.objects.all()
 
         return Staff.objects.none()
 

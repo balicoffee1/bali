@@ -3,20 +3,35 @@ from cart.models import CartItem, ShoppingCart
 from menu_coffee_product.models import Product, Addon, AdditiveFlavors
 from menu_coffee_product.serializers import ProductSerializer, AddonSerializer, AdditiveFlavorsSerializer
 
+class CartItemAddonSerializer(serializers.ModelSerializer):
+    flavors = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Addon
+        fields = ['id', 'name', 'description', 'price', 'coffee_shop', 'flavors']
+
+    def get_flavors(self, obj):
+        cart_item = self.context.get('cart_item')
+        if cart_item:
+            selected_flavors = cart_item.flavors.all()
+            addon_flavors = obj.flavors.filter(id__in=[f.id for f in selected_flavors])
+            return AdditiveFlavorsSerializer(addon_flavors, many=True).data
+        return []
+
 class CartItemSerializer(serializers.ModelSerializer):
-    addons = AddonSerializer(many=True, read_only=True)
     product = ProductSerializer()
     item_total_price = serializers.SerializerMethodField()
-    flavors = AdditiveFlavorsSerializer(many=True, read_only=True)
+    addons = serializers.SerializerMethodField()
 
     class Meta:
         model = CartItem
-        fields = ["id", 'product', 'amount', 'item_total_price', 'size', 'addons', "flavors"]
+        fields = ["id", 'product', 'amount', 'item_total_price', 'size', 'addons']
+
+    def get_addons(self, obj):
+        serializer = CartItemAddonSerializer(obj.addons.all(), many=True, context={'cart_item': obj})
+        return serializer.data
 
     def get_item_total_price(self, obj):
-        # product_price = obj.product.price
-        # addons_price = sum(addon.price for addon in obj.addons.all())
-        # total_price = (product_price + addons_price) * obj.amount
         return obj.item_total_price
 
 class CartSerializer(serializers.ModelSerializer):
@@ -57,19 +72,31 @@ class AddToCartSerializer(serializers.Serializer):
     )
 
 class ChangeCartSerializer(serializers.Serializer):
-    product_name = serializers.CharField(required=True,
-                                         help_text="Введите имя продукта "
-                                                   "который хотите изменить",
+    cart_item_id = serializers.IntegerField(required=False,
+                                            help_text="ID элемента корзины")
+    product_name = serializers.CharField(required=False,
+                                         help_text="Введите имя продукта который хотите изменить",
                                          label="Введите имя продукта")
     quantity = serializers.IntegerField(required=True,
                                         help_text="Укажите количество",
                                         label="Количество товара")
 
+    def validate(self, attrs):
+        if not attrs.get('cart_item_id') and not attrs.get('product_name'):
+            raise serializers.ValidationError("Необходимо указать cart_item_id или product_name")
+        return attrs
+
 class RemoveProductFromCartSerializer(serializers.Serializer):
-    product_name = serializers.CharField(required=True,
-                                         help_text="Введите имя продукта "
-                                                   "который хотите удалить",
+    cart_item_id = serializers.IntegerField(required=False,
+                                            help_text="ID элемента корзины")
+    product_name = serializers.CharField(required=False,
+                                         help_text="Введите имя продукта который хотите удалить",
                                          label="Введите имя продукта")
+
+    def validate(self, attrs):
+        if not attrs.get('cart_item_id') and not attrs.get('product_name'):
+            raise serializers.ValidationError("Необходимо указать cart_item_id или product_name")
+        return attrs
 
 
 class CartItemCreateUpdateSerializer(serializers.ModelSerializer):
