@@ -23,3 +23,6 @@ qr_codes/
 venv/
 venv
 /venv
+.DS_Store
+*.tar.gz
+_to_delete/
