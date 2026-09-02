@@ -39,6 +39,7 @@ DJANGO_APPS = [
 ]
 
 THIRD_PARTY_APPS = [
+    "corsheaders",
     "rest_framework",
     "rest_framework_simplejwt",
     "phonenumber_field",
@@ -47,7 +48,8 @@ THIRD_PARTY_APPS = [
     "django_extensions",
     'colorfield',
     "django_filters",
-    "fcm_django"
+    "fcm_django",
+    "channels",
 ]
 
 YOUR_APPS = [
@@ -66,12 +68,31 @@ YOUR_APPS = [
     "acquiring.apps.AcquiringConfig",
     "quickresto.apps.QuickrestoConfig",
     "seo.apps.SeoConfig",
+    "admin_api.apps.AdminApiConfig",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + YOUR_APPS
 APPEND_SLASH = True
+
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = env.list(
+    "CORS_ALLOWED_ORIGINS",
+    default=["http://localhost:3000", "http://127.0.0.1:3000"],
+)
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -99,6 +120,22 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "island_bali.wsgi.application"
+
+# M2: ASGI обслуживает только /ws/* (см. island_bali/asgi.py, nginx/default.conf).
+# HTTP API продолжает идти через gunicorn/WSGI — ASGI_APPLICATION нужен Channels
+# для ProtocolTypeRouter и для тестов/runserver, не для production HTTP-трафика.
+ASGI_APPLICATION = "island_bali.asgi.application"
+
+# Отдельная логическая БД Redis для Channels (Celery уже занимает 0 — broker, 1 — result
+# backend). Не поднимаем отдельный физический Redis — тот же контейнер, другой namespace.
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [env.str("CHANNELS_REDIS_URL", default="redis://redis:6379/2")],
+        },
+    },
+}
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
@@ -141,8 +178,8 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = env.str("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = env.str("EMAIL_HOST_PASSWORD")
 
-SMS_LOGIN = "fivcoffe0711"
-SMS_PASSWORD = "578613"
+SMS_LOGIN = env.str("SMS_LOGIN", default="")
+SMS_PASSWORD = env.str("SMS_PASSWORD", default="")
 
 
 # Password validation
@@ -171,13 +208,22 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.AllowAny",
+        # M0 п.3.1: раньше AllowAny по умолчанию означало, что забытый
+        # permission_classes на новой вьюхе тихо открывал её всему интернету.
+        # Теперь по умолчанию требуется аутентификация; эндпоинты, которые
+        # действительно должны быть публичными (логин, refresh/verify токена,
+        # публичный каталог меню и т.п.), получают явный AllowAny точечно —
+        # см. island_bali/urls.py и соответствующие views.py.
+        "rest_framework.permissions.IsAuthenticated",
     ],
+    "DEFAULT_THROTTLE_RATES": {
+        "admin_login": env.str("ADMIN_LOGIN_THROTTLE_RATE", default="10/min"),
+    },
 }
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(
-        days=env.int("ACCESS_TOKEN_LIFETIME", 7)),
+        hours=env.int("ACCESS_TOKEN_LIFETIME_HOURS", 1)),
     "REFRESH_TOKEN_LIFETIME": timedelta(
         days=env.int("REFRESH_TOKEN_LIFETIME", 30)),
     "ROTATE_REFRESH_TOKENS": False,
@@ -201,7 +247,7 @@ SIMPLE_JWT = {
     "JTI_CLAIM": "jti",
     "SLIDING_TOKEN_REFRESH_EXP_CLAIM": "refresh_exp",
     "SLIDING_TOKEN_LIFETIME": timedelta(
-        days=env.int("ACCESS_TOKEN_LIFETIME", 7)),
+        hours=env.int("ACCESS_TOKEN_LIFETIME_HOURS", 1)),
     "SLIDING_TOKEN_REFRESH_LIFETIME": timedelta(
         days=env.int("REFRESH_TOKEN_LIFETIME", 30)
     ),
@@ -210,7 +256,7 @@ SIMPLE_JWT = {
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
 
-GROUPS = {"owner": {}, "admin": {}, "employee": {}, "user": {}}
+GROUPS = {"owner": {}, "admin": {}, "moderator": {}, "support": {}, "employee": {}, "user": {}}
 
 LANGUAGE_CODE = "ru"
 
@@ -260,49 +306,70 @@ SERVER_EMAIL = env.str("EMAIL_HOST_USER")
 
 
 
-# LOGGING = {
-#     'version': 1,
-#     'disable_existing_loggers': False,
-#     'formatters': {
-#         'verbose': {
-#             'format': '{levelname} {asctime} {module} {message}',
-#             'style': '{',
-#         },
-#         'simple': {
-#             'format': '{levelname} {message}',
-#             'style': '{',
-#         },
-#     },
-#     'handlers': {
-#         'file': {
-#             'level': 'DEBUG',
-#             'class': 'logging.FileHandler',
-#             'filename': os.path.join(BASE_DIR, 'debug.log'),
-#             'formatter': 'verbose',
-#         },
-#         'console': {
-#             'class': 'logging.StreamHandler',
-#             'formatter': 'simple',
-#         },
-#     },
-#     'loggers': {
-#         'django': {
-#             'handlers': ['console', 'file'],
-#             'level': 'DEBUG',
-#             'propagate': True,
-#         },
-#         'django.request': {
-#             'handlers': ['file'],
-#             'level': 'ERROR',
-#             'propagate': False,
-#         },
-#         'island_bali': {  # Логирование вашего приложения (замените на название вашего приложения)
-#             'handlers': ['file'],
-#             'level': 'DEBUG',
-#             'propagate': True,
-#         },
-#     },
-# }
+# M1 п.22: структурированный лог переходов order/payment state (orders.state,
+# orders.signals, orders.tasks, acquiring.providers) — без PII (см. docstring
+# orders/services.py::_log_transition). Не переопределяет root/django loggers,
+# чтобы не менять поведение остального проекта за пределами M0/M1.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'orders.state': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'orders.signals': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'orders.tasks': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'acquiring.providers': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'acquiring.views': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        # M2/M3: WebSocket connection lifecycle и realtime event publication.
+        # Как и остальные логгеры этого блока — без JWT/PII, только технические ID.
+        'orders.consumers': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'orders.realtime': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'island_bali.ws_auth': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
 
 
 
@@ -311,8 +378,8 @@ SSL_KEY_PATH = os.path.join(BASE_DIR, 'cert/private.key')
 CA_CERT_PATH = os.path.join(BASE_DIR, 'cert/chain-ecomm-ca-root-ca.crt')
 
 
-ONESIGNAL_APP_ID = "b522f8d7-ccd4-4fda-9e85-e73baa42aaf3"
-ONESIGNAL_API_KEY = "os_v2_app_wurprv6m2rh5vhuf4452uqvk6prcnvlpoudeft4763v3672gyearsk7r3uvtixonozwkyatvpup7f774na2ijksizxfrmaqparqpz5q"
+ONESIGNAL_APP_ID = env.str("ONESIGNAL_APP_ID", default="")
+ONESIGNAL_API_KEY = env.str("ONESIGNAL_API_KEY", default="")
 
 
 LIFEPAY_CALLBACK_URL = 'https://example.com/api/orders/lifepay-callback/'

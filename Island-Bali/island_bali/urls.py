@@ -4,12 +4,13 @@ from django.contrib import admin
 from django.urls import include, path
 from drf_yasg import openapi
 from drf_yasg.views import get_schema_view
+from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
 
 from acquiring.views import (
     RussianStandardPaymentView, RussianStandardCheckPaymentView, AlphaCreatePaymentOrderView, \
     AlphaGetPaymentStatusView, TBCreateOrderView, TBGetOrderView, RSBTransactionView, SBPPaymentCreateView,
-    create_invoice, lifepay_callback, get_lifepay_invoice_view, LifePayCallbackView, PaymentChangeStatus,
+    create_invoice, lifepay_callback, get_lifepay_invoice_view, LifePayCallbackView,
     check_lifepay_status
 )
 from orders.views import SendNotifications
@@ -34,11 +35,14 @@ urlpatterns = [
     # Админка
     path("admin/", admin.site.urls),
 
-    # Аутентификация
-    path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
-    path("api/token/verify/", TokenVerifyView.as_view(), name="token_verify"),
+    # Аутентификация. M0 п.3.1: после флипа DEFAULT_PERMISSION_CLASSES на
+    # IsAuthenticated эти вьюхи обязаны остаться публичными явно — иначе
+    # обновление/проверка токена стало бы невозможным без уже валидного токена.
+    path("api/token/refresh/", TokenRefreshView.as_view(permission_classes=[AllowAny]), name="token_refresh"),
+    path("api/token/verify/", TokenVerifyView.as_view(permission_classes=[AllowAny]), name="token_verify"),
 
     # Основные приложения
+    path("api/admin/", include("admin_api.urls")),
     path("api/users/", include("users.urls"), name="orders"),
     path("api/orders/", include("orders.urls")),
     path("api/coffee_shop/", include("coffee_shop.urls")),
@@ -71,8 +75,9 @@ urlpatterns = [
     path('create-invoice/', create_invoice, name='create-invoice'),
     path('lifepay-callback/', lifepay_callback, name='lifepay-callback'),
     path('lifepay-invoice/', get_lifepay_invoice_view, name='lifepay-invoice'),
-    path("api/lifepay/callback/", LifePayCallbackView.as_view(), name="lifepay-callback"),
-    path("api/payment/change-status/", PaymentChangeStatus.as_view(), name="payment-change-status"),
+    path("api/lifepay/callback/", LifePayCallbackView.as_view(), name="lifepay-callback-api"),
+    # PaymentChangeStatus / "api/payment/change-status/" удалены (M0 P0) —
+    # см. acquiring/views.py, комментарий на месте удалённого класса.
     path("api/payment/lifepay/status/<int:order_id>/", check_lifepay_status, name="check-lifepay-status"),
     path("api/send_notifications/<int:order_id>/", SendNotifications.as_view(), name="send_notifications")
 ]

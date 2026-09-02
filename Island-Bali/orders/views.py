@@ -1,5 +1,4 @@
 import json
-from datetime import datetime
 from typing import Union
 
 from django.db import IntegrityError
@@ -13,19 +12,20 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
 from acquiring.clients import RussianStandard
 from coffee_shop.models import City
 from staff.models import Shift, Staff
+from staff.utils import is_staff_for_order
 from users.permissions import CanViewOrders
 
-from .models import Notification, Orders, PaymentMethod, CheckOrder
+from .models import Notification, Orders, CheckOrder
 from .serializers import (CheckoutSerializer, GetStatusPaymentSerializer, NotificationSerializer, OrderStatusUpdateSerializer, OrderTimeUpdateSerializer,
                           OrdersCreateSerializer, OrdersSerializer, OrderSerializers, PaymentSerializer, CheckOrderSerializer)
 # from .validators import validate_cafe_open_or_not
+from .state_machine import OrderTransitionError
 from cart.models import ShoppingCart
 from users.models import CustomUser
 from notifications.main import send_push_notification
@@ -35,6 +35,13 @@ rus_standard = RussianStandard()
 TAGS_ORDERS = ['Заказы']
 
 TIME_FORMAT_ERROR = 'Неверный формат времени. Пожалуйста используйте формат: 2024-02-06 16:20:00'
+
+
+def _transition_error_response(exc: OrderTransitionError):
+    http_status = status.HTTP_400_BAD_REQUEST
+    if exc.code == "forbidden":
+        http_status = status.HTTP_403_FORBIDDEN
+    return Response({"error": exc.code, "message": exc.message}, status=http_status)
 
 
 @swagger_auto_schema(
@@ -55,6 +62,20 @@ def view_orders(request):
 
 
 class CheckoutView(APIView):
+    """
+    NB (обнаружено при пере-верификации M2, не входит в скоуп M0/M1):
+    CheckoutSerializer.create() вызывает
+    cart.send_orders_for_confirmation_to_barista(user=..., city_choose=...,
+    coffee_shop=..., client_comments=..., cart=...) без обязательных
+    аргументов staff/time_is_finish метода в cart/models.py — вызов упадёт
+    с TypeError при любом реальном запросе. Мобильное приложение (Flutter)
+    этот endpoint (`checkout/`) НЕ вызывает — реальное создание заказа идёт
+    через POST /api/orders/orders/ (OrderViewSet.perform_create, ниже),
+    подтверждено grep'ом по happy_island. Т.к. эндпоинт не используется и
+    его починка потребовала бы придумывать недостающие staff/time_is_finish
+    (unrelated redesign), он оставлен как есть, с этим комментарием — см.
+    финальный отчёт §F ("предсуществующие баги вне мобильного контракта").
+    """
     @swagger_auto_schema(
         request_body=CheckoutSerializer,
         operation_description="Создает заказ на основе корзины пользователя и возвращает ссылку для оплаты заказа. Пользователь берется из токена аутентификации",
@@ -74,7 +95,6 @@ class CheckoutView(APIView):
         existing_order = Orders.objects.filter(user=user, payment_status="Pending").first()
         if existing_order:
             return Response({"error": "У вас есть неоплаченный заказ."}, status=status.HTTP_400_BAD_REQUEST)
-        
 
         cart = ShoppingCart.objects.get(user=user, is_active=True)
         if not cart.items.exists():
@@ -118,8 +138,6 @@ def get_status_payment_for_cart(request):
     return Response({'message': message, 'payment_status': payment_status})
 
 
-
-
 class OrderViewSet(ModelViewSet):
     queryset = Orders.objects.all()
     serializer_class = OrderSerializers
@@ -137,23 +155,58 @@ class OrderViewSet(ModelViewSet):
 
     @action(detail=True, methods=['patch'], url_path='confirm')
     def confirm_orders(self, request, pk=None):
-        """Подтверждение заказа бариста"""
-        order = Orders.objects.get(pk=pk)
-        order.confirm_order(staff=request.user.staff)  
+        """
+        Подтверждение заказа бариста.
+
+        M0 (P0, IDOR): раньше — `Orders.objects.get(pk=pk)` без какой-либо
+        проверки, что request.user вообще сотрудник; `order.confirm_order`
+        (удалён в M1) писал status_orders напрямую. Мобильное приложение
+        (happy_island) этот endpoint не вызывает — staff-приёмка заказа у
+        него идёт через /api/staff/ (см. staff/views.py::PendingOrdersAcceptView),
+        но endpoint остаётся маршрутизируемым, поэтому закрыт тем же
+        способом, что и его staff-аналог.
+        """
+        order = get_object_or_404(Orders, pk=pk)
+        if not is_staff_for_order(request.user, order):
+            return Response({'error': 'Вы не являетесь сотрудником этой кофейни'}, status=status.HTTP_403_FORBIDDEN)
+
+        from orders.services import OrderStateService
+
+        try:
+            order = OrderStateService.accept(order.id, staff_user=request.user)
+        except OrderTransitionError as exc:
+            return _transition_error_response(exc)
         return Response({'status': 'Заказ подтвержден'})
 
     @action(detail=True, methods=['patch'], url_path='cancel')
     def cancel_orders(self, request, pk=None):
-        """Отмена заказа бариста с указанием причины"""
-        order = Orders.objects.get(pk=pk)
-        print(order)
+        """
+        Отмена заказа клиентом.
+
+        M0 (P0, IDOR): раньше — `Orders.objects.get(pk=pk)` без фильтрации
+        по владельцу (в обход get_queryset()) — любой аутентифицированный
+        пользователь мог отменить ЧУЖОЙ заказ, зная его id. Это активно
+        используемый мобильным приложением endpoint (cart_repository.dart:
+        PATCH /api/orders/orders/<id>/cancel/), поэтому это реальный P0, а
+        не теоретический риск.
+        """
+        order = get_object_or_404(Orders, pk=pk)
+        if order.user_id != request.user.id:
+            return Response({'error': 'Вы не можете отменить этот заказ'}, status=status.HTTP_403_FORBIDDEN)
+
         reason = request.data.get('reason', 'Не указана')
-        order.cancel_order(reason)
+
+        from orders.services import OrderStateService
+
+        try:
+            OrderStateService.cancel(order.id, actor_type="customer", reason=reason)
+        except OrderTransitionError as exc:
+            return _transition_error_response(exc)
         return Response({'status': 'Заказ отменен'})
 
     @action(detail=True, methods=['patch'], url_path='update-time')
     def update_time(self, request, pk=None):
-        """Изменение времени получения заказа"""
+        """Изменение времени получения заказа (get_object() уже скоупит по владельцу)."""
         order = self.get_object()
         serializer = OrderTimeUpdateSerializer(order, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -162,45 +215,80 @@ class OrderViewSet(ModelViewSet):
 
     @action(detail=True, methods=['patch'], url_path='complete')
     def complete_order(self, request, pk=None):
-        """Завершение заказа бариста"""
+        """
+        Не используется мобильным приложением (staff-завершение заказа идёт
+        через /api/staff/complete_order/). get_object() скоупит по владельцу
+        заказа — оставлено так же, как было, чтобы не менять модель
+        авторизации незадействованного endpoint'а; исправлен только вызов
+        удалённого order.complete_order().
+        """
         order = self.get_object()
-        order.complete_order()
+
+        from orders.services import OrderStateService
+
+        try:
+            order = OrderStateService.complete(order.id, staff_user=None)
+        except OrderTransitionError as exc:
+            return _transition_error_response(exc)
         return Response({'status': 'Заказ завершен'})
 
     @action(detail=True, methods=['post'], url_path='pay')
     def pay_order(self, request, pk=None):
-        """Обработка оплаты заказа"""
+        """
+        Не используется мобильным приложением (реальный платёжный флоу —
+        create_invoice/check_lifepay_status/lifepay webhook, acquiring/views.py).
+        Раньше вызывал `order.process_payment(PaymentMethod(payment_method))` —
+        оба удалены в M1, endpoint был полностью нерабочим (ImportError).
+        Теперь помечает начало попытки оплаты через OrderStateService, не
+        восстанавливая несуществующую реализацию под конкретный payment_method.
+        """
         order = self.get_object()
         serializer = PaymentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         payment_method = serializer.validated_data['payment_method']
-        order.process_payment(PaymentMethod(payment_method))
-        return Response({'status': 'Оплата обработана'})
-    
+
+        from orders.services import OrderStateService
+
+        try:
+            OrderStateService.payment_started(order.id, provider=payment_method)
+        except OrderTransitionError as exc:
+            return _transition_error_response(exc)
+        return Response({'status': 'Оплата начата'})
+
     @action(detail=True, methods=['post'], url_path='client_confirmation')
     def client_confirmation(self, request, pk=None):
-        """Подтверждение заказа клиентом"""
+        """Подтверждение заказа клиентом (используется мобильным приложением)."""
         order = self.get_object()
         if order.user != request.user:
             return Response({'error': 'Вы не можете подтвердить этот заказ'}, status=status.HTTP_403_FORBIDDEN)
-        
-        order.client_confirmed = True
-        order.save()
+
+        from orders.services import OrderStateService
+
+        try:
+            OrderStateService.client_confirmed(order.id, user=request.user)
+        except OrderTransitionError as exc:
+            return _transition_error_response(exc)
         return Response({'status': 'Заказ подтвержден клиентом'})
-    
+
     @action(detail=True, methods=['patch'], url_path='staff-update')
     def staff_update(self, request, pk=None):
+        """
+        Обновление заказа со стороны сотрудника — только presentation/
+        операционные поля (см. StaffOrderUpdateSerializer, M0 п.3.3);
+        status_orders/payment_status этим путём больше недостижимы.
+        Не используется мобильным приложением; scoping добавлен для defense
+        in depth.
+        """
         from orders.serializers import StaffOrderUpdateSerializer
-        """Обновление заказа со стороны сотрудника (может изменить все поля)"""
-        order = self.get_object()
+        order = get_object_or_404(Orders, pk=pk)
+        if not is_staff_for_order(request.user, order):
+            return Response({'error': 'Вы не являетесь сотрудником этой кофейни'}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = StaffOrderUpdateSerializer(order, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
         return Response({'status': 'Заказ обновлен сотрудником', 'order': serializer.data})
-
-        
 
 
 # ViewSet для уведомлений
@@ -216,30 +304,59 @@ class NotificationViewSet(ReadOnlyModelViewSet):
 
 # Обработка статуса заказа (через отдельный APIView)
 class OrderStatusUpdateView(APIView):
+    """
+    Не используется мобильным приложением. Раньше принимал произвольное
+    status_orders и писал его через ModelSerializer.save() — заказ был
+    ограничен владельцем (get_object_or_404(user=request.user)), но клиент
+    мог, например, сам выставить себе "Completed"/поставить оплату задним
+    числом, минуя реальный флоу. Теперь допустимы только переходы, для
+    которых у клиента есть легитимный именованный сценарий (Canceled ->
+    отмена своего заказа); остальные значения отклоняются.
+    """
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, pk):
-        """Обновление статуса заказа (например, изменение на 'Выполняется')"""
         order = get_object_or_404(Orders, pk=pk, user=request.user)
-        serializer = OrderStatusUpdateSerializer(order, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({'status': 'Статус заказа обновлен'})
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer = OrderStatusUpdateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        target_status = serializer.validated_data['status_orders']
+
+        from orders.services import OrderStateService
+
+        try:
+            if target_status == Orders.CANCELED:
+                OrderStateService.cancel(order.id, actor_type="customer", reason="Отменено через OrderStatusUpdateView")
+            else:
+                return Response(
+                    {"error": f"Клиент не может напрямую установить статус {target_status}."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        except OrderTransitionError as exc:
+            return _transition_error_response(exc)
+
+        return Response({'status': 'Статус заказа обновлен'})
 
 
 # Обработка оплаты (через отдельный APIView)
 class PaymentView(APIView):
+    """Не используется мобильным приложением — см. комментарий к OrderViewSet.pay_order."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
-        """Процесс оплаты заказа"""
         order = get_object_or_404(Orders, pk=pk, user=request.user)
         serializer = PaymentSerializer(data=request.data)
         if serializer.is_valid():
             payment_method = serializer.validated_data['payment_method']
-            order.process_payment(PaymentMethod(payment_method))
-            return Response({'status': 'Оплата обработана'})
+
+            from orders.services import OrderStateService
+
+            try:
+                OrderStateService.payment_started(order.id, provider=payment_method)
+            except OrderTransitionError as exc:
+                return _transition_error_response(exc)
+            return Response({'status': 'Оплата начата'})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -281,33 +398,52 @@ class CheckOrderViewSet(ModelViewSet):
 
 
 class UpdateThankYouDialogView(APIView):
-    """API для обновления поля isThankYouDialogOpen"""
+    """
+    API для обновления поля isThankYouDialogOpen (UI-флаг, не входит ни в
+    одну из двух state machine). Используется мобильным приложением
+    (review_repository.dart). M0 (IDOR): раньше не проверял владельца заказа —
+    любой аутентифицированный пользователь мог переключить этот флаг у
+    чужого заказа.
+    """
+    permission_classes = [IsAuthenticated]
+
     def patch(self, request, order_id):
-        order = get_object_or_404(Orders, id=order_id)
+        order = get_object_or_404(Orders, id=order_id, user=request.user)
         is_open = request.data.get('isThankYouDialogOpen')
         if is_open is not None:
             order.isThankYouDialogOpen = is_open
-            order.save()
+            order.save(update_fields=["isThankYouDialogOpen"])
             return Response({'message': 'Поле isThankYouDialogOpen обновлено'}, status=status.HTTP_200_OK)
         return Response({'error': 'Поле isThankYouDialogOpen не указано'}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class UpdateOrderCancelledView(APIView):
-    """API для обновления поля isOrderCancelled"""
+    """
+    API для обновления поля isOrderCancelled (UI-флаг "показать пользователю,
+    что заказ отменён" — отдельно от status_orders=Canceled). Используется
+    мобильным приложением (review_repository.dart). M0 (IDOR): то же
+    исправление, что и в UpdateThankYouDialogView.
+    """
+    permission_classes = [IsAuthenticated]
+
     def patch(self, request, order_id):
-        order = get_object_or_404(Orders, id=order_id)
+        order = get_object_or_404(Orders, id=order_id, user=request.user)
         is_cancelled = request.data.get('isOrderCancelled')
         if is_cancelled is not None:
             order.isOrderCancelled = is_cancelled
-            order.save()
+            order.save(update_fields=["isOrderCancelled"])
             return Response({'message': 'Поле isOrderCancelled обновлено'}, status=status.HTTP_200_OK)
         return Response({'error': 'Поле isOrderCancelled не указано'}, status=status.HTTP_400_BAD_REQUEST)
-    
+
 
 class SendNotifications(APIView):
     """API для отправки уведомлений"""
+    permission_classes = [IsAuthenticated]
+
     def post(self, request, order_id):
         order = get_object_or_404(Orders, id=order_id)
+        if not is_staff_for_order(request.user, order):
+            return Response({'error': 'Вы не являетесь сотрудником этой кофейни'}, status=status.HTTP_403_FORBIDDEN)
         message = request.data.get("message")
         send_push_notification(order.user, "Новое сообщение", message)
         return Response({'message': 'Уведомление отправлено'}, status=status.HTTP_200_OK)

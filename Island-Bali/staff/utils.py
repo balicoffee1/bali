@@ -1,11 +1,9 @@
 import base64
 
 from django.core.files.base import ContentFile
-from datetime import datetime, timedelta
-from django.utils.timezone import now
 
 from orders.models import Orders
-from staff.models import Shift
+from staff.models import Shift, Staff
 
 
 def change_receipt_photo(order, photo):
@@ -19,6 +17,20 @@ def change_receipt_photo(order, photo):
     else:
         order.receipt_photo = None
     order.save()
+
+
+def is_staff_for_order(user, order) -> bool:
+    """
+    M0 п.3.2: единая проверка IDOR для staff-эндпоинтов orders/staff —
+    сотрудник должен реально числиться в staff.models.Staff за тем же
+    coffee_shop, что и заказ. Раньше staff-эндпоинты принимали любой
+    order_id от любого аутентифицированного пользователя без этой проверки.
+    """
+    if user is None or not getattr(user, "is_authenticated", False):
+        return False
+    if order.coffee_shop_id is None:
+        return False
+    return Staff.objects.filter(users=user, place_of_work_id=order.coffee_shop_id).exists()
 
 
 def get_order_if_pending(order_id):
@@ -45,14 +57,6 @@ def get_order_if_new(order_id):
         return None, "Order not found"
 
 
-def update_order_status(order):
-    """Эта функция обновит статус и платежный статус заказа."""
-    order.status_orders = "Waiting"
-    order.payment_status = "Pending"
-    order.save()
-    return order
-
-
 def update_order_time_to_finish(order, new_time_to_finish):
     """Функция для обновления времени завершения заказа"""
     if new_time_to_finish:
@@ -67,21 +71,6 @@ def update_order_comments(order, new_comments):
         order.save()
 
 
-def update_payment_status(order, payment_status):
-    """Функция для обновления статуса платежа"""
-    if payment_status == "Failed":
-        order.payment_status = "Failed"
-        order.save()
-
-
-def cancel_order_with_comment(order, cancellation_reason):
-    """Функция для удаления заказа с комментарием"""
-    order.cancellation_reason = cancellation_reason
-    order.status_orders = order.CANCELED
-    order.save()
-    return order
-
-
 def get_completed_orders(sorting_datevalue):
     """Получение списка заказов в статусе "Completed"."""
     orders = Orders.objects.filter(
@@ -89,33 +78,6 @@ def get_completed_orders(sorting_datevalue):
         time_is_finish__date=sorting_datevalue
     ).order_by("-created_at", "time_is_finish")
     return orders
-
-
-def change_order_status_to_completed(order_id):
-    """
-    Изменение статуса заказа на "Completed".
-    Возвращает tuple (order, error), где order - обновленный заказ,
-    а error - сообщение об ошибке, если оно есть.
-    """
-    if not order_id:
-        return None, "Необходимо передать order_id"
-
-    try:
-        order = Orders.objects.get(id=order_id)
-        if order.status_orders != "In Progress":
-            return None, "Заказ не находится в состоянии «Ожидание»."
-
-        order.status_orders = "Completed"
-        order.save()
-        order.cart.is_active = False
-        order.cart.save()
-        return order, None
-
-    except Orders.DoesNotExist:
-        return None, "Order not found"
-
-    except Exception as e:
-        return None, str(e)
 
 
 def is_valid_order_status(status):
@@ -142,7 +104,7 @@ def close_shift(start_time, end_time, staff):
      сообщение об ошибке.
     """
     try:
-        
+
         shift = Shift.objects.get(start_time=start_time, staff=staff)
         shift.update_shift_statistics()
         shift.status_shift = "Closed"
@@ -151,3 +113,13 @@ def close_shift(start_time, end_time, staff):
         return shift, None
     except Shift.DoesNotExist:
         return None, "Shift not found"
+
+
+# update_order_status / cancel_order_with_comment / change_order_status_to_completed /
+# update_payment_status удалены отсюда (M1 п.18): все они напрямую писали
+# order.status_orders / order.payment_status + order.save() в обход какой-либо
+# state machine (в т.ч. update_order_status безусловно форсировал "Waiting" даже
+# для Completed/Canceled заказа, а cancel_order_with_comment — "Canceled" даже
+# поверх уже терминального статуса). Эквивалентная логика теперь — вызовы
+# OrderStateService.accept/cancel/complete напрямую из staff/views.py, которые
+# проверяют допустимость перехода и делают это атомарно под select_for_update.

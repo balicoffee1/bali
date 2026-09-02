@@ -22,12 +22,12 @@ from staff.serializers import (CancelOrderSerializer, CompleteOrdersSerializer,
                                UploadReceiptPhotoResponseSerializer)
 
 from .serializers import StaffSerializer
-from .utils import (cancel_order_with_comment,
-                    change_order_status_to_completed, change_receipt_photo,
+from .utils import (change_receipt_photo,
                     close_shift, filter_orders_by_status, get_completed_orders,
-                    get_order_if_pending, get_order_if_new, is_valid_order_status, open_shift,
-                    update_order_status)
+                    get_order_if_pending, get_order_if_new, is_staff_for_order,
+                    is_valid_order_status, open_shift)
 from notifications.main import send_push_notification
+from orders.state_machine import OrderTransitionError
 
 TAGS_STAFF = ['Персонал']
 
@@ -126,7 +126,23 @@ class PendingOrdersAcceptView(APIView):
             return Response({"error": error},
                             status=status.HTTP_400_BAD_REQUEST)
 
-        order = update_order_status(order)
+        # M0 п.3.2 (IDOR): раньше любой аутентифицированный пользователь мог
+        # принять чужой заказ, зная его id — теперь требуется реальное
+        # членство в Staff той же кофейни.
+        if not is_staff_for_order(request.user, order):
+            return Response({"error": "Вы не являетесь сотрудником этой кофейни"},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        from orders.services import OrderStateService
+
+        try:
+            # M1 п.18: раньше update_order_status(order) безусловно писал
+            # status_orders="Waiting" даже поверх Completed/Canceled заказа.
+            # accept() сам проверяет допустимость перехода.
+            order = OrderStateService.accept(order.id, staff_user=request.user)
+        except OrderTransitionError as exc:
+            return Response({"error": exc.message}, status=status.HTTP_400_BAD_REQUEST)
+
         send_push_notification(order.user, "Новое сообщение", "Ваш заказ подтвержден")
         send_push_notification(order.user, "Новое сообщение", "Оплатите заказ в течение 1,5 минут")
 
@@ -151,6 +167,19 @@ class PendingOrdersAcceptView(APIView):
 
             try:
                 order = Orders.objects.get(id=order_id)
+            except Orders.DoesNotExist:
+                return Response({"error": "Order not found"},
+                                status=status.HTTP_404_NOT_FOUND)
+
+            if not is_staff_for_order(request.user, order):
+                return Response({"error": "Вы не являетесь сотрудником этой кофейни"},
+                                status=status.HTTP_403_FORBIDDEN)
+
+            try:
+                # PatchOrderSerializer.update_order не трогает status_orders/
+                # payment_status (только время/комментарии/UI-флаги) — вне
+                # инварианта единой точки мутации бизнес-статуса (M1 п.1),
+                # поэтому остаётся как есть.
                 serializer.update_order(order, serializer.validated_data)
 
                 serializer = PendingOrdersAcceptSerializer(order)
@@ -158,9 +187,6 @@ class PendingOrdersAcceptView(APIView):
 
                 return Response(serializer.data, status=status.HTTP_200_OK)
 
-            except Orders.DoesNotExist:
-                return Response({"error": "Order not found"},
-                                status=status.HTTP_404_NOT_FOUND)
             except Exception as e:
                 return Response({"error": str(e)},
                                 status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -186,19 +212,28 @@ class PendingOrdersAcceptView(APIView):
 
             try:
                 order = Orders.objects.get(id=order_id)
-                order = cancel_order_with_comment(order, cancellation_reason)
-
-                serializer = PendingOrdersAcceptSerializer(order)
-                send_push_notification(order.user, "Новое сообщение", "Ваш заказ отменен")
-
-                return Response(serializer.data, status=status.HTTP_200_OK)
-
             except Orders.DoesNotExist:
                 return Response({"error": "Order not found"},
                                 status=status.HTTP_404_NOT_FOUND)
-            except Exception as e:
-                return Response({"error": str(e)},
-                                status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            if not is_staff_for_order(request.user, order):
+                return Response({"error": "Вы не являетесь сотрудником этой кофейни"},
+                                status=status.HTTP_403_FORBIDDEN)
+
+            from orders.services import OrderStateService
+
+            try:
+                # M1 п.18: раньше cancel_order_with_comment безусловно писал
+                # status_orders=CANCELED даже поверх Completed — cancel()
+                # сам не даёт отменить уже терминальный заказ.
+                order = OrderStateService.cancel(order.id, actor_type="staff", reason=cancellation_reason)
+            except OrderTransitionError as exc:
+                return Response({"error": exc.message}, status=status.HTTP_400_BAD_REQUEST)
+
+            serializer = PendingOrdersAcceptSerializer(order)
+            send_push_notification(order.user, "Новое сообщение", "Ваш заказ отменен")
+
+            return Response(serializer.data, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -249,14 +284,24 @@ class CompleteOrdersView(APIView):
         serializer = CompleteOrdersSerializer(data=request.data)
         if serializer.is_valid():
             order_id = serializer.validated_data.get("order_id")
-            order, error = change_order_status_to_completed(order_id)
-            if error:
-                status_code = (
-                    status.HTTP_400_BAD_REQUEST
-                    if error == "Order ID is required"
-                    else status.HTTP_404_NOT_FOUND
-                )
-                return Response({"error": error}, status=status_code)
+            try:
+                order = Orders.objects.get(id=order_id)
+            except Orders.DoesNotExist:
+                return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
+
+            if not is_staff_for_order(request.user, order):
+                return Response({"error": "Вы не являетесь сотрудником этой кофейни"},
+                                status=status.HTTP_403_FORBIDDEN)
+
+            from orders.services import OrderStateService
+
+            try:
+                # change_order_status_to_completed уже проверял "In Progress",
+                # но напрямую писал status_orders + отдельным order.save() —
+                # теперь то же самое, но атомарно и через сервис (M1 п.18).
+                order = OrderStateService.complete(order.id, staff_user=request.user)
+            except OrderTransitionError as exc:
+                return Response({"error": exc.message}, status=status.HTTP_400_BAD_REQUEST)
 
             serializer = PendingOrdersAcceptSerializer(order)
             send_push_notification(order.user, "Новое сообщение", "Ваш заказ готов")
@@ -489,7 +534,10 @@ class ShiftToggleView(APIView):
 
 
 class UploadReceiptPhotoView(APIView):
-    permission_classes = [AllowAny]
+    # M0 п.3.2: раньше AllowAny — любой неаутентифицированный запрос мог
+    # прочитать URL фото чека ЛЮБОГО заказа (post) или пометить любой заказ
+    # выданным и прикрепить фото (put), зная только order_id.
+    permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         manual_parameters=[
@@ -515,6 +563,9 @@ class UploadReceiptPhotoView(APIView):
             order_id = serializer.validated_data['order_id']
             try:
                 order = Orders.objects.get(id=order_id)
+                if not is_staff_for_order(request.user, order):
+                    return Response({"error": "Вы не являетесь сотрудником этой кофейни"},
+                                    status=status.HTTP_403_FORBIDDEN)
                 if order.receipt_photo:
                     photo_url = order.receipt_photo.url
                     response_serializer = UploadReceiptPhotoResponseSerializer(
@@ -562,6 +613,9 @@ class UploadReceiptPhotoView(APIView):
                 )
 
             order = Orders.objects.get(id=order_id)
+            if not is_staff_for_order(request.user, order):
+                return Response({"error": "Вы не являетесь сотрудником этой кофейни"},
+                                status=status.HTTP_403_FORBIDDEN)
             photo_data = request.data.get('photo')
 
             change_receipt_photo(order, photo_data)

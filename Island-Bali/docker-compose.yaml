@@ -1,7 +1,5 @@
 # docker-compose.yaml
 
-version: '3.8'
-
 services:
   db:
     image: postgres:13.0-alpine
@@ -28,6 +26,27 @@ services:
              python manage.py collectstatic --noinput &&
              exec gunicorn island_bali.wsgi:application -b 0.0.0.0:8000"
 
+  # M2: отдельный ASGI-процесс (daphne) только для /ws/* — HTTP API по-прежнему
+  # обслуживается сервисом "web" (gunicorn/WSGI), см. nginx/default.conf.
+  ws:
+    build: .
+    restart: always
+    env_file:
+      - island_bali/.env
+    depends_on:
+      - db
+      - redis
+      - web
+    command: daphne -b 0.0.0.0 -p 8001 island_bali.asgi:application
+
+  admin-panel:
+    build:
+      context: ../admin-panel
+      dockerfile: Dockerfile
+    restart: always
+    volumes:
+      - admin_panel_value:/usr/share/nginx/html
+
   nginx:
     image: nginx:1.21.3-alpine
     ports:
@@ -37,8 +56,11 @@ services:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
       - static_value:/var/html/static/
       - media_value:/var/html/media/
+      - ../admin-panel/dist:/var/html/admin-panel/
     depends_on:
       - web
+      - ws
+      - admin-panel
 
   redis:
     image: "redis:latest"
@@ -72,3 +94,4 @@ volumes:
   static_value:
   media_value:
   postgres_data:
+  admin_panel_value:

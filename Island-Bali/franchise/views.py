@@ -1,14 +1,20 @@
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import generics
+from rest_framework.permissions import AllowAny
 
 from .utils import send_reset_password
 from .models import FranchiseInfo, FranchiseRequest
 from .serializers import FranchiseInfoSerializer, FranchiseRequestSerializer
 
 
+# M0 п.3.1: обе вьюхи ниже — публичная маркетинговая форма заявки на франшизу
+# и публичная информация о франшизе. После флипа DEFAULT_PERMISSION_CLASSES
+# на IsAuthenticated их нужно явно оставить публичными, иначе анонимный
+# посетитель сайта/приложения не сможет отправить заявку на франшизу.
 class FranchiseRequestViewSet(generics.CreateAPIView):
     queryset = FranchiseRequest.objects.all()
     serializer_class = FranchiseRequestSerializer
+    permission_classes = [AllowAny]
 
     @swagger_auto_schema(
         operation_description="Создание новой заявки на франшизу",
@@ -29,6 +35,7 @@ class FranchiseRequestViewSet(generics.CreateAPIView):
 class FranchiseRequestDetailView(generics.ListAPIView):
     queryset = FranchiseInfo.objects.all()
     serializer_class = FranchiseInfoSerializer
+    permission_classes = [AllowAny]
 
     @swagger_auto_schema(
         operation_description="Получение информации о франшизе",

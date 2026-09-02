@@ -25,6 +25,9 @@ TAGS_MENU = ['Меню заведений']
 
 
 class CategoryViewSet(generics.ListAPIView):
+    # M0 п.3.1: публичный просмотр меню кофейни — должен остаться доступным
+    # без авторизации (клиент смотрит меню до входа в приложение).
+    permission_classes = [permissions.AllowAny]
     serializer_class = CategorySerializer
     queryset = Category.objects.all()
     filter_backends = [DjangoFilterBackend]
@@ -60,6 +63,9 @@ class CategoryViewSet(generics.ListAPIView):
 
 
 class ProductViewSet(generics.ListAPIView):
+    # M0 п.3.1: публичный просмотр меню кофейни — должен остаться доступным
+    # без авторизации (клиент смотрит меню до входа в приложение).
+    permission_classes = [permissions.AllowAny]
     serializer_class = ProductSerializer
 
     def get_queryset(self):
@@ -88,6 +94,9 @@ class ProductViewSet(generics.ListAPIView):
 
 
 class ProductListInCategory(generics.ListAPIView):
+    # M0 п.3.1: публичный просмотр меню кофейни — должен остаться доступным
+    # без авторизации (клиент смотрит меню до входа в приложение).
+    permission_classes = [permissions.AllowAny]
     # TODO как по мне по id товара получать информацию это неправильно,
     #  нужно подумать как переделать
     serializer_class = ProductSerializer
@@ -141,6 +150,9 @@ class SeasonMenuViewSet(ModelViewSet):
 
 
 class AddonList(generics.ListAPIView):
+    # M0 п.3.1: публичный просмотр меню кофейни — должен остаться доступным
+    # без авторизации (клиент смотрит меню до входа в приложение).
+    permission_classes = [permissions.AllowAny]
     queryset = Addon.objects.all()
     serializer_class = AddonSerializer
     ilter_backends = [DjangoFilterBackend, SearchFilter]
@@ -184,6 +196,9 @@ class AddonList(generics.ListAPIView):
 
 
 class AdditiveFlavorsList(generics.ListAPIView):
+    # M0 п.3.1: публичный просмотр меню кофейни — должен остаться доступным
+    # без авторизации (клиент смотрит меню до входа в приложение).
+    permission_classes = [permissions.AllowAny]
     queryset = AdditiveFlavors.objects.all().prefetch_related("additive_flavors")
     serializer_class = AdditiveFlavorsSerializer
     filter_backends = [DjangoFilterBackend]

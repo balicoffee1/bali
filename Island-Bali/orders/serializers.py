@@ -131,10 +131,16 @@ class NotificationSerializer(serializers.ModelSerializer):
         
 
 
-class OrderStatusUpdateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Orders
-        fields = ['status_orders']
+class OrderStatusUpdateSerializer(serializers.Serializer):
+    """
+    M1 п.18: раньше был ModelSerializer с полем status_orders — то есть любое
+    допустимое значение из StatusOrders можно было записать напрямую через
+    serializer.save(), в обход state machine (в т.ч. можно было выставить
+    заказу себе "Completed"/"Paid" без реального перехода). Теперь это чистый
+    валидатор, значение передаётся в OrderStateService конкретным именованным
+    методом (accept/cancel/complete) — см. OrderStatusUpdateView.
+    """
+    status_orders = serializers.ChoiceField(choices=Orders.StatusOrders)
 
 
 class OrderTimeUpdateSerializer(serializers.ModelSerializer):
@@ -159,6 +165,19 @@ class CheckOrderSerializer(serializers.ModelSerializer):
         
 
 class StaffOrderUpdateSerializer(serializers.ModelSerializer):
+    """
+    M0 п.3.3 / M1 п.18: раньше exclude=['user','created_at','cart'] делал
+    ЛЮБОЕ остальное поле — включая status_orders, payment_status, version,
+    staff, coffee_shop, full_price — доступным для прямой записи через один
+    PATCH без какой-либо проверки допустимости перехода (P0 в исходном
+    аудите). Теперь этот serializer явно ограничен presentation/операционными
+    полями, не входящими в две state machine; изменение status_orders/
+    payment_status здесь больше невозможно в принципе.
+    """
     class Meta:
         model = Orders
-        exclude = ['user', 'created_at', 'cart']
+        fields = [
+            'client_comments', 'staff_comments', 'time_is_finish',
+            'receipt_photo', 'isTimeChangedDialog', 'isThankYouDialogOpen',
+            'is_appreciated', 'is_updated',
+        ]

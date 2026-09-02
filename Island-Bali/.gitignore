@@ -1,5 +1,8 @@
 **/migrations/*.py
 !**/migrations/__init__.py
+!users/migrations/*.py
+!admin_api/migrations/*.py
+!franchise/migrations/*.py
 db.sqlite3
 media
 .idea

@@ -1,6 +1,4 @@
 from django.db import models
-from django.db.models.signals import post_save
-from django.dispatch import receiver
 
 from cart.models import ShoppingCart
 from coffee_shop.models import City, CoffeeShop
@@ -106,6 +104,33 @@ class Orders(models.Model):
         default=False, verbose_name='Заказ тестовый'
     )
 
+    # --- M1: доменное состояние ---
+    # Эти поля меняются только внутри orders.services.OrderStateService (атомарно,
+    # с select_for_update и проверкой допустимого перехода). Прямое присваивание
+    # status_orders/payment_status/version/этих timestamp-полей где-либо ещё —
+    # регрессия, закрытая аудитом (docs/order-status-websocket-audit.md).
+    version = models.PositiveIntegerField(
+        default=0,
+        verbose_name='Версия бизнес-состояния заказа',
+        help_text=(
+            'Инкрементируется на каждый успешный переход status_orders/payment_status. '
+            'НЕ увеличивается на чисто presentation-изменения (диалоги, staff-комментарии).'
+        ),
+    )
+    payment_deadline_at = models.DateTimeField(
+        null=True, blank=True,
+        verbose_name='Дедлайн оплаты',
+        help_text='Момент создания заказа + 90 секунд. Устанавливается один раз и не пересчитывается.',
+    )
+    payment_started_at = models.DateTimeField(
+        null=True, blank=True,
+        verbose_name='Начало текущей попытки оплаты',
+    )
+    provider_paid_at = models.DateTimeField(
+        null=True, blank=True,
+        verbose_name='Момент подтверждения оплаты провайдером',
+        help_text='Timestamp от платёжного провайдера, а не время получения webhook нашим backend.',
+    )
 
     def __str__(self):
         return f'Заказ в {self.coffee_shop} от пользователя {self.user}'
@@ -113,39 +138,10 @@ class Orders(models.Model):
     class Meta:
         verbose_name = 'Заказ'
         verbose_name_plural = 'Заказы'
-        
-    
-    def confirm_order(self, staff):
-        """Подтверждает заказ и устанавливает его статус"""
-        self.status_orders = self.COMPLETED
-        self.payment_status = self.PENDING
-        self.staff = staff  
-        self.isTimeChangedDialog = True
-        self.save()  
 
-    def cancel_order(self, reason):
-        """Отменяет заказ и записывает причину отмены"""
-        self.status_orders = self.CANCELED  
-        self.cancellation_reason = reason  
-        self.isTimeChangedDialog = True
-        self.save()
-    
-    def complete_order(self, reason):
-        self.status_orders = self.COMPLETED
-        self.save()
-        
-    
-    def process_payment(self, payment_method):
-        """Process payment for the order."""
-
-        result = payment_method.process(self)  
-
-        if result == "success":
-            self.payment_status = self.PAID  
-        else:
-            self.payment_status = self.FAILED  
-
-        self.save() 
+    # confirm_order/cancel_order/complete_order/process_payment были удалены в M1:
+    # они меняли status_orders/payment_status без проверки текущего состояния и без
+    # блокировки строки (аудит P0-2..P0-5, P1-9..P1-11). См. orders.services.OrderStateService.
 
 
 class Notification(models.Model):
@@ -169,18 +165,78 @@ class Notification(models.Model):
         verbose_name_plural = 'Уведомления'
 
 
-class PaymentMethod:
-    """Пример обработчика оплаты"""
-    def __init__(self, method_type):
-        self.method_type = method_type  # Например, 'СБП' или 'Эквайринг'
+class PaymentWebhookEvent(models.Model):
+    """
+    Журнал уже обработанных провайдерских событий оплаты — идемпотентность webhook'ов (M1, п.21).
 
-    def process(self, order):
-        """Процесс обработки оплаты"""
-        if self.method_type == "СБП":
-            return "success"
-        elif self.method_type == "Эквайринг":
-            return "success"
-        return "failed"
+    Ключ идемпотентности — (provider, provider_event_id). provider_event_id формируется
+    вызывающим кодом из того, что реально присылает провайдер (например, для LifePay —
+    "<transaction_number>:<status_code>", т.к. номер транзакции у LifePay переиспользуется
+    на разных стадиях одного платежа). Повторная попытка записать существующую пару —
+    IntegrityError/get_or_create(created=False), которую сервис трактует как "уже обработано".
+    """
+    provider = models.CharField(max_length=32, verbose_name='Провайдер')
+    provider_event_id = models.CharField(max_length=191, verbose_name='Идентификатор события провайдера')
+    order = models.ForeignKey(
+        Orders, on_delete=models.CASCADE, related_name='payment_webhook_events', verbose_name='Заказ'
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Обработано')
+
+    class Meta:
+        verbose_name = 'Обработанное платёжное событие'
+        verbose_name_plural = 'Обработанные платёжные события'
+        unique_together = ('provider', 'provider_event_id')
+
+    def __str__(self):
+        return f'{self.provider}:{self.provider_event_id} -> order {self.order_id}'
+
+
+class PaymentReconciliation(models.Model):
+    """
+    Поздний платёж / расхождение между заказом и провайдером (M1, п.11-12).
+
+    Заводится, когда провайдер сообщает об успешной оплате уже окончательно
+    CANCELED (или иначе терминального) заказа. Сам факт создания записи НЕ меняет
+    status_orders — воскрешение отменённого заказа поздним webhook'ом запрещено.
+    Дальнейшая обработка — ручная (admin) или будущий refund-flow.
+    """
+    LATE_PAYMENT = 'LATE_PAYMENT'
+    RESOLVED_REFUNDED = 'RESOLVED_REFUNDED'
+    RESOLVED_ACKNOWLEDGED = 'RESOLVED_ACKNOWLEDGED'
+    RECONCILIATION_STATUS_CHOICES = [
+        (LATE_PAYMENT, 'Поздний платёж после отмены заказа'),
+        (RESOLVED_REFUNDED, 'Оформлен возврат'),
+        (RESOLVED_ACKNOWLEDGED, 'Подтверждено вручную без возврата'),
+    ]
+
+    order = models.ForeignKey(
+        Orders, on_delete=models.CASCADE, related_name='payment_reconciliations', verbose_name='Заказ'
+    )
+    status = models.CharField(
+        max_length=32, choices=RECONCILIATION_STATUS_CHOICES, default=LATE_PAYMENT,
+        verbose_name='Статус реконсиляции',
+    )
+    provider = models.CharField(max_length=32, verbose_name='Провайдер')
+    provider_transaction_id = models.CharField(max_length=191, blank=True, default='', verbose_name='ID транзакции провайдера')
+    amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name='Сумма')
+    order_status_at_detection = models.CharField(
+        max_length=30, verbose_name='Статус заказа на момент обнаружения'
+    )
+    detected_at = models.DateTimeField(auto_now_add=True, verbose_name='Обнаружено')
+    resolved_at = models.DateTimeField(null=True, blank=True, verbose_name='Разрешено')
+    resolved_by = models.ForeignKey(
+        CustomUser, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='+', verbose_name='Кто разрешил',
+    )
+    note = models.TextField(blank=True, default='', verbose_name='Примечание')
+
+    class Meta:
+        verbose_name = 'Поздний платёж / реконсиляция'
+        verbose_name_plural = 'Поздние платежи / реконсиляция'
+        ordering = ['-detected_at']
+
+    def __str__(self):
+        return f'{self.status} order={self.order_id} provider={self.provider}'
 
 
 class CheckOrder(models.Model):

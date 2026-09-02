@@ -36,6 +36,8 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = (
         ("owner", "Владелец"),
         ("admin", "Администратор"),
+        ("moderator", "Модератор"),
+        ("support", "Служба поддержки"),
         ("employee", "Сотрудник"),
         ("user", "Пользователь"),
     )
@@ -91,6 +93,10 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         return self.role == "moderator"
 
     @property
+    def is_support(self):
+        return self.role == "support"
+
+    @property
     def is_user(self):
         return self.role == "user"
 
@@ -135,5 +141,4 @@ class UserCard(models.Model):
     class Meta:
         verbose_name = ("Карта пользователя")
         verbose_name_plural = ("Карты пользователей")
-
 

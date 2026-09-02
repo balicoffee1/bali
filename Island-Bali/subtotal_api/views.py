@@ -3,7 +3,7 @@ import logging
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -12,7 +12,9 @@ from subtotal_api.connection_api import SubtotalClient
 
 
 class GetDiscountForUser(APIView):
-    permission_classes = [AllowAny]
+    # M0 п.3.1: раньше AllowAny — любой анонимный запрос с произвольным
+    # phone_number мог получить чужую скидку/бонусную информацию (PII).
+    permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
         request_body=openapi.Schema(
