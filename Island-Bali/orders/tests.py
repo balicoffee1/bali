@@ -2,14 +2,9 @@
 M1: тесты OrderStateService / state machine / payment deadline-grace /
 конкурентности / авторизации / платёжной безопасности.
 
-ВАЖНО (см. финальный отчёт M0/M1, раздел G): эти тесты НЕ были запущены в
-данной сессии — здесь нет рабочего окружения с установленным Django (ни в
-облачной песочнице, ни в shell на компьютере пользователя нет сетевого
-доступа к PyPI, чтобы поставить зависимости из requirements.txt, и нет
-Docker CLI, чтобы поднять штатное docker-compose окружение проекта). Файл
-проверен только на синтаксическую корректность (`python3 -m py_compile`) и
-логически вычитан вручную. Точные команды для реального запуска в
-Docker-окружении пользователя — в финальном отчёте.
+Полный набор (включая DefaultOrderEndpointMassAssignmentTests, см. ниже)
+реально прогнан через `docker compose exec web python manage.py test
+--noinput` в штатном docker-compose окружении проекта: 75/75 passed.
 """
 import threading
 import time
@@ -547,3 +542,50 @@ class PaymentSecurityTests(OrdersTestBase):
         self.assertNotIn('status_orders', StaffOrderUpdateSerializer.Meta.fields)
         self.assertNotIn('payment_status', StaffOrderUpdateSerializer.Meta.fields)
         self.assertNotIn('version', StaffOrderUpdateSerializer.Meta.fields)
+
+
+class DefaultOrderEndpointMassAssignmentTests(OrdersTestBase):
+    """
+    P0: OrderViewSet — стандартный ModelViewSet — не переопределяет
+    update()/partial_update() и использует OrderSerializers, где
+    status_orders/payment_status не read_only. Это позволяло владельцу
+    заказа через голый PUT/PATCH /api/orders/orders/<id>/ (без именованных
+    действий cancel/confirm/complete/pay/client_confirmation/staff-update)
+    напрямую записать себе любой статус — в обход OrderStateService.
+    """
+
+    def test_owner_cannot_patch_status_via_default_endpoint(self):
+        order = self.make_order(status_orders=Orders.NEW, payment_status=Orders.PENDING)
+        client = self.client
+        self.auth(client, self.user)
+        response = client.patch(
+            f"/api/orders/orders/{order.id}/",
+            {"status_orders": Orders.COMPLETED, "payment_status": Orders.PAID},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 405)
+        order.refresh_from_db()
+        self.assertEqual(
+            (order.status_orders, order.payment_status), (Orders.NEW, Orders.PENDING),
+            "клиент не должен уметь напрямую выставить себе Completed/Paid через голый PATCH",
+        )
+
+    def test_owner_cannot_put_status_via_default_endpoint(self):
+        order = self.make_order(status_orders=Orders.CANCELED, payment_status=Orders.NEW)
+        client = self.client
+        self.auth(client, self.user)
+        payload = {
+            "city_choose": self.city.id,
+            "coffee_shop": self.coffee_shop.id,
+            "status_orders": Orders.IN_PROGRESS,
+            "payment_status": Orders.PAID,
+        }
+        response = client.put(
+            f"/api/orders/orders/{order.id}/", payload, content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 405)
+        order.refresh_from_db()
+        self.assertEqual(
+            order.status_orders, Orders.CANCELED,
+            "клиент не должен уметь воскресить отменённый заказ через голый PUT",
+        )

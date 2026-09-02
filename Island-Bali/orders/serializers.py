@@ -106,17 +106,21 @@ class OrderSerializers(serializers.ModelSerializer):
     cart_data = CartSerializer(source='cart', read_only=True)
     city_choose_name = serializers.CharField(source='city_choose.name', read_only=True)
     coffee_shop_name = serializers.StringRelatedField(source='coffee_shop')
+    # M5 (mobile realtime reconciliation): read-only — mobile compares this against the
+    # WebSocket event's version to decide whether a REST refresh is needed (never a write
+    # vector; OrderStateService.orders/services.py remains the only place version changes).
+    version = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Orders
         fields = [
-            'id', 'user', 'city_choose', 'coffee_shop', 'cart', 'client_comments', 
-            'staff_comments', 'time_is_finish', 'staff', 'status_orders', 
+            'id', 'user', 'city_choose', 'coffee_shop', 'cart', 'client_comments',
+            'staff_comments', 'time_is_finish', 'staff', 'status_orders',
             'payment_status', 'receipt_photo', 'created_at', 'updated_at', 'updated_time', "issued",
             'full_price', 'cancellation_reason', 'client_confirmed', 'is_appreciated', "cart_data",
             'isThankYouDialogOpen', 'isOrderCancelled', "city_choose_name", "coffee_shop_name",
             "is_updated", "isTimeChangedDialog",
-            "is_used_discount", "is_testing"
+            "is_used_discount", "is_testing", "version"
         ]
         
 

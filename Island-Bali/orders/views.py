@@ -153,6 +153,28 @@ class OrderViewSet(ModelViewSet):
         cart = ShoppingCart.objects.get(user=self.request.user, is_active=True)
         serializer.save(user=self.request.user, cart=cart, isTimeChangedDialog=True)
 
+    def update(self, request, *args, **kwargs):
+        """
+        P0 (mass assignment): OrderSerializers не помечает status_orders/
+        payment_status как read_only, а голый PUT/PATCH сюда (в отличие от
+        именованных @action ниже) не проходит через OrderStateService —
+        владелец заказа мог напрямую выставить себе Completed/Paid или
+        воскресить отменённый заказ. Мобильное приложение этот путь не
+        использует (все PATCH идут на именованные /cancel/, /confirm/,
+        /complete/, /pay/, /client_confirmation/, /update-time/,
+        /staff-update/), поэтому голый update/partial_update отключён
+        целиком, а не point-fix'ится per-field.
+        """
+        return Response(
+            {'error': 'Прямое обновление заказа не поддерживается. '
+                      'Используйте /cancel/, /confirm/, /complete/, /pay/, '
+                      '/client_confirmation/, /update-time/ или /staff-update/.'},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
+
+    def partial_update(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)
+
     @action(detail=True, methods=['patch'], url_path='confirm')
     def confirm_orders(self, request, pk=None):
         """
