@@ -107,3 +107,22 @@ class CartItem(models.Model):
                     break
         
         return (product_price + addons_price + flavors_price) * self.amount
+
+
+def get_active_cart(user):
+    """
+    Активная корзина пользователя, создаётся при необходимости (M7).
+
+    Единственное место, где это решается. Раньше каждый вызывающий делал
+    `.get(user=user, is_active=True)` или `get_or_create(...)`, и оба варианта
+    падали `MultipleObjectsReturned` (то есть 500), если у пользователя
+    почему-либо оказались две активные корзины — а уникальности на уровне БД
+    здесь нет, и корзина создаётся ещё и сигналом на регистрацию.
+
+    Ноль корзин, одна или несколько — во всех случаях возвращается одна, самая
+    свежая, и никогда не бросается исключение.
+    """
+    cart = ShoppingCart.objects.filter(user=user, is_active=True).order_by("-id").first()
+    if cart is None:
+        cart = ShoppingCart.objects.create(user=user, is_active=True)
+    return cart

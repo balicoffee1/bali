@@ -222,3 +222,65 @@ class CartItemSplitViewTestCase(TestCase):
 
         # Verify only 1 item remains in the cart, not 0!
         self.assertEqual(cart.items.count(), 1)
+
+
+class ViewCartEmptyStateTests(TestCase):
+    """
+    M7 (регресс с живого стенда): корзина отвечала 404 после завершения заказа.
+
+    OrderStateService.complete() гасит is_active у корзины — это правильно, но
+    ViewCartView трактовал отсутствие активной корзины как «не найдено» и
+    возвращал 404. Приложение показывало текст DioException вместо пустой
+    корзины. Пустая корзина — валидное состояние, а не ошибка.
+    """
+
+    def setUp(self):
+        from rest_framework_simplejwt.tokens import RefreshToken
+
+        self.user = CustomUser.objects.create_user(login='+79990000009', password='pw')
+        refresh = RefreshToken.for_user(self.user)
+        self.client.defaults['HTTP_AUTHORIZATION'] = f'Bearer {refresh.access_token}'
+
+    def test_returns_empty_cart_when_there_is_no_active_one(self):
+        # Корзина создаётся сигналом на регистрацию — гасим её, чтобы
+        # воспроизвести состояние «заказ завершён, активной корзины нет».
+        ShoppingCart.objects.filter(user=self.user).update(is_active=False)
+
+        response = self.client.get('/api/cart/view_cart/')
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body['basket'], [])
+        self.assertEqual(body['total_cart_price'], 0)
+
+    def test_returns_empty_cart_after_the_order_deactivated_it(self):
+        cart = ShoppingCart.objects.create(user=self.user, is_active=True)
+        cart.is_active = False
+        cart.save(update_fields=['is_active'])
+
+        response = self.client.get('/api/cart/view_cart/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['basket'], [])
+
+    def test_existing_active_cart_is_reused_not_replaced(self):
+        cart = ShoppingCart.objects.get(user=self.user, is_active=True)
+
+        response = self.client.get('/api/cart/view_cart/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['cart_id'], cart.id)
+        self.assertEqual(ShoppingCart.objects.filter(user=self.user, is_active=True).count(), 1)
+
+    def test_two_active_carts_do_not_break_the_endpoint(self):
+        """
+        Уникальности активной корзины в БД нет, и прежний `.get(...)` на двух
+        активных падал MultipleObjectsReturned — то есть 500 вместо корзины.
+        """
+        ShoppingCart.objects.create(user=self.user, is_active=True)
+        newest = ShoppingCart.objects.create(user=self.user, is_active=True)
+
+        response = self.client.get('/api/cart/view_cart/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['cart_id'], newest.id)

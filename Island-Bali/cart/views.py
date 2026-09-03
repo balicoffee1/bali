@@ -9,6 +9,7 @@ from coffee_shop.models import CoffeeShop
 from menu_coffee_product.models import Addon, Product, AdditiveFlavors
 
 from .models import CartItem, ShoppingCart
+from cart.models import get_active_cart
 from .serializers import (
     AddToCartSerializer, CartItemSerializer,
     ChangeCartSerializer, CartSerializer,
@@ -84,7 +85,7 @@ class AddToCartView(APIView):
                         return Response({"error": f"Вкус добавки с ID {flavor_id} не найден"},
                                         status=status.HTTP_400_BAD_REQUEST)
 
-            cart, created = ShoppingCart.objects.get_or_create(user=user, is_active=True)
+            cart = get_active_cart(user)
             
             if not size:
                 size = CartItem.SizeChoices.S
@@ -228,10 +229,13 @@ class ViewCartView(APIView):
     )
     def get(self, request):
         user = request.user
-        try:
-            cart = ShoppingCart.objects.get(user=user, is_active=True)
-        except ShoppingCart.DoesNotExist:
-            return Response({"error": "Корзина не найдена"}, status=status.HTTP_404_NOT_FOUND)
+        # M7: пустая корзина — это 200 с пустым списком, а не 404.
+        #
+        # Активной корзины закономерно нет сразу после того, как заказ
+        # завершён: OrderStateService.complete() гасит is_active. Клиент в
+        # ответ на 404 показывал текст DioException вместо пустой корзины.
+        # get_or_create — тот же приём, что уже используется в add_to_cart.
+        cart = get_active_cart(user)
 
         cart_items = cart.items.all()
         serializer = CartItemSerializer(cart_items, many=True)
