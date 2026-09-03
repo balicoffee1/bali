@@ -946,6 +946,61 @@ class ShopStateParityTests(RealtimeFixtureMixin, TestCase):
         json.dumps(shift_aggregates())  # не должно бросать
 
 
+class ConnectionStaysAliveTests(RealtimeFixtureMixin, TransactionTestCase):
+    """
+    M7 (регресс с живого стенда): сервер принимал соединение, отправлял снапшот
+    и через секунду закрывал его с кодом 1011 — то есть падал уже после accept.
+    Клиент переподключался, получал снапшот, снова терял соединение, и так по
+    кругу раз в две секунды.
+
+    Тесты выше проверяли только «подключились и сразу отключились» и такой отказ
+    поймать не могли. Здесь соединение специально держат несколько секунд и
+    проверяют пингом, что оно живо.
+
+    Канальный слой намеренно НЕ подменяется на InMemory: разница между ним и
+    настоящим Redis — первое, на что падает подозрение при 1011.
+    """
+    def setUp(self):
+        self._make_fixtures()
+
+    async def test_customer_connection_survives_after_snapshot(self):
+        await database_sync_to_async(self.make_order)()
+        communicator = WebsocketCommunicator(
+            application, "/ws/orders/", headers=self.auth_headers(self.token_for(self.customer))
+        )
+        connected, _ = await communicator.connect()
+        self.assertTrue(connected)
+        snapshot = await communicator.receive_json_from(timeout=3)
+        self.assertEqual(snapshot["type"], "order.snapshot")
+
+        # Ровно то, что происходит в проде: клиент молчит, а сервер через
+        # ~1 секунду закрывает соединение с 1011.
+        await asyncio.sleep(3)
+        self.assertTrue(
+            await communicator.receive_nothing(timeout=1),
+            "соединение прислало что-то неожиданное",
+        )
+        await communicator.send_json_to({"type": "ping"})
+        pong = await communicator.receive_json_from(timeout=3)
+        self.assertEqual(pong, {"type": "pong"}, "соединение мертво")
+        await communicator.disconnect()
+
+    async def test_staff_connection_survives_after_snapshot(self):
+        communicator = WebsocketCommunicator(
+            application, "/ws/orders/", headers=self.auth_headers(self.token_for(self.staff_user))
+        )
+        connected, _ = await communicator.connect()
+        self.assertTrue(connected)
+        while not await communicator.receive_nothing(timeout=0.5):
+            await communicator.receive_json_from(timeout=2)
+
+        await asyncio.sleep(3)
+        await communicator.send_json_to({"type": "ping"})
+        pong = await communicator.receive_json_from(timeout=3)
+        self.assertEqual(pong, {"type": "pong"}, "соединение мертво")
+        await communicator.disconnect()
+
+
 # ---------------------------------------------------------------------------
 # M2 п.57: реальный Redis (не InMemoryChannelLayer) — group_send -> receive
 # ---------------------------------------------------------------------------
