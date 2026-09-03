@@ -61,6 +61,26 @@ function describeApiError(details: any): string {
   return parts.length ? parts.join('; ') : fallback;
 }
 
+/**
+ * Телефон хранится в E.164 (+79514149868), а DRF ищет по нему через icontains.
+ * Поэтому «8 951 414-98-68» или «+7 (951) 414-98-68» сами по себе не находят
+ * ничего. Телефонный запрос приводим к национальным 10 цифрам — они являются
+ * подстрокой любой записи номера, как её ни введи. Запрос с буквами (поиск по
+ * имени или email) остаётся как есть.
+ */
+export function normalizeSearchTerm(raw: string): string {
+  const query = (raw || '').trim();
+  if (!query) return '';
+  if (/[^\d\s()+\-.]/.test(query)) return query;
+
+  const digits = query.replace(/\D/g, '');
+  // Слишком короткий огрызок нормализовать нечего — ищем как ввели.
+  if (digits.length < 4) return query;
+  if (digits.length === 11 && (digits[0] === '8' || digits[0] === '7')) return digits.slice(1);
+  if (digits.length > 11) return digits.slice(-10);
+  return digits;
+}
+
 // LocalStorage helpers to persist modifications in demo/offline mode
 function loadFromStorage<T>(key: string, defaultValue: T): T {
   try {
@@ -296,9 +316,10 @@ class ApiClient {
 
   // --- Users ---
   async getUsers(search?: string, roleFilter?: string, pageSize?: number): Promise<User[]> {
+    const term = normalizeSearchTerm(search || '');
     try {
       const params = new URLSearchParams();
-      if (search) params.append('search', search);
+      if (term) params.append('search', term);
       if (roleFilter && roleFilter !== 'All') params.append('role', roleFilter);
       if (pageSize) params.append('page_size', String(pageSize));
       const res: any = await this.request(`/users/?${params}`);
@@ -307,8 +328,8 @@ class ApiClient {
       this.ensureMockFallback(error);
       let users: User[] = loadFromStorage('users', mockUsers);
       if (roleFilter && roleFilter !== 'All') users = users.filter(u => u.role === roleFilter);
-      if (search) {
-        const s = search.toLowerCase();
+      if (term) {
+        const s = term.toLowerCase();
         users = users.filter(u => u.full_name.toLowerCase().includes(s) || u.login.includes(s) || u.phone_number.includes(s));
       }
       return users;
@@ -324,8 +345,7 @@ class ApiClient {
   async findUserByPhone(phone: string): Promise<User | null> {
     const normalized = phone.trim();
     if (!normalized) return null;
-    // Без ведущего «+»: DRF ищет через icontains, а хранится номер в E.164.
-    const candidates = await this.getUsers(normalized.replace(/^\+/, ''), undefined, 50);
+    const candidates = await this.getUsers(normalized, undefined, 50);
     return (
       candidates.find(u => u.phone_number === normalized || u.login === normalized) || null
     );

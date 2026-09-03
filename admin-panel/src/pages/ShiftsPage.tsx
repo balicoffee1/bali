@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { api } from '../api/client';
+import { api, normalizeSearchTerm } from '../api/client';
 import { Shift, StaffMember, User, CoffeeShop } from '../types';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
@@ -152,7 +152,7 @@ export const ShiftsPage: React.FC = () => {
     setIsSearchingUsers(true);
     const timer = setTimeout(async () => {
       try {
-        const found = await api.getUsers(query.replace(/^\+/, ''), undefined, 50);
+        const found = await api.getUsers(query, undefined, 50);
         if (!cancelled) setUserSearchResults(found);
       } catch {
         if (!cancelled) setUserSearchResults([]);
@@ -168,7 +168,9 @@ export const ShiftsPage: React.FC = () => {
   }, [userPickerQuery, isStaffDrawerOpen, staffSource]);
 
   const selectableUsers = useMemo(() => {
-    const query = userPickerQuery.trim().toLowerCase();
+    // Тем же правилом, что и серверный поиск: «8 951 414-98-68» должно
+    // совпадать с хранимым +79514149868.
+    const query = normalizeSearchTerm(userPickerQuery).toLowerCase();
     // Пока идёт запрос — показываем совпадения из уже загруженного списка,
     // чтобы поле не мигало пустотой.
     const pool = userSearchResults ?? users;
