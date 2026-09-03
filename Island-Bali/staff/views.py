@@ -22,11 +22,12 @@ from staff.serializers import (CancelOrderSerializer, CompleteOrdersSerializer,
                                UploadReceiptPhotoResponseSerializer)
 
 from .serializers import StaffSerializer
-from .utils import (change_receipt_photo,
+from .utils import (decode_receipt_photo,
                     close_shift, filter_orders_by_status, get_completed_orders,
                     get_order_if_pending, get_order_if_new, is_staff_for_order,
                     is_valid_order_status, open_shift)
 from notifications.main import send_push_notification
+from orders.services import OrderStateService
 from orders.state_machine import OrderTransitionError
 
 TAGS_STAFF = ['Персонал']
@@ -559,11 +560,13 @@ class UploadReceiptPhotoView(APIView):
     @swagger_auto_schema(
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
-            required=['order_id', 'photo'],
+            required=['order_id', 'photo_base64'],
             properties={
                 'order_id': openapi.Schema(type=openapi.TYPE_INTEGER),
-                'photo': openapi.Schema(type=openapi.TYPE_STRING,
-                                        format=openapi.FORMAT_BINARY),
+                'photo_base64': openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="Data URI or plain base64. Legacy field 'photo' is also accepted.",
+                ),
             },
         ),
         responses={
@@ -590,12 +593,20 @@ class UploadReceiptPhotoView(APIView):
             if not is_staff_for_order(request.user, order):
                 return Response({"error": "Вы не являетесь сотрудником этой кофейни"},
                                 status=status.HTTP_403_FORBIDDEN)
-            photo_data = request.data.get('photo')
+            # ``photo`` was documented by the old backend, while released
+            # Flutter builds have always sent ``photo_base64``.  Accept both
+            # during rollout, with the mobile name as the canonical field.
+            photo_data = request.data.get("photo_base64") or request.data.get("photo")
+            try:
+                receipt_file = decode_receipt_photo(order.id, photo_data)
+            except ValueError as exc:
+                return Response(
+                    {"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST
+                )
 
-            change_receipt_photo(order, photo_data)
-            order.issued = True
-            order.checkLoaded = True
-            order.save()
+            order = OrderStateService.attach_receipt(
+                order.id, receipt_file=receipt_file, actor_type="staff"
+            )
 
             serializer = PendingOrdersAcceptSerializer(order)
             return Response(serializer.data, status=status.HTTP_200_OK)

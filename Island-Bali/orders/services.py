@@ -74,6 +74,29 @@ def _schedule_payment_poll(order_id):
     transaction.on_commit(_schedule)
 
 
+def _notify_customer_order_in_progress(order_id):
+    """Best-effort customer push; a broker/FCM outage must not fail the API."""
+    try:
+        from notifications.main import send_push_notification
+
+        order = Orders.objects.select_related("user").get(pk=order_id)
+        send_push_notification(
+            order.user,
+            "Заказ готовится",
+            f"Заказ №{order.id} принят в работу",
+        )
+    except Exception:
+        logger.exception(
+            "order_in_progress_notification_failed order_id=%s", order_id
+        )
+
+
+def _schedule_in_progress_notification(order):
+    transaction.on_commit(
+        lambda order_id=order.id: _notify_customer_order_in_progress(order_id)
+    )
+
+
 def _resolve_staff(user, coffee_shop_id):
     """
     accept()/complete() получают staff_user из request.user (CustomUser) — так их
@@ -111,6 +134,27 @@ class OrderStateService:
     """Публичное API — именованные бизнес-операции, а не универсальный transition(event)."""
 
     # ------------------------------------------------------------------ order lifecycle
+
+    @staticmethod
+    def attach_receipt(order_id, *, receipt_file, actor_type):
+        """Attach the fiscal receipt and publish the updated order to both audiences."""
+        with transaction.atomic():
+            order = Orders.objects.select_for_update().get(pk=order_id)
+            order.receipt_photo = receipt_file
+            order.issued = True
+            order.checkLoaded = True
+            _save_and_publish(order, ["receipt_photo", "issued", "checkLoaded"])
+
+        transaction.on_commit(
+            lambda: _log_transition(
+                order,
+                operation="attach_receipt",
+                actor_type=actor_type,
+                prev_order_status=order.status_orders,
+                prev_payment_status=order.payment_status,
+            )
+        )
+        return order
 
     @staticmethod
     def accept(order_id, *, staff_user):
@@ -448,6 +492,11 @@ class OrderStateService:
                 order.status_orders = Orders.IN_PROGRESS
             order.version += 1
             _save_and_publish(order, ["payment_status", "provider_paid_at", "status_orders", "version"])
+            if (
+                prev_order_status != Orders.IN_PROGRESS
+                and order.status_orders == Orders.IN_PROGRESS
+            ):
+                _schedule_in_progress_notification(order)
 
         transaction.on_commit(
             lambda: _log_transition(
@@ -572,6 +621,11 @@ class OrderStateService:
             # (status_orders/payment_status), а не на голый reason-only override.
             if new_order_status or new_payment_status:
                 _save_and_publish(order, update_fields)
+                if (
+                    old_order_status != Orders.IN_PROGRESS
+                    and order.status_orders == Orders.IN_PROGRESS
+                ):
+                    _schedule_in_progress_notification(order)
             else:
                 order.save(update_fields=update_fields)
 

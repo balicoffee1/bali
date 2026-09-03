@@ -5,10 +5,47 @@ from django.core.mail import send_mail
 
 from island_bali.settings import EMAIL_HOST_USER
 from reviews.tg_bot import send_message_from_personal_account
+from reviews.telegram_bot import send_review_to_user
 
 
-@shared_task()
-def send_review_for_email(review, email_coffeeshop, telegram_username):
+@shared_task(
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_jitter=True,
+    retry_kwargs={"max_retries": 3},
+)
+def send_review_to_telegram(review_id):
+    from reviews.models import ReviewsCoffeeShop
+
+    review = ReviewsCoffeeShop.objects.select_related('coffee_shop').get(pk=review_id)
+    if not review.coffee_shop.telegram_id:
+        return "Telegram ID не задан"
+    send_review_to_user(
+        chat_id=review.coffee_shop.telegram_id,
+        review_text=(
+            f"Оценка: {review.evaluation}\n"
+            f"Комментарий: {review.comments or 'Без комментариев'}"
+        ),
+    )
+    return "Сообщение доставлено"
+
+
+@shared_task(
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_jitter=True,
+    retry_kwargs={"max_retries": 3},
+)
+def send_review_for_email(review_id):
+    from reviews.models import ReviewsCoffeeShop
+    from reviews.serializers import ReviewsCoffeeShopSerializer
+
+    review_model = ReviewsCoffeeShop.objects.select_related('coffee_shop', 'user', 'orders').get(
+        pk=review_id
+    )
+    review = ReviewsCoffeeShopSerializer(review_model).data
+    email_coffeeshop = review_model.get_coffeeshop_email()
+    telegram_username = review_model.get_coffee_shop_telegram()
     api_id = 16223511
     api_hash = "66c83b36a77573871b55b72c6c57018f"
     subject = "Оставлен плохой отзыв"

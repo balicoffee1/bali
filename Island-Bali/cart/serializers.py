@@ -32,7 +32,13 @@ class CartItemSerializer(serializers.ModelSerializer):
         return serializer.data
 
     def get_item_total_price(self, obj):
-        return obj.item_total_price
+        # ``item_total_price`` is a calculated property and therefore bypasses
+        # DRF's DecimalField conversion.  REST responses used to hide that fact
+        # because DRF's JSONRenderer knows how to encode Decimal, while Channels'
+        # AsyncJsonWebsocketConsumer uses the standard json.dumps and crashed the
+        # whole staff connection with code 1011.  Keep the wire format numeric —
+        # the Flutter model calls ``toDouble()`` for this field.
+        return float(obj.item_total_price)
 
 class CartSerializer(serializers.ModelSerializer):
     user = serializers.StringRelatedField()

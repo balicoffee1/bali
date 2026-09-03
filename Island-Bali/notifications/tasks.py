@@ -24,7 +24,17 @@ def send_firebase_push_notification(**kwargs):
         devices = FCMDevice.objects.filter(user=user_id, active=True)
         if devices.exists():
             for device in devices:
-                device.send_message(Message(data=data))
+                # A notification payload is required for iOS/background display
+                # and is also what the Flutter foreground listener reads.
+                device.send_message(
+                    Message(
+                        notification=FcmAdmin(
+                            title=data.get('title', ''),
+                            body=data.get('body', ''),
+                        ),
+                        data={key: str(value) for key, value in data.items()},
+                    )
+                )
     except Exception as e:
         # логгировать ошибку, например через sentry или logger
         print(f"Ошибка при отправке push: {e}")

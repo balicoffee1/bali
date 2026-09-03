@@ -1,5 +1,6 @@
 import logging
 
+from django.db import transaction
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import status
@@ -9,9 +10,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 
+from orders.models import Orders
+from orders.services import OrderStateService
+
+from .models import ReviewsCoffeeShop
 from .serializers import ReviewsCoffeeShopSerializer
-from .tasks import send_review_for_email
-from .telegram_bot import send_review_to_user  # Импорт функции отправки
+from .tasks import send_review_for_email, send_review_to_telegram
 
 logger = logging.getLogger("reviews")
 
@@ -34,75 +38,62 @@ class CreateReviewAPIView(APIView):
     )
     def post(self, request: Request, *args, **kwargs):
         user = request.user
-        data_with_user = request.data.copy()
-        data_with_user["user"] = user.id
-        serializer = ReviewsCoffeeShopSerializer(data=data_with_user)
+        serializer = ReviewsCoffeeShopSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        review = serializer.save(user=user)
+        order = serializer.validated_data['orders']
+        coffee_shop = serializer.validated_data['coffee_shop']
+        if order.user_id != user.id:
+            # Не раскрываем существование чужого заказа.
+            return Response({"orders": ["Заказ не найден."]}, status=status.HTTP_404_NOT_FOUND)
+        if coffee_shop.id != order.coffee_shop_id:
+            return Response(
+                {"coffee_shop": ["Кофейня не соответствует заказу."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if order.status_orders != Orders.COMPLETED:
+            return Response(
+                {"orders": ["Оценить можно только завершённый заказ."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        # Сначала доменный эффект: отзыв сохранён, значит заказ оценён. Раньше
-        # это стояло ПОСЛЕ отправки уведомлений, и любая их ошибка означала,
-        # что оценка есть, а is_appreciated не выставлен — то есть диалог
-        # «оцените заказ» возвращался снова и снова.
-        from orders.models import Orders
-        from orders.services import OrderStateService
+        defaults = dict(serializer.validated_data)
+        defaults.pop('orders')
+        defaults['user'] = user
 
-        order = Orders.objects.filter(
-            id=serializer.validated_data.get('orders').id
-        ).first()
-        if order:
+        # Повтор после сетевой неопределённости должен быть безопасным. Первый
+        # запрос мог успеть сохранить отзыв, но потерять HTTP-ответ (как на M7).
+        with transaction.atomic():
+            review, created = ReviewsCoffeeShop.objects.get_or_create(
+                orders=order,
+                defaults=defaults,
+            )
             OrderStateService.update_presentation(
                 order.id, actor_type="customer", is_appreciated=True
             )
 
-        self._notify(user, review, serializer)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+            if created:
+                self._schedule_notifications(review)
+
+        response_status = status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        return Response(ReviewsCoffeeShopSerializer(review).data, status=response_status)
 
     @staticmethod
-    def _notify(user, review, serializer):
+    def _schedule_notifications(review):
         """
-        Уведомления о новом отзыве — best effort.
-
-        Раньше они выполнялись прямо в теле запроса и без обработки ошибок:
-        send_review_to_user делает синхронный requests.get к api.telegram.org, а
-        check_negative_feedback — отправку письма. Любая недоступность Telegram
-        или SMTP превращалась в 500, и пользователь не мог оставить отзыв
-        вообще. Мобильное приложение это раньше скрывало (диалог закрывался в
-        finally независимо от результата), теперь оно честно показывает ошибку —
-        и стало видно, что отправка отзыва падает.
-
-        Отзыв уже сохранён и заказ уже помечен оценённым: сбой рассылки не
-        должен ничего из этого отменять.
+        Внешние интеграции не выполняются Gunicorn-worker'ом: Telegram без
+        timeout уже приводил к WORKER TIMEOUT и ложному 502 после сохранения
+        отзыва. В Celery они могут повторяться независимо от HTTP-ответа.
         """
-        try:
-            coffee_shop = serializer.validated_data.get('coffee_shop')
-            review_text_admin = (
-                f"Оценка: {review.evaluation}\n"
-                f"Комментарий: {review.comments or 'Без комментариев'}"
-            )
-            send_review_to_user(
-                chat_id=coffee_shop.telegram_id, review_text=review_text_admin
-            )
-        except Exception:
-            logger.exception("review_telegram_notification_failed review=%s", review.id)
+        def enqueue():
+            try:
+                if review.coffee_shop.telegram_id:
+                    send_review_to_telegram.delay(review.id)
+                if review.evaluation in (1, 2, 3):
+                    send_review_for_email.delay(review.id)
+            except Exception:
+                # Сбой брокера не меняет результат уже сохранённой оценки.
+                logger.exception("review_notification_enqueue_failed review=%s", review.id)
 
-        try:
-            check_negative_feedback(
-                value=review.evaluation,
-                review=serializer.data,
-                email_coffeeshop=review.get_coffeeshop_email(),
-                telegram_username=review.get_coffee_shop_telegram(),
-            )
-        except Exception:
-            logger.exception("review_email_notification_failed review=%s", review.id)
-
-
-
-def check_negative_feedback(value, review, email_coffeeshop,
-                            telegram_username):
-    """Выявляем является ли отзыв плохим"""
-    if value in [1, 2, 3]:
-        send_review_for_email(review, email_coffeeshop, telegram_username)
-        
+        transaction.on_commit(enqueue)

@@ -8,12 +8,14 @@ M1: тесты OrderStateService / state machine / payment deadline-grace /
 """
 import threading
 import time
+import base64
+import tempfile
 from datetime import timedelta
 from decimal import Decimal
 from unittest import mock
 from unittest.mock import patch
 
-from django.test import TestCase, TransactionTestCase
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -527,6 +529,72 @@ class OrderAuthorizationRegressionTests(OrdersTestBase):
         # находит объект в queryset другого пользователя (ownership enforced раньше, чем
         # выполнился бы внутренний if order.user != request.user).
         self.assertEqual(response.status_code, 404)
+
+
+class ReceiptUploadRealtimeTests(OrdersTestBase):
+    def setUp(self):
+        super().setUp()
+        self._media_dir = tempfile.TemporaryDirectory()
+        self._media_override = override_settings(MEDIA_ROOT=self._media_dir.name)
+        self._media_override.enable()
+        self.addCleanup(self._media_override.disable)
+        self.addCleanup(self._media_dir.cleanup)
+
+    def test_flutter_photo_base64_is_saved_and_published(self):
+        order = self.make_order(status_orders=Orders.IN_PROGRESS)
+        self.auth(self.client, self.staff_user)
+        encoded = base64.b64encode(b"test receipt image").decode("ascii")
+
+        with patch("orders.services.publish_order_status_changed") as publish:
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.put(
+                    "/api/staff/upload_receipt_photo/",
+                    {
+                        "order_id": order.id,
+                        "photo_base64": f"data:image/png;base64,{encoded}",
+                    },
+                    content_type="application/json",
+                )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        order.refresh_from_db()
+        self.assertTrue(order.checkLoaded)
+        self.assertTrue(order.issued)
+        self.assertTrue(order.receipt_photo.name.endswith(".png"))
+        self.assertEqual(publish.call_count, 1)
+        self.assertEqual(publish.call_args[0][0].order_id, order.id)
+
+    def test_old_plain_base64_client_remains_supported(self):
+        order = self.make_order(status_orders=Orders.IN_PROGRESS)
+        self.auth(self.client, self.staff_user)
+        encoded = base64.b64encode(b"old app receipt").decode("ascii")
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.put(
+                "/api/staff/upload_receipt_photo/",
+                {"order_id": order.id, "photo_base64": encoded},
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        order.refresh_from_db()
+        self.assertTrue(order.receipt_photo.name.endswith(".jpg"))
+
+    def test_invalid_base64_returns_400_without_marking_receipt_loaded(self):
+        order = self.make_order(status_orders=Orders.IN_PROGRESS)
+        self.auth(self.client, self.staff_user)
+
+        response = self.client.put(
+            "/api/staff/upload_receipt_photo/",
+            {"order_id": order.id, "photo_base64": "not-base64!"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400, response.content)
+        order.refresh_from_db()
+        self.assertFalse(order.checkLoaded)
+        self.assertFalse(order.issued)
+        self.assertFalse(order.receipt_photo)
 
 
 class OrderListOrderingRegressionTests(OrdersTestBase):

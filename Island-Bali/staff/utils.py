@@ -1,4 +1,5 @@
 import base64
+import binascii
 
 from django.core.files.base import ContentFile
 
@@ -6,17 +7,37 @@ from orders.models import Orders
 from staff.models import Shift, Staff
 
 
-def change_receipt_photo(order, photo):
-    if photo:
-        format, imgstr = photo.split(";base64,")
-        ext = format.split("/")[-1]
-        data = ContentFile(
-            base64.b64decode(imgstr), name=f"order_{order.id}_receipt.{ext}"
-        )
-        order.receipt_photo = data
-    else:
-        order.receipt_photo = None
-    order.save()
+def decode_receipt_photo(order_id, photo):
+    """Decode a receipt sent either as a data URI or as plain base64.
+
+    Older mobile builds send plain base64 under ``photo_base64`` while the
+    original API expected a data URI under ``photo``.  Supporting both formats
+    keeps already installed clients working during a rolling deployment.
+    """
+    if not isinstance(photo, str) or not photo.strip():
+        raise ValueError("Receipt photo is required")
+
+    encoded = photo.strip()
+    extension = "jpg"
+    if ";base64," in encoded:
+        header, encoded = encoded.split(";base64,", 1)
+        mime_type = header.removeprefix("data:").lower()
+        extension = {
+            "image/jpeg": "jpg",
+            "image/jpg": "jpg",
+            "image/png": "png",
+            "image/heic": "heic",
+            "image/heif": "heif",
+        }.get(mime_type, "jpg")
+
+    try:
+        content = base64.b64decode(encoded, validate=True)
+    except (ValueError, binascii.Error) as exc:
+        raise ValueError("Receipt photo is not valid base64") from exc
+    if not content:
+        raise ValueError("Receipt photo is empty")
+
+    return ContentFile(content, name=f"order_{order_id}_receipt.{extension}")
 
 
 def is_staff_for_order(user, order) -> bool:

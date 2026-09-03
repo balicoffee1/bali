@@ -1,15 +1,3 @@
-"""
-M7 (регресс с живого стенда): отправка отзыва падала целиком.
-
-Симптом: пользователь жмёт «Оценить», кнопка уходит в прогресс и остаётся с
-ошибкой. Причина — на сервере: в теле запроса выполнялась синхронная отправка
-в Telegram (requests.get к api.telegram.org) и письмо, без обработки ошибок.
-Недоступность любого из них превращала запрос в 500, и отзыв не сохранялся.
-
-Мобильное приложение это раньше скрывало: диалог закрывался в finally
-независимо от результата — поэтому баг годами выглядел как «диалог оценки
-иногда возвращается» (is_appreciated не выставлялся), а не как отказ.
-"""
 from decimal import Decimal
 from unittest import mock
 
@@ -28,6 +16,8 @@ class ReviewSubmissionTests(TestCase):
     def setUp(self):
         self.city = City.objects.create(name="Moscow")
         self.coffee_shop = make_coffee_shop(self.city)
+        self.coffee_shop.telegram_id = '123456'
+        self.coffee_shop.save(update_fields=['telegram_id'])
         self.user = CustomUser.objects.create_user(login='+79990000001', password='pw')
         self.cart = ShoppingCart.objects.create(user=self.user, is_active=True)
         self.order = Orders.objects.create(
@@ -56,30 +46,30 @@ class ReviewSubmissionTests(TestCase):
             '/api/review/', self._payload(**overrides), content_type='application/json'
         )
 
-    def test_review_is_accepted_when_telegram_is_unreachable(self):
-        """Ровно тот отказ, который видел пользователь: Telegram недоступен."""
+    def test_review_is_accepted_when_notification_cannot_be_enqueued(self):
+        """Сбой фоновой инфраструктуры не меняет успешный результат отзыва."""
         with mock.patch(
-            'reviews.views.send_review_to_user', side_effect=OSError('telegram unreachable')
+            'reviews.views.send_review_to_telegram.delay',
+            side_effect=OSError('broker unreachable'),
         ):
-            response = self._post()
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self._post()
 
         self.assertEqual(response.status_code, 201)
         self.assertTrue(ReviewsCoffeeShop.objects.filter(orders=self.order).exists())
 
-    def test_review_is_accepted_when_email_notification_fails(self):
-        with mock.patch(
-            'reviews.views.check_negative_feedback', side_effect=OSError('smtp down')
-        ):
-            response = self._post()
+    def test_negative_review_is_queued_instead_of_sending_in_request(self):
+        with mock.patch('reviews.views.send_review_to_telegram.delay') as telegram_delay:
+            with mock.patch('reviews.views.send_review_for_email.delay') as email_delay:
+                with self.captureOnCommitCallbacks(execute=True):
+                    response = self._post(evaluation=2)
 
         self.assertEqual(response.status_code, 201)
+        telegram_delay.assert_called_once()
+        email_delay.assert_called_once()
 
-    def test_order_is_marked_appreciated_even_if_notifications_fail(self):
-        """
-        Главное следствие прежнего порядка действий: отзыв мог сохраниться, а
-        is_appreciated — нет, и диалог оценки возвращался снова и снова.
-        """
-        with mock.patch('reviews.views.send_review_to_user', side_effect=OSError('boom')):
+    def test_order_is_marked_appreciated(self):
+        with mock.patch('reviews.views.send_review_to_telegram.delay'):
             with self.captureOnCommitCallbacks(execute=True):
                 self._post()
 
@@ -88,7 +78,7 @@ class ReviewSubmissionTests(TestCase):
 
     def test_successful_review_publishes_event(self):
         """Оценка гасит диалог, значит клиент обязан узнать об этом событием."""
-        with mock.patch('reviews.views.send_review_to_user'):
+        with mock.patch('reviews.views.send_review_to_telegram.delay'):
             with mock.patch('orders.services.publish_order_status_changed') as mocked:
                 with self.captureOnCommitCallbacks(execute=True):
                     self._post()
@@ -96,9 +86,46 @@ class ReviewSubmissionTests(TestCase):
         self.assertEqual(mocked.call_count, 1)
 
     def test_invalid_evaluation_is_still_rejected(self):
-        """Обработка ошибок уведомлений не должна проглатывать валидацию."""
-        with mock.patch('reviews.views.send_review_to_user'):
-            response = self._post(evaluation=9)
+        response = self._post(evaluation=9)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(ReviewsCoffeeShop.objects.filter(orders=self.order).exists())
+
+    def test_duplicate_submission_is_idempotent(self):
+        with mock.patch('reviews.views.send_review_to_telegram.delay') as telegram_delay:
+            with self.captureOnCommitCallbacks(execute=True):
+                first = self._post()
+            with self.captureOnCommitCallbacks(execute=True):
+                second = self._post()
+
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(ReviewsCoffeeShop.objects.filter(orders=self.order).count(), 1)
+        telegram_delay.assert_called_once()
+
+    def test_cannot_review_another_users_order(self):
+        other_user = CustomUser.objects.create_user(login='+79990000002', password='pw')
+        self.order.user = other_user
+        self.order.save(update_fields=['user'])
+
+        response = self._post()
+
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(ReviewsCoffeeShop.objects.filter(orders=self.order).exists())
+
+    def test_coffee_shop_must_match_order(self):
+        other_shop = make_coffee_shop(City.objects.create(name='Kazan'))
+
+        response = self._post(coffee_shop=other_shop.id)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(ReviewsCoffeeShop.objects.filter(orders=self.order).exists())
+
+    def test_only_completed_order_can_be_reviewed(self):
+        self.order.status_orders = Orders.IN_PROGRESS
+        self.order.save(update_fields=['status_orders'])
+
+        response = self._post()
 
         self.assertEqual(response.status_code, 400)
         self.assertFalse(ReviewsCoffeeShop.objects.filter(orders=self.order).exists())

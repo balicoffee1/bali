@@ -31,9 +31,10 @@ from django.db import transaction
 from django.test import SimpleTestCase, TestCase, TransactionTestCase, override_settings
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
-from cart.models import ShoppingCart
+from cart.models import CartItem, ShoppingCart
 from coffee_shop.models import City
 from island_bali.asgi import application
+from menu_coffee_product.models import Category, Product
 from orders.models import Orders
 from orders.services import OrderStateService
 from orders.state_machine import OrderTransitionError
@@ -72,6 +73,32 @@ class RealtimeFixtureMixin:
         )
         defaults.update(overrides)
         return Orders.objects.create(**defaults)
+
+    def make_cart_item(self):
+        """Непустая корзина для проверки реального staff payload.
+
+        Пустая корзина не содержит вычисляемого Decimal-поля
+        ``item_total_price`` и поэтому раньше маскировала падение send_json,
+        которое воспроизводилось только на настоящих заказах.
+        """
+        category = Category.objects.create(
+            coffee_shop=self.coffee_shop,
+            name="Coffee",
+        )
+        product = Product.objects.create(
+            coffee_shop=self.coffee_shop,
+            category=category,
+            product=f"Latte realtime {self.cart.id}",
+            product_type="coffee",
+            temperature_type="Hot",
+            price_s=Decimal("150.00"),
+        )
+        return CartItem.objects.create(
+            cart=self.cart,
+            product=product,
+            amount=2,
+            size=CartItem.SizeChoices.S,
+        )
 
     @staticmethod
     def token_for(user):
@@ -348,6 +375,37 @@ class PublishSemanticsTests(RealtimeFixtureMixin, TestCase):
         snapshot = mocked.call_args[0][0]
         self.assertEqual(snapshot.status_orders, Orders.IN_PROGRESS)
         self.assertEqual(snapshot.payment_status, Orders.PAID)
+
+    def test_entering_in_progress_sends_one_customer_push(self):
+        OrderStateService.accept(self.order.id, staff_user=None)
+        with mock.patch("notifications.main.send_push_notification") as push:
+            with self.captureOnCommitCallbacks(execute=True):
+                OrderStateService.payment_succeeded(
+                    self.order.id,
+                    provider="lifepay",
+                    provider_transaction_id="tx-push",
+                )
+                OrderStateService.payment_succeeded(
+                    self.order.id,
+                    provider="lifepay",
+                    provider_transaction_id="tx-push",
+                )
+
+        self.assertEqual(push.call_count, 1)
+        self.assertEqual(push.call_args.args[0].id, self.customer.id)
+        self.assertIn(str(self.order.id), push.call_args.args[2])
+
+    def test_admin_entering_in_progress_sends_customer_push(self):
+        with mock.patch("notifications.main.send_push_notification") as push:
+            with self.captureOnCommitCallbacks(execute=True):
+                OrderStateService.admin_override(
+                    self.order.id,
+                    admin_user=self.staff_user,
+                    new_order_status=Orders.IN_PROGRESS,
+                    reason="manual payment confirmation",
+                )
+
+        self.assertEqual(push.call_count, 1)
 
     def test_duplicate_webhook_publishes_exactly_one_event(self):
         OrderStateService.accept(self.order.id, staff_user=None)
@@ -945,6 +1003,39 @@ class ShopStateParityTests(RealtimeFixtureMixin, TestCase):
         self.make_order()
         json.dumps(shift_aggregates())  # не должно бросать
 
+    def test_full_shop_snapshot_with_cart_item_is_json_serializable(self):
+        """Регресс: Decimal в cart.items[].item_total_price ронял WS с 1011."""
+        import json
+
+        from orders.realtime import shop_snapshot_payload
+
+        self.make_cart_item()
+        self.make_order(status_orders=Orders.WAITING)
+
+        payload = shop_snapshot_payload(self.coffee_shop.id)
+        encoded = json.dumps(payload)
+
+        self.assertIn('"item_total_price": 300.0', encoded)
+
+    def test_staff_delta_with_cart_item_is_msgpack_serializable(self):
+        """Регресс: тот же Decimal ломал staff group_send в channels_redis."""
+        import msgpack
+
+        from orders.realtime import serialize_for_staff
+        from staff.queries import shift_aggregates
+
+        self.make_cart_item()
+        order = self.make_order(status_orders=Orders.WAITING)
+        payload = {
+            "type": "order.status_changed",
+            "audience": "staff",
+            "coffee_shop_id": self.coffee_shop.id,
+            "order": serialize_for_staff(order),
+            **shift_aggregates(),
+        }
+
+        msgpack.packb(payload, use_bin_type=True)
+
 
 class ConnectionStaysAliveTests(RealtimeFixtureMixin, TransactionTestCase):
     """
@@ -986,6 +1077,8 @@ class ConnectionStaysAliveTests(RealtimeFixtureMixin, TransactionTestCase):
         await communicator.disconnect()
 
     async def test_staff_connection_survives_after_snapshot(self):
+        await database_sync_to_async(self.make_cart_item)()
+        await database_sync_to_async(self.make_order)(status_orders=Orders.WAITING)
         communicator = WebsocketCommunicator(
             application, "/ws/orders/", headers=self.auth_headers(self.token_for(self.staff_user))
         )
