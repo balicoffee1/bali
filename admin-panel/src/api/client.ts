@@ -277,6 +277,64 @@ class ApiClient {
     }
   }
 
+  /**
+   * Создание сотрудника. Пароль не передаётся намеренно: в панель employee всё
+   * равно не пустят (там нужен пароль и роль не ниже support), а мобильное
+   * приложение авторизует по номеру телефона и SMS-коду. Логином служит тот же
+   * номер — по нему приложение и ищет пользователя.
+   */
+  async createUser(userData: {
+    first_name: string;
+    last_name?: string;
+    phone_number: string;
+    email?: string;
+    role?: UserRole;
+  }): Promise<User> {
+    const phone = userData.phone_number.trim();
+    const payload = {
+      login: phone,
+      first_name: userData.first_name.trim(),
+      last_name: (userData.last_name || '').trim(),
+      phone_number: phone,
+      email: (userData.email || '').trim(),
+      role: userData.role || ('employee' as UserRole),
+      is_active: true,
+    };
+
+    try {
+      return await this.request<User>('/users/', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    } catch (error) {
+      this.ensureMockFallback(error);
+      const users: User[] = loadFromStorage('users', mockUsers);
+      if (users.some(u => u.login === phone || u.phone_number === phone)) {
+        throw new ApiError('Пользователь с таким номером телефона уже существует.', 400);
+      }
+      const created: User = {
+        id: Date.now(),
+        login: payload.login,
+        first_name: payload.first_name,
+        last_name: payload.last_name,
+        full_name: `${payload.first_name} ${payload.last_name}`.trim(),
+        phone_number: payload.phone_number,
+        email: payload.email,
+        role: payload.role,
+        is_active: true,
+        is_staff: false,
+        is_superuser: false,
+        photo: null,
+        orders_count: 0,
+        discount_rate: null,
+      };
+      users.push(created);
+      saveToStorage('users', users);
+      this.logActivity('CREATE', 'CustomUser', String(created.id), `Создан сотрудник ${created.full_name}`);
+      return created;
+    }
+  }
+
   async toggleBlockUser(userId: number): Promise<{ is_active: boolean }> {
     try {
       return await this.request(`/users/${userId}/toggle_block/`, { method: 'POST' });

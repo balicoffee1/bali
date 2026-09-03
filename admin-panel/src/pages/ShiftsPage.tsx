@@ -14,13 +14,41 @@ import { Drawer } from '../components/ui/Drawer';
 import { Modal } from '../components/ui/Modal';
 import {
   Clock, User as UserIcon, DollarSign, Plus, Search, Store,
-  Pencil, Trash2, AlertTriangle,
+  Pencil, Trash2, AlertTriangle, Info,
 } from 'lucide-react';
+import { cn } from '../utils/cn';
 
 type ShiftsTabId = 'shifts' | 'staff';
+type StaffSource = 'existing' | 'new';
+
+interface NewEmployeeDraft {
+  first_name: string;
+  last_name: string;
+  phone_number: string;
+  email: string;
+}
+
+const emptyEmployee: NewEmployeeDraft = {
+  first_name: '',
+  last_name: '',
+  phone_number: '',
+  email: '',
+};
 
 const shopLabel = (shop: CoffeeShop) =>
   [`${shop.street}, ${shop.building_number}`, shop.city_name].filter(Boolean).join(' — ');
+
+// Номер служит и логином: мобильное приложение ищет сотрудника по
+// phone_number, а PhoneNumberField на бэкенде принимает только E.164.
+const PHONE_PATTERN = /^\+7\d{10}$/;
+const normalizePhone = (raw: string) => {
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return '';
+  const national = digits.length === 11 && (digits[0] === '8' || digits[0] === '7')
+    ? digits.slice(1)
+    : digits;
+  return `+7${national}`;
+};
 
 export const ShiftsPage: React.FC = () => {
   const { coffeeShops, addToast } = useApp();
@@ -43,6 +71,8 @@ export const ShiftsPage: React.FC = () => {
   const [userPickerQuery, setUserPickerQuery] = useState('');
   const [alsoSetEmployeeRole, setAlsoSetEmployeeRole] = useState(true);
   const [isSavingStaff, setIsSavingStaff] = useState(false);
+  const [staffSource, setStaffSource] = useState<StaffSource>('existing');
+  const [newEmployee, setNewEmployee] = useState<NewEmployeeDraft>(emptyEmployee);
 
   const [staffToRemove, setStaffToRemove] = useState<StaffMember | null>(null);
   const [isRemovingStaff, setIsRemovingStaff] = useState(false);
@@ -128,6 +158,8 @@ export const ShiftsPage: React.FC = () => {
     });
     setUserPickerQuery('');
     setAlsoSetEmployeeRole(true);
+    setStaffSource('existing');
+    setNewEmployee(emptyEmployee);
     setIsStaffDrawerOpen(true);
   };
 
@@ -135,28 +167,84 @@ export const ShiftsPage: React.FC = () => {
     setEditingStaff({ ...member });
     setUserPickerQuery('');
     setAlsoSetEmployeeRole(false);
+    setStaffSource('existing');
+    setNewEmployee(emptyEmployee);
     setIsStaffDrawerOpen(true);
   };
 
   const closeStaffDrawer = () => {
     setIsStaffDrawerOpen(false);
     setEditingStaff(null);
+    setNewEmployee(emptyEmployee);
   };
 
+  const newEmployeePhone = normalizePhone(newEmployee.phone_number);
+  const isNewEmployeeValid =
+    newEmployee.first_name.trim().length > 0 && PHONE_PATTERN.test(newEmployeePhone);
+
+  const canSubmitStaff = Boolean(
+    editingStaff?.place_of_work &&
+      (staffSource === 'new' ? isNewEmployeeValid : editingStaff?.users)
+  );
+
   const handleSaveStaff = async () => {
-    if (!editingStaff?.users || !editingStaff.place_of_work) return;
+    if (!editingStaff?.place_of_work || !canSubmitStaff) return;
     setIsSavingStaff(true);
     try {
-      const saved = await api.saveStaff({
-        id: editingStaff.id,
-        users: editingStaff.users,
-        place_of_work: editingStaff.place_of_work,
-      });
+      let userId = editingStaff.users;
+
+      // Нового сотрудника заводим первым шагом: без пользователя привязывать
+      // к кофейне нечего.
+      if (staffSource === 'new') {
+        try {
+          const createdUser = await api.createUser({
+            first_name: newEmployee.first_name,
+            last_name: newEmployee.last_name,
+            phone_number: newEmployeePhone,
+            email: newEmployee.email,
+            role: 'employee',
+          });
+          setUsers(prev => [...prev, createdUser]);
+          userId = createdUser.id;
+        } catch (error: any) {
+          addToast({
+            type: 'error',
+            title: 'Сотрудник не создан',
+            message: error?.message || 'Не удалось создать пользователя',
+          });
+          return;
+        }
+      }
+
+      if (!userId) return;
+
+      let saved: StaffMember;
+      try {
+        saved = await api.saveStaff({
+          id: editingStaff.id,
+          users: userId,
+          place_of_work: editingStaff.place_of_work,
+        });
+      } catch (error: any) {
+        // Пользователь уже создан, а привязка не прошла. Молчать нельзя:
+        // иначе повторная попытка упрётся в занятый номер телефона.
+        if (staffSource === 'new') {
+          addToast({
+            type: 'warning',
+            title: 'Сотрудник создан, но не назначен',
+            message: `${newEmployee.first_name} уже есть в системе — назначьте его на кофейню через «Существующий сотрудник».`,
+          });
+          setStaffSource('existing');
+          setEditingStaff({ ...editingStaff, users: userId });
+          return;
+        }
+        throw error;
+      }
 
       // Роль не влияет на доступ к заказам точки — его даёт сама запись Staff.
       // Но без роли «Сотрудник» человек выглядит клиентом в остальной панели,
       // поэтому назначаем её явным флажком, а не молча.
-      if (alsoSetEmployeeRole && selectedUser && selectedUser.role === 'user') {
+      if (staffSource === 'existing' && alsoSetEmployeeRole && selectedUser && selectedUser.role === 'user') {
         try {
           const updatedUser = await api.setUserRole(selectedUser.id, 'employee');
           setUsers(prev => prev.map(u => (u.id === updatedUser.id ? updatedUser : u)));
@@ -437,9 +525,13 @@ export const ShiftsPage: React.FC = () => {
                 size="sm"
                 onClick={handleSaveStaff}
                 isLoading={isSavingStaff}
-                disabled={isSavingStaff || !editingStaff.users || !editingStaff.place_of_work}
+                disabled={isSavingStaff || !canSubmitStaff}
               >
-                {editingStaff.id ? 'Сохранить перевод' : 'Назначить бариста'}
+                {editingStaff.id
+                  ? 'Сохранить перевод'
+                  : staffSource === 'new'
+                  ? 'Создать и назначить'
+                  : 'Назначить бариста'}
               </Button>
             </div>
           }
@@ -455,6 +547,78 @@ export const ShiftsPage: React.FC = () => {
               requiredAsterisk
             />
 
+            {!editingStaff.id && (
+              <div className="inline-flex w-full p-1 bg-brand-light-gray rounded-r12 gap-1 select-none">
+                {([
+                  { id: 'existing', label: 'Существующий' },
+                  { id: 'new', label: 'Новый сотрудник' },
+                ] as { id: StaffSource; label: string }[]).map(option => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setStaffSource(option.id)}
+                    className={cn(
+                      'flex-1 px-3 py-2 text-xs font-bold rounded-lg transition-all duration-150',
+                      staffSource === option.id
+                        ? 'bg-white text-brand-dark shadow-sm'
+                        : 'text-brand-dark-blue hover:text-brand-dark hover:bg-slate-200/50'
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {staffSource === 'new' && !editingStaff.id ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 xs:grid-cols-2 gap-3">
+                  <Input
+                    label="Имя"
+                    placeholder="Например: Динара"
+                    value={newEmployee.first_name}
+                    onChange={e => setNewEmployee({ ...newEmployee, first_name: e.target.value })}
+                    requiredAsterisk
+                  />
+                  <Input
+                    label="Фамилия"
+                    placeholder="Например: Сафина"
+                    value={newEmployee.last_name}
+                    onChange={e => setNewEmployee({ ...newEmployee, last_name: e.target.value })}
+                  />
+                </div>
+
+                <Input
+                  label="Телефон"
+                  placeholder="+7 917 000-00-00"
+                  value={newEmployee.phone_number}
+                  onChange={e => setNewEmployee({ ...newEmployee, phone_number: e.target.value })}
+                  error={
+                    newEmployee.phone_number && !PHONE_PATTERN.test(newEmployeePhone)
+                      ? 'Нужен российский номер: +7 и 10 цифр'
+                      : undefined
+                  }
+                  requiredAsterisk
+                />
+
+                <Input
+                  label="Email"
+                  type="email"
+                  placeholder="Необязательно"
+                  value={newEmployee.email}
+                  onChange={e => setNewEmployee({ ...newEmployee, email: e.target.value })}
+                />
+
+                <div className="flex items-start gap-2.5 rounded-r12 bg-brand-light-gray p-3 text-xs text-brand-dark-blue">
+                  <Info className="w-4 h-4 text-brand-gray-blue shrink-0 mt-0.5" />
+                  <span>
+                    Сотрудник получит роль «Сотрудник», а номер телефона станет его логином —
+                    в приложение бариста он войдёт по SMS-коду, пароль заводить не нужно.
+                    Доступа в эту админ-панель у него не будет.
+                  </span>
+                </div>
+              </div>
+            ) : (
             <div className="space-y-2">
               <label className="block text-xs font-semibold text-brand-dark-blue">
                 Сотрудник<span className="text-brand-red ml-1 font-bold">*</span>
@@ -499,8 +663,9 @@ export const ShiftsPage: React.FC = () => {
                 )}
               </div>
             </div>
+            )}
 
-            {selectedUser && selectedUser.role === 'user' && (
+            {staffSource === 'existing' && selectedUser && selectedUser.role === 'user' && (
               <label className="flex items-start gap-2.5 rounded-r12 bg-brand-light-gray p-3 cursor-pointer">
                 <input
                   type="checkbox"
