@@ -328,10 +328,15 @@ class OrdersByTimeView(generics.ListAPIView):
     serializer_class = PendingOrdersAcceptSerializer
 
     def get_queryset(self):
-        sorting_time = self.request.query_params.get('sorting_time',)
-        if sorting_time:
-            return Orders.objects.all().filter(time_is_finish__gte=sorting_time).order_by('time_is_finish', '-created_at')
-        return Orders.objects.all().order_by('time_is_finish', '-created_at')
+        # M7: сам queryset живёт в staff/queries.py — из него же собирается
+        # realtime-снапшот смены, чтобы состав экрана не зависел от транспорта.
+        from staff.queries import orders_in_shift_window
+
+        return orders_in_shift_window(
+            city_id=self.request.query_params.get('city_id'),
+            coffee_shop_id=self.request.query_params.get('coffee_shop_id'),
+            sorting_time=self.request.query_params.get('sorting_time'),
+        )
 
     @swagger_auto_schema(
         operation_description="Получение списка заказов, отсортированных по "
@@ -345,42 +350,11 @@ class OrdersByTimeView(generics.ListAPIView):
         operation_id="Получение списка заказов"
     )
     def get(self, request: Request, *args, **kwargs):
-        city = request.query_params.get('city_id', None)
-        coffee_shop = request.query_params.get('coffee_shop_id', None)
-        queryset = self.get_queryset()
-        queryset = queryset.filter(city_choose=city, coffee_shop=coffee_shop)
-        serialized_data = self.serializer_class(queryset, many=True).data
+        from staff.queries import shift_aggregates
 
-        status_counts = {
-            "Waiting": Orders.objects.filter(
-                status_orders="Waiting").count(),
-            "In Progress": Orders.objects.filter(
-                status_orders="In Progress").count(),
-            "Completed": Orders.objects.filter(
-                status_orders="Completed").count(),
-            "Canceled": Orders.objects.filter(status_orders="Canceled").count()
-        }
-        payment_totals = {
-            "New": Orders.objects.filter(payment_status="New").aggregate(total=models.Sum('full_price'))['total'] or 0,
-            "Pending": Orders.objects.filter(payment_status="Pending").aggregate(total=models.Sum('full_price'))['total'] or 0,
-            "Paid": Orders.objects.filter(payment_status="Paid").aggregate(total=models.Sum('full_price'))['total'] or 0,
-            "Failed": Orders.objects.filter(payment_status="Failed").aggregate(total=models.Sum('full_price'))['total'] or 0,
-        }
+        serialized_data = self.serializer_class(self.get_queryset(), many=True).data
 
-        # Общая сумма по статусам заказов
-        order_totals = {
-            "Waiting": Orders.objects.filter(status_orders="Waiting").aggregate(total=models.Sum('full_price'))['total'] or 0,
-            "In Progress": Orders.objects.filter(status_orders="In Progress").aggregate(total=models.Sum('full_price'))['total'] or 0,
-            "Completed": Orders.objects.filter(status_orders="Completed").aggregate(total=models.Sum('full_price'))['total'] or 0,
-            "Canceled": Orders.objects.filter(status_orders="Canceled").aggregate(total=models.Sum('full_price'))['total'] or 0,
-        }
-
-        response_data = {
-            "orders": serialized_data,
-            "status_counts": status_counts,
-            "payment_totals": payment_totals,
-            "order_totals": order_totals,
-        }
+        response_data = {"orders": serialized_data, **shift_aggregates()}
 
         return Response(response_data)
 
@@ -414,12 +388,12 @@ class FilterOrdersByStatus(APIView):
 
         order_status = serializer.validated_data.get("status")
 
-        # Фильтрация заказов по статусу
-        filtered_orders = Orders.objects.filter(
-            status_orders=order_status,
-            city_choose=city,
-            coffee_shop=coffee_shop
-        ).order_by("-created_at").prefetch_related("review")
+        # M7: тот же общий слой, что и у realtime-снапшота (staff/queries.py).
+        from staff.queries import orders_with_status
+
+        filtered_orders = orders_with_status(
+            city_id=city, coffee_shop_id=coffee_shop, status=order_status
+        )
         serialized_data = self.serializer_class(filtered_orders, many=True).data
 
         return Response(serialized_data, status=status.HTTP_200_OK)

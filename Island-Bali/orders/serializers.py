@@ -82,6 +82,13 @@ class CheckoutSerializer(serializers.Serializer):
         order.payment_status = "Pending"
         order.save()
 
+        # M7: этот путь создания заказа (POST /api/orders/checkout/) идёт мимо
+        # OrderViewSet.perform_create, поэтому событие о создании нужно
+        # опубликовать здесь — иначе клиент об этом заказе не узнает вовсе.
+        from orders.services import OrderStateService
+
+        OrderStateService.order_created(order.id)
+
         return {
             'message': 'Заказ успешно оформлен.',
             'payment_link': payment_link
@@ -97,6 +104,38 @@ class GetStatusPaymentSerializer(serializers.Serializer):
 
 
 
+# M7: единый список полей заказа для клиента-покупателя. Из него собираются и REST
+# (OrderSerializers, + cart_data), и WebSocket-снапшот (OrderRealtimeSerializer) — так
+# они не могут разъехаться при добавлении поля, а мобильный OrderView.fromJson остаётся
+# единственным парсером на обе стороны.
+CUSTOMER_ORDER_FIELDS = [
+    "id", "user", "city_choose", "coffee_shop", "cart", "client_comments",
+    "staff_comments", "time_is_finish", "staff", "status_orders",
+    "payment_status", "receipt_photo", "created_at", "updated_at", "updated_time", "issued",
+    "full_price", "cancellation_reason", "client_confirmed", "is_appreciated",
+    "city_choose_name", "coffee_shop_name", "is_updated",
+    "is_used_discount", "is_testing", "version", "event_seq", "acknowledged_dialogs",
+]
+
+
+class AcknowledgedDialogsField(serializers.Field):
+    """
+    Список ключей подтверждённых диалогов — read-only проекция OrderDialogAck.
+
+    Едет внутри самого заказа, а не отдельным событием: снапшот читается из БД в
+    момент публикации, поэтому свежий ack оказывается в ближайшем же кадре сам,
+    без отдельного типа сообщения.
+    """
+    def __init__(self, **kwargs):
+        kwargs.setdefault("read_only", True)
+        kwargs.setdefault("source", "*")
+        super().__init__(**kwargs)
+
+    def to_representation(self, order):
+        # prefetch_related('dialog_acks') в queryset'е делает это без N+1
+        return sorted(ack.dialog_key for ack in order.dialog_acks.all())
+
+
 class OrderSerializers(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(queryset=CustomUser.objects.all(), required=False)
     staff = serializers.PrimaryKeyRelatedField(queryset=CustomUser.objects.all(), required=False)
@@ -110,20 +149,40 @@ class OrderSerializers(serializers.ModelSerializer):
     # WebSocket event's version to decide whether a REST refresh is needed (never a write
     # vector; OrderStateService.orders/services.py remains the only place version changes).
     version = serializers.IntegerField(read_only=True)
+    # M7: версия ленты событий — по ней клиент отбрасывает дубли и опоздавшие
+    # WebSocket-события. Read-only: двигается только внутри OrderStateService.
+    event_seq = serializers.IntegerField(read_only=True)
+    acknowledged_dialogs = AcknowledgedDialogsField()
 
     class Meta:
         model = Orders
-        fields = [
-            'id', 'user', 'city_choose', 'coffee_shop', 'cart', 'client_comments',
-            'staff_comments', 'time_is_finish', 'staff', 'status_orders',
-            'payment_status', 'receipt_photo', 'created_at', 'updated_at', 'updated_time', "issued",
-            'full_price', 'cancellation_reason', 'client_confirmed', 'is_appreciated', "cart_data",
-            'isThankYouDialogOpen', 'isOrderCancelled', "city_choose_name", "coffee_shop_name",
-            "is_updated", "isTimeChangedDialog",
-            "is_used_discount", "is_testing", "version"
-        ]
+        fields = CUSTOMER_ORDER_FIELDS + ["cart_data"]
         
 
+
+
+class OrderRealtimeSerializer(serializers.ModelSerializer):
+    """
+    Полезная нагрузка WebSocket-события для клиента-покупателя (M7, шаг 2).
+
+    Тот же набор полей, что и у REST-списка заказов, минус cart_data: состав корзины
+    весит больше всего остального payload'а вместе взятого (вложенный CartSerializer
+    с items/products/addons), а мобильное приложение его нигде не читает — поле
+    парсится в OrderView.cartData и не используется ни одним виджетом. REST его
+    пока отдаёт, чтобы не ломать существующих потребителей.
+
+    Наследуется от того же CUSTOMER_ORDER_FIELDS, что и OrderSerializers, — списки
+    полей не могут разъехаться, а значит мобильный OrderView.fromJson одинаково
+    разбирает и REST-ответ, и WebSocket-кадр.
+    """
+    city_choose_name = serializers.CharField(source='city_choose.name', read_only=True)
+    coffee_shop_name = serializers.StringRelatedField(source='coffee_shop')
+    acknowledged_dialogs = AcknowledgedDialogsField()
+
+    class Meta:
+        model = Orders
+        fields = CUSTOMER_ORDER_FIELDS
+        read_only_fields = CUSTOMER_ORDER_FIELDS
 
 
 class NotificationSerializer(serializers.ModelSerializer):
@@ -182,6 +241,5 @@ class StaffOrderUpdateSerializer(serializers.ModelSerializer):
         model = Orders
         fields = [
             'client_comments', 'staff_comments', 'time_is_finish',
-            'receipt_photo', 'isTimeChangedDialog', 'isThankYouDialogOpen',
-            'is_appreciated', 'is_updated',
+            'receipt_photo', 'is_appreciated', 'is_updated',
         ]

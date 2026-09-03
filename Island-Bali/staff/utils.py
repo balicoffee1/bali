@@ -65,10 +65,18 @@ def update_order_time_to_finish(order, new_time_to_finish):
 
 
 def update_order_comments(order, new_comments):
-    """Функция для обновления комментариев к заказу"""
+    """Функция для обновления комментариев к заказу.
+
+    M7: через сервис, а не голым save() — staff_comments входит в payload,
+    который уходит клиенту, значит изменение обязано публиковать событие.
+    """
     if new_comments:
-        order.staff_comments = new_comments
-        order.save()
+        from orders.services import OrderStateService
+
+        OrderStateService.update_presentation(
+            order.id, actor_type="staff", staff_comments=new_comments
+        )
+        order.refresh_from_db()
 
 
 def get_completed_orders(sorting_datevalue):

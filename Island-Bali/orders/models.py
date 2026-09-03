@@ -87,15 +87,11 @@ class Orders(models.Model):
     is_updated = models.BooleanField(
         default=False, verbose_name='Клиент оценил заказ'
     )
-    isThankYouDialogOpen = models.BooleanField(
-        default=False, verbose_name= 'Диалог благодарности открыт'
-    )
-    isOrderCancelled = models.BooleanField(
-        default=False, verbose_name='Заказ отменен'
-    )
-    isTimeChangedDialog = models.BooleanField(
-        default=False, verbose_name='Диалог изменения времени открыт'
-    )
+    # isThankYouDialogOpen / isOrderCancelled / isTimeChangedDialog удалены в M7:
+    # это были «диалог такой-то уже показан», по одной колонке и по endpoint'у на
+    # диалог, с именами, которые врали о смысле (isOrderCancelled читалось как
+    # «заказ отменён», из-за чего сервис, честно выставляя его при отмене, гасил
+    # диалог до показа). Заменены таблицей OrderDialogAck ниже.
     is_used_discount = models.BooleanField(
         default=False, verbose_name='Скидка применена'
     )
@@ -115,6 +111,16 @@ class Orders(models.Model):
         help_text=(
             'Инкрементируется на каждый успешный переход status_orders/payment_status. '
             'НЕ увеличивается на чисто presentation-изменения (диалоги, staff-комментарии).'
+        ),
+    )
+    event_seq = models.PositiveIntegerField(
+        default=0,
+        verbose_name='Порядковый номер realtime-события заказа',
+        help_text=(
+            'Инкрементируется при КАЖДОЙ публикации WebSocket-события по этому заказу — '
+            'и на бизнес-переходы, и на presentation-изменения (время получения, ack диалогов). '
+            'Клиент дедуплицирует события по нему. Отличается от version тем, что version — '
+            'версия бизнес-состояния и оптимистичная блокировка, а event_seq — версия ленты событий.'
         ),
     )
     payment_deadline_at = models.DateTimeField(
@@ -142,6 +148,56 @@ class Orders(models.Model):
     # confirm_order/cancel_order/complete_order/process_payment были удалены в M1:
     # они меняли status_orders/payment_status без проверки текущего состояния и без
     # блокировки строки (аудит P0-2..P0-5, P1-9..P1-11). См. orders.services.OrderStateService.
+
+
+class OrderDialogAck(models.Model):
+    """
+    Подтверждение того, что клиент закрыл конкретный диалог по конкретному заказу (M7).
+
+    Зачем отдельная таблица, а не булевы поля на Orders (isThankYouDialogOpen /
+    isOrderCancelled / isTimeChangedDialog, которые тут были раньше):
+
+    * имена тех полей врали о смысле — `isOrderCancelled` означало не «заказ отменён»,
+      а «диалог отмены уже показан», из-за чего OrderStateService.cancel(), честно
+      выставляя «заказ отменён», гасил диалог ещё до его показа;
+    * каждый новый диалог требовал колонку, миграцию и отдельный endpoint;
+    * `unique_together` делает запись подтверждения атомарной и идемпотентной по
+      построению — повторный ack не гонка, а no-op. На JSON-колонке со списком
+      два параллельных ack были бы read-modify-write и теряли бы один из них.
+
+    Записи только добавляются: «диалог подтверждён» — необратимое событие, отменять
+    его некому и незачем. acknowledged_at заодно бесплатно даёт аналитику
+    «сколько людей закрывает диалог, не дочитав».
+    """
+    THANK_YOU = 'thank_you'
+    CANCELED = 'canceled'
+    FEEDBACK = 'feedback'
+    DIALOG_CHOICES = [
+        (THANK_YOU, 'Спасибо за заказ'),
+        (CANCELED, 'Заказ отменён'),
+        (FEEDBACK, 'Оцените заказ (закрыт без оценки)'),
+    ]
+    # Диалоги «ожидание подтверждения» и «время изменено» здесь сознательно
+    # отсутствуют: они гасятся доменным состоянием (переход из New; client_confirmed
+    # или отмена), а не фактом закрытия. Ack для них не нужен и был бы вреден —
+    # он скрыл бы диалог у пользователя, который так и не принял решение.
+    DIALOG_KEYS = frozenset(key for key, _label in DIALOG_CHOICES)
+
+    order = models.ForeignKey(
+        Orders, on_delete=models.CASCADE, related_name='dialog_acks', verbose_name='Заказ'
+    )
+    dialog_key = models.CharField(
+        max_length=32, choices=DIALOG_CHOICES, verbose_name='Диалог'
+    )
+    acknowledged_at = models.DateTimeField(auto_now_add=True, verbose_name='Подтверждён')
+
+    class Meta:
+        verbose_name = 'Подтверждение диалога'
+        verbose_name_plural = 'Подтверждения диалогов'
+        unique_together = ('order', 'dialog_key')
+
+    def __str__(self):
+        return f'{self.dialog_key} order={self.order_id}'
 
 
 class Notification(models.Model):

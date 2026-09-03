@@ -63,8 +63,13 @@ class CreateReviewAPIView(APIView):
                 id=serializer.validated_data.get('orders').id
             ).first()
             if order:
-                order.is_appreciated = True
-                order.save()
+                # M7: через сервис, а не голым save() — оценка гасит диалог
+                # «оцените заказ», значит клиент обязан узнать об этом событием.
+                from orders.services import OrderStateService
+
+                OrderStateService.update_presentation(
+                    order.id, actor_type="customer", is_appreciated=True
+                )
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

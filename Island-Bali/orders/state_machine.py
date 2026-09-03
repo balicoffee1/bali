@@ -76,6 +76,16 @@ PAYMENT_WINDOW_SECONDS = 90
 GRACE_PERIOD_SECONDS = 30
 FINAL_DEADLINE_SECONDS = PAYMENT_WINDOW_SECONDS + GRACE_PERIOD_SECONDS  # 120
 
+# M7, шаг 4: как часто backend сам опрашивает провайдера, пока идёт оплата.
+# Раньше это делал клиент (_checkLifePayStatus в мобильном приложении) — то есть
+# опрос платежа был ещё одним HTTP-запросом со стороны приложения, ровно тем, от
+# чего мы уходим. Опрос переехал на сервер: результат всё равно применяется через
+# OrderStateService.payment_succeeded, который публикует WebSocket-событие, так
+# что клиент узнаёт об оплате тем же каналом, что и обо всём остальном.
+# 5 секунд × окно 90 секунд = не больше ~18 обращений к LifePay на заказ, и только
+# пока оплата реально в процессе.
+PAYMENT_POLL_INTERVAL_SECONDS = 5
+
 
 class OrderTransitionError(Exception):
     """

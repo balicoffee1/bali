@@ -144,14 +144,39 @@ class OrderViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        """Возвращает заказы, относящиеся к текущему пользователю"""
+        """Возвращает заказы, относящиеся к текущему пользователю.
+
+        M6 blocker (реальный баг, найден при 600s-polling валидации): без
+        явного order_by() Postgres не гарантирует порядок строк — эмпирически
+        подтверждено, что после нескольких OrderStateService-переходов (accept/
+        payment_succeeded и т.д., каждый — UPDATE, двигающий MVCC-версию строки)
+        обычный .filter() возвращал заказы вперемешку, например
+        [13, 14, 15, 5, 6, 7, 8, 10, 9, 12] для набора id 5-15. Мобильное
+        приложение (OrderNotificationScope, OrderViewBLoC.lastOrder) берёт
+        `list.last` как самый свежий заказ — без ORDER BY это самый обычный
+        старый заказ, а не только что созданный, из-за чего ожидаемый
+        confirmation/waiting диалог после создания заказа не появлялся.
+        order_by('id') делает это детерминированным (id — monotonic PK).
+        """
         user = self.request.user
-        return Orders.objects.filter(user=user)
+        # prefetch_related('dialog_acks') — иначе AcknowledgedDialogsField даёт
+        # N+1 на списке заказов (M7, шаг 3).
+        return (
+            Orders.objects.filter(user=user)
+            .prefetch_related('dialog_acks')
+            .order_by('id')
+        )
 
     def perform_create(self, serializer):
         """Создание нового заказа с валидацией времени"""
         cart = ShoppingCart.objects.get(user=self.request.user, is_active=True)
-        serializer.save(user=self.request.user, cart=cart, isTimeChangedDialog=True)
+        order = serializer.save(user=self.request.user, cart=cart)
+
+        # M7: создание — не переход state machine, но клиенту нужно событие, иначе
+        # диалог «ожидание подтверждения» не откроется без REST-поллинга.
+        from orders.services import OrderStateService
+
+        OrderStateService.order_created(order.id)
 
     def update(self, request, *args, **kwargs):
         """
@@ -292,6 +317,46 @@ class OrderViewSet(ModelViewSet):
             return _transition_error_response(exc)
         return Response({'status': 'Заказ подтвержден клиентом'})
 
+    @action(detail=True, methods=['post'], url_path='dialog-ack')
+    def dialog_ack(self, request, pk=None):
+        """
+        Клиент закрыл диалог — записать это навсегда (M7, часть B).
+
+        Один endpoint на все диалоги вместо колонки и endpoint'а на каждый
+        (update-thank-you-dialog / update-order-cancelled, которые он заменяет).
+        Идемпотентен: повторный POST — 200, а не ошибка, поэтому клиенту безопасно
+        ретраить ack из офлайн-очереди.
+
+        get_object() уже скоупит выборку по владельцу (get_queryset фильтрует по
+        request.user), проверка владельца в сервисе — defense in depth.
+        """
+        order = self.get_object()
+        dialog_key = request.data.get('dialog')
+        if not dialog_key:
+            return Response(
+                {'error': 'Не указан диалог (поле "dialog").'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from orders.services import OrderStateService
+
+        try:
+            OrderStateService.acknowledge_dialog(order.id, user=request.user, dialog_key=dialog_key)
+        except OrderTransitionError as exc:
+            return _transition_error_response(exc)
+
+        order.refresh_from_db()
+        return Response(
+            {
+                'status': 'Диалог подтверждён',
+                'acknowledged_dialogs': sorted(
+                    order.dialog_acks.values_list('dialog_key', flat=True)
+                ),
+                'event_seq': order.event_seq,
+            },
+            status=status.HTTP_200_OK,
+        )
+
     @action(detail=True, methods=['patch'], url_path='staff-update')
     def staff_update(self, request, pk=None):
         """
@@ -419,43 +484,9 @@ class CheckOrderViewSet(ModelViewSet):
         return Response(serializer.data)
 
 
-class UpdateThankYouDialogView(APIView):
-    """
-    API для обновления поля isThankYouDialogOpen (UI-флаг, не входит ни в
-    одну из двух state machine). Используется мобильным приложением
-    (review_repository.dart). M0 (IDOR): раньше не проверял владельца заказа —
-    любой аутентифицированный пользователь мог переключить этот флаг у
-    чужого заказа.
-    """
-    permission_classes = [IsAuthenticated]
-
-    def patch(self, request, order_id):
-        order = get_object_or_404(Orders, id=order_id, user=request.user)
-        is_open = request.data.get('isThankYouDialogOpen')
-        if is_open is not None:
-            order.isThankYouDialogOpen = is_open
-            order.save(update_fields=["isThankYouDialogOpen"])
-            return Response({'message': 'Поле isThankYouDialogOpen обновлено'}, status=status.HTTP_200_OK)
-        return Response({'error': 'Поле isThankYouDialogOpen не указано'}, status=status.HTTP_400_BAD_REQUEST)
-
-
-class UpdateOrderCancelledView(APIView):
-    """
-    API для обновления поля isOrderCancelled (UI-флаг "показать пользователю,
-    что заказ отменён" — отдельно от status_orders=Canceled). Используется
-    мобильным приложением (review_repository.dart). M0 (IDOR): то же
-    исправление, что и в UpdateThankYouDialogView.
-    """
-    permission_classes = [IsAuthenticated]
-
-    def patch(self, request, order_id):
-        order = get_object_or_404(Orders, id=order_id, user=request.user)
-        is_cancelled = request.data.get('isOrderCancelled')
-        if is_cancelled is not None:
-            order.isOrderCancelled = is_cancelled
-            order.save(update_fields=["isOrderCancelled"])
-            return Response({'message': 'Поле isOrderCancelled обновлено'}, status=status.HTTP_200_OK)
-        return Response({'error': 'Поле isOrderCancelled не указано'}, status=status.HTTP_400_BAD_REQUEST)
+# UpdateThankYouDialogView / UpdateOrderCancelledView удалены в M7: два
+# endpoint'а, каждый со своим булевым полем, заменены одним идемпотентным
+# POST /api/orders/orders/{id}/dialog-ack/ (OrderViewSet.dialog_ack).
 
 
 class SendNotifications(APIView):

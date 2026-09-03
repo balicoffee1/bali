@@ -22,10 +22,11 @@ import logging
 from django.db import transaction
 from django.utils import timezone
 
-from .models import Orders, PaymentReconciliation, PaymentWebhookEvent
+from .models import OrderDialogAck, Orders, PaymentReconciliation, PaymentWebhookEvent
 from .realtime import publish_order_status_changed, snapshot_from_order
 from .state_machine import (
     ORDER_TERMINAL_STATUSES,
+    PAYMENT_POLL_INTERVAL_SECONDS,
     OrderTransitionError,
     is_order_transition_allowed,
 )
@@ -33,11 +34,44 @@ from .state_machine import (
 logger = logging.getLogger("orders.state")
 
 
-def _publish_realtime_on_commit(order):
-    """Снапшот строится сейчас (внутри atomic, пока order залочен и уже сохранён),
-    публикация — только после реального commit (M3, п.27, п.40)."""
+# Presentation-поля, которые видит клиент, но которые не входят ни в одну state
+# machine: их меняет персонал/клиент, version при этом не растёт, а событие
+# отправить всё равно обязаны — иначе после отказа от polling'а клиент о них не
+# узнает вовсе (M7, раздел 2.2).
+PRESENTATION_FIELDS = frozenset({
+    "updated_time", "cancellation_reason", "staff_comments", "client_comments", "time_is_finish",
+    "is_appreciated",
+})
+
+
+def _save_and_publish(order, update_fields):
+    """
+    Единственный способ опубликовать realtime-событие (M7).
+
+    Инкремент event_seq и сохранение изменения происходят одной строкой в одной
+    транзакции, поэтому «событие опубликовано, но event_seq не вырос» и обратное
+    невозможны по построению. Снапшот строится здесь же (внутри atomic, пока order
+    залочен и уже сохранён), публикация — только после реального commit (M3, п.27, п.40).
+    """
+    order.event_seq += 1
+    fields = list(update_fields)
+    for required in ("event_seq", "updated_at"):
+        if required not in fields:
+            fields.append(required)
+    order.save(update_fields=fields)
     snapshot = snapshot_from_order(order)
     transaction.on_commit(lambda: publish_order_status_changed(snapshot))
+
+
+def _schedule_payment_poll(order_id):
+    """Импорт задачи локальный: orders.tasks импортирует этот модуль на уровне модуля."""
+
+    def _schedule():
+        from .tasks import poll_payment_status_task
+
+        poll_payment_status_task.apply_async(args=[order_id], countdown=PAYMENT_POLL_INTERVAL_SECONDS)
+
+    transaction.on_commit(_schedule)
 
 
 def _resolve_staff(user, coffee_shop_id):
@@ -97,8 +131,7 @@ class OrderStateService:
             order.status_orders = Orders.WAITING
             order.staff = _resolve_staff(staff_user, order.coffee_shop_id)
             order.version += 1
-            order.save(update_fields=["status_orders", "staff", "version", "updated_at"])
-            _publish_realtime_on_commit(order)
+            _save_and_publish(order, ["status_orders", "staff", "version"])
 
         transaction.on_commit(
             lambda: _log_transition(
@@ -131,14 +164,10 @@ class OrderStateService:
 
             order.status_orders = Orders.CANCELED
             order.cancellation_reason = reason
-            order.isOrderCancelled = True
+            # Показан ли клиенту диалог отмены — вопрос не сервиса: это
+            # OrderDialogAck, который пишет само приложение после показа.
             order.version += 1
-            order.save(
-                update_fields=[
-                    "status_orders", "cancellation_reason", "isOrderCancelled", "version", "updated_at",
-                ]
-            )
-            _publish_realtime_on_commit(order)
+            _save_and_publish(order, ["status_orders", "cancellation_reason", "version"])
 
         transaction.on_commit(
             lambda: _log_transition(
@@ -169,8 +198,7 @@ class OrderStateService:
             if staff_user is not None:
                 order.staff = _resolve_staff(staff_user, order.coffee_shop_id)
             order.version += 1
-            order.save(update_fields=["status_orders", "staff", "version", "updated_at"])
-            _publish_realtime_on_commit(order)
+            _save_and_publish(order, ["status_orders", "staff", "version"])
 
             if order.cart_id:
                 order.cart.is_active = False
@@ -196,12 +224,110 @@ class OrderStateService:
             prev_order_status, prev_payment_status = order.status_orders, order.payment_status
             order.client_confirmed = True
             order.version += 1
-            order.save(update_fields=["client_confirmed", "version", "updated_at"])
+            # M7: публикуем. Раньше событие здесь не отправлялось — подтверждение,
+            # сделанное на одном устройстве, не гасило диалог «время изменено» на
+            # другом, а после отказа от polling'а не погасило бы вообще нигде.
+            _save_and_publish(order, ["client_confirmed", "version"])
 
         transaction.on_commit(
             lambda: _log_transition(
                 order, operation="client_confirmed", actor_type="customer",
                 prev_order_status=prev_order_status, prev_payment_status=prev_payment_status,
+            )
+        )
+        return order
+
+    @staticmethod
+    def order_created(order_id):
+        """
+        Публикация события о только что созданном заказе (M7).
+
+        Создание — не переход state machine, version остаётся 0. Но клиенту событие
+        нужно: диалог «ожидание подтверждения бариста» открывается по факту появления
+        заказа в статусе New, и без этого события он после отказа от polling'а не
+        откроется вовсе (а на втором устройстве не откроется и подавно).
+        """
+        with transaction.atomic():
+            order = Orders.objects.select_for_update().get(pk=order_id)
+            _save_and_publish(order, [])
+        return order
+
+    @staticmethod
+    def update_presentation(order_id, *, actor_type, **fields):
+        """
+        Изменение presentation-полей заказа (M7): время получения, причина/комментарии.
+
+        Это не переход state machine — version не растёт, допустимость перехода не
+        проверяется. Но событие публикуется обязательно: на updated_time завязан
+        диалог «время изменено», и раньше он работал только потому, что клиент
+        перечитывал заказ каждые 5 секунд (staff/serializers.py писал поле голым
+        instance.save() мимо сервиса).
+
+        Неизвестные поля отвергаются, а не игнорируются молча: PRESENTATION_FIELDS —
+        это ещё и граница, через которую status_orders/payment_status/version не
+        протащить mass-assignment'ом.
+        """
+        unknown = set(fields) - PRESENTATION_FIELDS
+        if unknown:
+            raise OrderTransitionError(
+                "invalid_presentation_field",
+                f"Недопустимые для presentation-обновления поля: {sorted(unknown)}",
+            )
+        if not fields:
+            return Orders.objects.get(pk=order_id)
+
+        with transaction.atomic():
+            order = Orders.objects.select_for_update().get(pk=order_id)
+            changed = [name for name, value in fields.items() if getattr(order, name) != value]
+            if not changed:
+                return order  # идемпотентно: нечего менять — нечего и публиковать
+            for name in changed:
+                setattr(order, name, fields[name])
+            _save_and_publish(order, changed)
+
+        transaction.on_commit(
+            lambda: logger.info(
+                "order_presentation_updated %s",
+                {"order_id": order.id, "actor_type": actor_type,
+                 "fields": sorted(changed), "event_seq": order.event_seq},
+            )
+        )
+        return order
+
+    @staticmethod
+    def acknowledge_dialog(order_id, *, user, dialog_key):
+        """
+        Клиент закрыл диалог — записываем это навсегда (M7, часть B).
+
+        Идемпотентно по построению (unique_together): повторный ack — не ошибка и не
+        гонка, а no-op без события. Событие публикуется только на первый ack и нужно
+        ровно для одного сценария — второе устройство того же пользователя, где
+        диалог висит открытым, должно его закрыть.
+
+        version не трогаем: подтверждение диалога не меняет бизнес-состояние заказа.
+        event_seq двигаем — иначе клиент отбросит это событие как устаревшее.
+        """
+        if dialog_key not in OrderDialogAck.DIALOG_KEYS:
+            raise OrderTransitionError(
+                "unknown_dialog",
+                f"Неизвестный диалог: {dialog_key}. Допустимые: {sorted(OrderDialogAck.DIALOG_KEYS)}",
+            )
+
+        with transaction.atomic():
+            order = Orders.objects.select_for_update().get(pk=order_id)
+            if order.user_id != user.id:
+                raise OrderTransitionError("forbidden", "Заказ принадлежит другому пользователю.", order)
+
+            _ack, created = OrderDialogAck.objects.get_or_create(order=order, dialog_key=dialog_key)
+            if not created:
+                return order  # уже подтверждён — молча возвращаем, ретрай клиента безопасен
+
+            _save_and_publish(order, [])
+
+        transaction.on_commit(
+            lambda: logger.info(
+                "order_dialog_acknowledged %s",
+                {"order_id": order.id, "dialog_key": dialog_key, "event_seq": order.event_seq},
             )
         )
         return order
@@ -244,9 +370,17 @@ class OrderStateService:
             if order.payment_started_at is None:
                 order.payment_started_at = now
 
-            order.save(update_fields=["payment_status", "payment_started_at", "version", "updated_at"])
             if payment_status_transitioned:
-                _publish_realtime_on_commit(order)
+                _save_and_publish(order, ["payment_status", "payment_started_at", "version"])
+                # M7: с этого момента backend сам следит за оплатой — клиенту больше
+                # не нужно опрашивать /api/payment/lifepay/status/. Планируем внутри
+                # on_commit, чтобы задача не стартовала раньше коммита (тот же
+                # инвариант, что и у timeout-задач в orders/signals.py).
+                _schedule_payment_poll(order.id)
+            else:
+                # Ничего видимого клиенту не изменилось (payment_status тот же) —
+                # событие не публикуем и event_seq не двигаем.
+                order.save(update_fields=["payment_status", "payment_started_at", "version", "updated_at"])
 
         transaction.on_commit(
             lambda: _log_transition(
@@ -293,7 +427,9 @@ class OrderStateService:
                     order.payment_status = Orders.PAID
                     order.provider_paid_at = effective_paid_at
                     order.version += 1
-                    order.save(update_fields=["payment_status", "provider_paid_at", "version", "updated_at"])
+                    # M7: late payment тоже публикуем — payment_status у клиента
+                    # обязан сойтись с сервером, даже если сам заказ уже терминален.
+                    _save_and_publish(order, ["payment_status", "provider_paid_at", "version"])
                     transaction.on_commit(
                         lambda: _log_transition(
                             order, operation="payment_succeeded_after_close", actor_type="provider",
@@ -311,10 +447,7 @@ class OrderStateService:
             if order.status_orders in (Orders.NEW, Orders.WAITING):
                 order.status_orders = Orders.IN_PROGRESS
             order.version += 1
-            order.save(
-                update_fields=["payment_status", "provider_paid_at", "status_orders", "version", "updated_at"]
-            )
-            _publish_realtime_on_commit(order)
+            _save_and_publish(order, ["payment_status", "provider_paid_at", "status_orders", "version"])
 
         transaction.on_commit(
             lambda: _log_transition(
@@ -345,8 +478,7 @@ class OrderStateService:
 
             order.payment_status = Orders.FAILED
             order.version += 1
-            order.save(update_fields=["payment_status", "version", "updated_at"])
-            _publish_realtime_on_commit(order)
+            _save_and_publish(order, ["payment_status", "version"])
 
         transaction.on_commit(
             lambda: _log_transition(
@@ -356,6 +488,53 @@ class OrderStateService:
             )
         )
         return order
+
+    @staticmethod
+    def sync_payment_from_provider(order_id, *, provider_status_checker) -> bool:
+        """
+        Один цикл серверного опроса провайдера внутри платёжного окна (M7, шаг 4).
+
+        Возвращает True, если имеет смысл опросить ещё раз (оплата всё ещё в
+        процессе), и False, когда вопрос закрыт — задача по этому значению решает,
+        планировать ли следующую итерацию. Сама ничего не отменяет: отмена по
+        таймауту — работа evaluate_payment_deadline/finalize_payment_window, и
+        дублировать это решение в двух местах нельзя.
+
+        Никакой блокировки здесь нет намеренно: это чтение + делегирование в
+        payment_succeeded, который берёт select_for_update сам.
+        """
+        from acquiring.providers import FAILED, PAID
+
+        order = Orders.objects.get(pk=order_id)
+
+        if order.status_orders in ORDER_TERMINAL_STATUSES:
+            return False
+        if order.payment_status in (Orders.PAID, Orders.FAILED):
+            return False
+        if order.payment_started_at is None:
+            return False  # клиент так и не начал оплату — опрашивать нечего
+        if order.payment_deadline_at is not None and timezone.now() > order.payment_deadline_at:
+            return False  # окно закрыто, дальше отвечает deadline-задача
+
+        provider_status = provider_status_checker(order)
+
+        if provider_status.normalized_status == PAID:
+            OrderStateService.payment_succeeded(
+                order_id,
+                provider="lifepay",
+                provider_transaction_id="",
+                provider_paid_at=provider_status.provider_paid_at,
+            )
+            return False
+        if provider_status.normalized_status == FAILED:
+            # Фиксируем отказ, но заказ не отменяем — это решение deadline-задачи.
+            OrderStateService.payment_failed(
+                order_id, provider="lifepay", reason="provider_failed_during_poll"
+            )
+            return False
+
+        # PENDING или NOT_FOUND (инвойс ещё не создан) — продолжаем опрашивать.
+        return True
 
     # ------------------------------------------------------------------ admin
 
@@ -383,18 +562,18 @@ class OrderStateService:
                 update_fields.append("status_orders")
                 if new_order_status == Orders.CANCELED:
                     order.cancellation_reason = reason
-                    order.isOrderCancelled = True
-                    update_fields += ["cancellation_reason", "isOrderCancelled"]
+                    update_fields += ["cancellation_reason"]
             if new_payment_status:
                 order.payment_status = new_payment_status
                 update_fields.append("payment_status")
 
             order.version += 1
-            order.save(update_fields=update_fields)
             # Публикуем realtime-событие только если реально изменилось business state
             # (status_orders/payment_status), а не на голый reason-only override.
             if new_order_status or new_payment_status:
-                _publish_realtime_on_commit(order)
+                _save_and_publish(order, update_fields)
+            else:
+                order.save(update_fields=update_fields)
 
         from admin_api.audit import log_admin_activity
 

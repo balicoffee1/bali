@@ -20,6 +20,7 @@ from celery import shared_task
 from acquiring.providers import ProviderPaymentStatus, get_latest_invoice, get_lifepay_transaction_status
 from orders.models import Orders
 from orders.services import OrderStateService
+from orders.state_machine import PAYMENT_POLL_INTERVAL_SECONDS
 
 logger = logging.getLogger("orders.tasks")
 
@@ -37,6 +38,31 @@ def evaluate_payment_deadline_task(order_id):
         OrderStateService.evaluate_payment_deadline(order_id, provider_status_checker=_lifepay_status_checker)
     except Orders.DoesNotExist:
         logger.warning("evaluate_payment_deadline_task: order %s не найден", order_id)
+
+
+@shared_task
+def poll_payment_status_task(order_id):
+    """
+    Серверный опрос провайдера, пока идёт оплата (M7, шаг 4).
+
+    Самопланирующаяся цепочка вместо periodic beat-задачи: опрашивать нужно только
+    те заказы, где оплата реально начата, и только внутри их окна — beat пришлось бы
+    каждые несколько секунд сканировать всю таблицу. Цепочка гарантированно
+    завершается: sync_payment_from_provider возвращает False, как только оплата
+    решена или окно закрылось.
+    """
+    try:
+        should_continue = OrderStateService.sync_payment_from_provider(
+            order_id, provider_status_checker=_lifepay_status_checker
+        )
+    except Orders.DoesNotExist:
+        logger.warning("poll_payment_status_task: order %s не найден", order_id)
+        return
+
+    if should_continue:
+        poll_payment_status_task.apply_async(
+            args=[order_id], countdown=PAYMENT_POLL_INTERVAL_SECONDS
+        )
 
 
 @shared_task

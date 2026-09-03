@@ -10,6 +10,7 @@ import threading
 import time
 from datetime import timedelta
 from decimal import Decimal
+from unittest import mock
 from unittest.mock import patch
 
 from django.test import TestCase, TransactionTestCase
@@ -20,7 +21,7 @@ from acquiring.providers import ProviderPaymentStatus
 from acquiring.models import LifepayInvoice
 from cart.models import ShoppingCart
 from coffee_shop.models import Acquiring, City, CoffeeShop, CrmSystem
-from orders.models import Orders, PaymentReconciliation, PaymentWebhookEvent
+from orders.models import OrderDialogAck, Orders, PaymentReconciliation, PaymentWebhookEvent
 from orders.services import OrderStateService
 from orders.state_machine import (
     FINAL_DEADLINE_SECONDS,
@@ -158,6 +159,23 @@ class OrderStateServiceTransitionTests(OrdersTestBase):
         order = self.make_order(status_orders=Orders.COMPLETED)
         with self.assertRaises(OrderTransitionError):
             OrderStateService.cancel(order.id, actor_type="customer", reason="test")
+
+    def test_cancel_does_not_acknowledge_the_cancellation_dialog(self):
+        """
+        Отмена заказа не должна считаться «клиент уже увидел диалог отмены».
+
+        Раньше это стерегли через булево поле isOrderCancelled, имя которого
+        читалось как «заказ отменён» — и сервис, честно выставляя его при отмене,
+        гасил диалог до показа. Поле заменено на OrderDialogAck, но сам инвариант
+        остаётся: подтверждение пишет только приложение и только после показа.
+        """
+        order = self.make_order(status_orders=Orders.NEW)
+        updated = OrderStateService.cancel(order.id, actor_type="system", reason="payment timeout")
+        self.assertEqual(updated.status_orders, Orders.CANCELED)
+        self.assertFalse(
+            OrderDialogAck.objects.filter(order=order, dialog_key=OrderDialogAck.CANCELED).exists(),
+            "подтверждение диалога отмены пишет клиент после показа, а не сервис",
+        )
 
     def test_system_cancel_never_cancels_paid_order(self):
         """Сценарий 3 acceptance invariant: Celery-таймаут не может отменить уже PAID заказ."""
@@ -485,6 +503,20 @@ class OrderAuthorizationRegressionTests(OrdersTestBase):
                 order.id, admin_user=self.staff_user, new_order_status=Orders.CANCELED, reason="", request=None
             )
 
+    def test_admin_override_cancel_does_not_acknowledge_the_dialog(self):
+        """Тот же инвариант, что и в test_cancel_does_not_acknowledge_the_cancellation_dialog:
+        отмена из админки тоже не должна гасить диалог до его показа клиенту."""
+        order = self.make_order(status_orders=Orders.WAITING)
+        OrderStateService.admin_override(
+            order.id, admin_user=self.staff_user, new_order_status=Orders.CANCELED,
+            reason="test override", request=None,
+        )
+        order.refresh_from_db()
+        self.assertEqual(order.status_orders, Orders.CANCELED)
+        self.assertFalse(
+            OrderDialogAck.objects.filter(order=order, dialog_key=OrderDialogAck.CANCELED).exists()
+        )
+
     def test_client_confirmation_ownership_enforced(self):
         order = self.make_order(status_orders=Orders.WAITING)
         client = self.client
@@ -495,6 +527,47 @@ class OrderAuthorizationRegressionTests(OrdersTestBase):
         # находит объект в queryset другого пользователя (ownership enforced раньше, чем
         # выполнился бы внутренний if order.user != request.user).
         self.assertEqual(response.status_code, 404)
+
+
+class OrderListOrderingRegressionTests(OrdersTestBase):
+    """
+    M6 blocker: GET /api/orders/orders/ должен возвращать заказы в
+    детерминированном порядке (по id), иначе мобильное приложение (которое
+    берёт `list.last` как самый свежий заказ — OrderNotificationScope,
+    OrderViewBLoC.lastOrder) может показать confirmation/waiting диалог не
+    для того заказа, а то и вовсе не показать его для только что созданного.
+
+    Без order_by() в OrderViewSet.get_queryset() Postgres не гарантирует
+    порядок строк, и он реально плавает после UPDATE (OrderStateService
+    двигает MVCC-версию строки) — этот тест воспроизводит ровно такой сценарий:
+    создать несколько заказов, затем обновить один из САМЫХ РАННИХ через
+    реальный state transition, и убедиться, что самый последний по времени
+    создания заказ всё равно остаётся последним в ответе API.
+    """
+
+    def test_newest_order_is_last_even_after_updating_an_older_order(self):
+        client = self.client
+        self.auth(client, self.user)
+
+        orders = [self.make_order(status_orders=Orders.NEW) for _ in range(4)]
+        newest = orders[-1]
+
+        # Обновляем самый первый (старый) заказ реальным переходом — именно
+        # такой UPDATE на старой строке и разваливал порядок без order_by().
+        OrderStateService.accept(orders[0].id, staff_user=self.staff_user)
+
+        response = client.get("/api/orders/orders/")
+        self.assertEqual(response.status_code, 200)
+        returned_ids = [item["id"] for item in response.data]
+
+        self.assertEqual(
+            returned_ids, sorted(returned_ids),
+            "порядок заказов должен быть детерминированным (по id)",
+        )
+        self.assertEqual(
+            returned_ids[-1], newest.id,
+            "последний элемент списка должен быть самым недавно созданным заказом",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -588,4 +661,361 @@ class DefaultOrderEndpointMassAssignmentTests(OrdersTestBase):
         self.assertEqual(
             order.status_orders, Orders.CANCELED,
             "клиент не должен уметь воскресить отменённый заказ через голый PUT",
+        )
+
+
+# ---------------------------------------------------------------------------
+# M7 шаг 3: подтверждение диалогов (OrderDialogAck)
+# ---------------------------------------------------------------------------
+
+
+class DialogAckTests(OrdersTestBase):
+    """
+    Правило задачи: «нажал кнопку в диалоге — он закрылся и больше никогда не
+    открылся». Серверная половина этого правила — здесь.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.order = self.make_order()
+        self.auth(self.client, self.user)
+
+    def _ack(self, dialog, order=None, client=None):
+        order = order or self.order
+        client = client or self.client
+        return client.post(
+            f"/api/orders/orders/{order.id}/dialog-ack/",
+            {"dialog": dialog},
+            content_type="application/json",
+        )
+
+    def test_ack_is_persisted_and_returned(self):
+        response = self._ack("thank_you")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["acknowledged_dialogs"], ["thank_you"])
+        self.assertTrue(
+            OrderDialogAck.objects.filter(order=self.order, dialog_key="thank_you").exists()
+        )
+
+    def test_ack_is_idempotent(self):
+        """Клиент ретраит ack из офлайн-очереди — повтор обязан быть 200, а не ошибкой."""
+        self.assertEqual(self._ack("thank_you").status_code, 200)
+        second = self._ack("thank_you")
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(
+            OrderDialogAck.objects.filter(order=self.order, dialog_key="thank_you").count(), 1
+        )
+
+    def test_second_ack_publishes_no_event(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            self._ack("thank_you")
+        self.order.refresh_from_db()
+        seq_after_first = self.order.event_seq
+
+        with self.captureOnCommitCallbacks(execute=True):
+            self._ack("thank_you")
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.event_seq, seq_after_first)
+
+    def test_first_ack_publishes_event_without_touching_version(self):
+        """Второе устройство должно закрыть диалог, но бизнес-состояние не менялось."""
+        version_before = self.order.version
+        with mock.patch("orders.services.publish_order_status_changed") as mocked:
+            with self.captureOnCommitCallbacks(execute=True):
+                self._ack("canceled")
+        self.assertEqual(mocked.call_count, 1)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.version, version_before)
+        self.assertEqual(self.order.event_seq, 1)
+
+    def test_unknown_dialog_key_is_rejected(self):
+        response = self._ack("drop_table")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"], "unknown_dialog")
+        self.assertFalse(OrderDialogAck.objects.filter(order=self.order).exists())
+
+    def test_missing_dialog_field_is_rejected(self):
+        response = self.client.post(
+            f"/api/orders/orders/{self.order.id}/dialog-ack/", {}, content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_cannot_ack_foreign_order(self):
+        client = self.client_class()
+        self.auth(client, self.other_user)
+        response = self._ack("thank_you", client=client)
+        # get_object() скоупит queryset по владельцу — чужой заказ просто не существует
+        self.assertIn(response.status_code, (403, 404))
+        self.assertFalse(OrderDialogAck.objects.filter(order=self.order).exists())
+
+    def test_anonymous_cannot_ack(self):
+        client = self.client_class()
+        response = self._ack("thank_you", client=client)
+        self.assertIn(response.status_code, (401, 403))
+        self.assertFalse(OrderDialogAck.objects.filter(order=self.order).exists())
+
+    def test_acknowledged_dialogs_travel_inside_the_order(self):
+        """
+        Отдельного события на ack не нужно: снапшот читается из БД в момент
+        публикации, поэтому свежий ack приезжает в ближайшем же кадре сам.
+        """
+        from orders.realtime import serialize_for_customer
+
+        self._ack("thank_you")
+        self._ack("feedback")
+        payload = serialize_for_customer(
+            Orders.objects.prefetch_related("dialog_acks").get(pk=self.order.id)
+        )
+        self.assertEqual(payload["acknowledged_dialogs"], ["feedback", "thank_you"])
+
+    def test_rest_list_also_exposes_acknowledged_dialogs(self):
+        """REST — аварийный fallback, он обязан отдавать то же самое."""
+        self._ack("canceled")
+        response = self.client.get("/api/orders/orders/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()[-1]["acknowledged_dialogs"], ["canceled"])
+
+    def test_only_state_driven_dialogs_are_absent_from_keys(self):
+        """
+        Диалоги «ожидание подтверждения» и «время изменено» гасятся доменным
+        состоянием, а не ack: записав им подтверждение, мы скрыли бы диалог у
+        пользователя, который так и не принял решение.
+        """
+        self.assertEqual(
+            OrderDialogAck.DIALOG_KEYS, {"thank_you", "canceled", "feedback"}
+        )
+        for state_driven in ("waiting_confirmation", "time_changed"):
+            self.assertEqual(self._ack(state_driven).status_code, 400)
+
+
+# ---------------------------------------------------------------------------
+# M7 шаг 4: серверный опрос провайдера вместо клиентского
+# ---------------------------------------------------------------------------
+
+
+class ServerSidePaymentPollingTests(OrdersTestBase):
+    """
+    Опрос оплаты переехал с клиента на сервер: раньше мобильное приложение само
+    дёргало /api/payment/lifepay/status/{id}/ (_checkLifePayStatus), то есть опрос
+    платежа был ровно тем HTTP-запросом, от которого мы уходим. Теперь этим
+    занимается Celery-цепочка, а клиент узнаёт результат обычным WS-событием.
+    """
+
+    def _in_payment(self, **overrides):
+        now = timezone.now()
+        defaults = dict(
+            status_orders=Orders.WAITING,
+            payment_status=Orders.PENDING,
+            payment_started_at=now,
+            payment_deadline_at=now + timedelta(seconds=60),
+        )
+        defaults.update(overrides)
+        return self.make_order(**defaults)
+
+    def test_paid_applies_transition_and_stops_polling(self):
+        order = self._in_payment()
+        with self.captureOnCommitCallbacks(execute=True):
+            should_continue = OrderStateService.sync_payment_from_provider(
+                order.id, provider_status_checker=lambda o: _status("PAID")
+            )
+        self.assertFalse(should_continue)
+        order.refresh_from_db()
+        self.assertEqual(order.payment_status, Orders.PAID)
+        self.assertEqual(order.status_orders, Orders.IN_PROGRESS)
+
+    def test_paid_publishes_event_so_client_learns_without_asking(self):
+        """Смысл всего шага: клиент не спрашивает — ему сообщают."""
+        order = self._in_payment()
+        with mock.patch("orders.services.publish_order_status_changed") as mocked:
+            with self.captureOnCommitCallbacks(execute=True):
+                OrderStateService.sync_payment_from_provider(
+                    order.id, provider_status_checker=lambda o: _status("PAID")
+                )
+        self.assertEqual(mocked.call_count, 1)
+
+    def test_pending_keeps_polling_without_touching_state(self):
+        order = self._in_payment()
+        should_continue = OrderStateService.sync_payment_from_provider(
+            order.id, provider_status_checker=lambda o: _status("PENDING")
+        )
+        self.assertTrue(should_continue)
+        order.refresh_from_db()
+        self.assertEqual(order.payment_status, Orders.PENDING)
+
+    def test_missing_invoice_keeps_polling(self):
+        """NOT_FOUND — инвойс ещё не создан, а не отказ: перестать опрашивать нельзя."""
+        order = self._in_payment()
+        self.assertTrue(
+            OrderStateService.sync_payment_from_provider(
+                order.id, provider_status_checker=lambda o: _status("NOT_FOUND")
+            )
+        )
+
+    def test_failed_stops_polling_but_does_not_cancel_order(self):
+        """Отмена — решение deadline-задачи; дублировать его в двух местах нельзя."""
+        order = self._in_payment()
+        with self.captureOnCommitCallbacks(execute=True):
+            should_continue = OrderStateService.sync_payment_from_provider(
+                order.id, provider_status_checker=lambda o: _status("FAILED")
+            )
+        self.assertFalse(should_continue)
+        order.refresh_from_db()
+        self.assertEqual(order.payment_status, Orders.FAILED)
+        self.assertNotEqual(order.status_orders, Orders.CANCELED)
+
+    def test_stops_after_deadline_without_calling_provider(self):
+        order = self._in_payment(payment_deadline_at=timezone.now() - timedelta(seconds=1))
+        checker = mock.Mock()
+        self.assertFalse(
+            OrderStateService.sync_payment_from_provider(order.id, provider_status_checker=checker)
+        )
+        checker.assert_not_called()
+
+    def test_stops_for_terminal_order_without_calling_provider(self):
+        order = self._in_payment(status_orders=Orders.CANCELED)
+        checker = mock.Mock()
+        self.assertFalse(
+            OrderStateService.sync_payment_from_provider(order.id, provider_status_checker=checker)
+        )
+        checker.assert_not_called()
+
+    def test_stops_when_payment_never_started(self):
+        order = self._in_payment(payment_status=Orders.NEW, payment_started_at=None)
+        checker = mock.Mock()
+        self.assertFalse(
+            OrderStateService.sync_payment_from_provider(order.id, provider_status_checker=checker)
+        )
+        checker.assert_not_called()
+
+    def test_payment_started_schedules_the_poll(self):
+        """Цепочка должна стартовать сама, без участия клиента."""
+        order = self.make_order(status_orders=Orders.WAITING, payment_status=Orders.NEW)
+        with mock.patch("orders.tasks.poll_payment_status_task.apply_async") as scheduled:
+            with self.captureOnCommitCallbacks(execute=True):
+                OrderStateService.payment_started(order.id, provider="lifepay")
+        scheduled.assert_called_once()
+        self.assertEqual(scheduled.call_args.kwargs["args"], [order.id])
+
+    def test_poll_task_reschedules_only_while_pending(self):
+        from orders.tasks import poll_payment_status_task
+
+        order = self._in_payment()
+        with mock.patch(
+            "orders.services.OrderStateService.sync_payment_from_provider", return_value=True
+        ):
+            with mock.patch("orders.tasks.poll_payment_status_task.apply_async") as scheduled:
+                poll_payment_status_task(order.id)
+        scheduled.assert_called_once()
+
+        with mock.patch(
+            "orders.services.OrderStateService.sync_payment_from_provider", return_value=False
+        ):
+            with mock.patch("orders.tasks.poll_payment_status_task.apply_async") as scheduled:
+                poll_payment_status_task(order.id)
+        scheduled.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# M7 (регресс из прода): админка Django как точка мутации состояния
+# ---------------------------------------------------------------------------
+
+
+class DjangoAdminPublishesEventsTests(OrdersTestBase):
+    """
+    Смена статуса через админку Django обязана публиковать событие.
+
+    Это тот самый пропуск, из-за которого «статус изменили, а диалог не
+    закрылся»: инвентаризация точек мутации в аудите покрыла HTTP-эндпоинты,
+    Celery и сигналы, но не ModelAdmin. Пока клиент перечитывал заказы каждые
+    5 секунд, обход сервиса был незаметен — после отказа от поллинга он означает,
+    что приложение не узнает об изменении никогда.
+    """
+
+    class _Form:
+        """Минимальная замена ModelForm: админке от неё нужны только эти два поля."""
+
+        def __init__(self, changed_data, initial):
+            self.changed_data = changed_data
+            self.initial = initial
+
+    def setUp(self):
+        super().setUp()
+        from django.contrib.admin.sites import AdminSite
+
+        from orders.admin import OrdersAdmin
+
+        from django.test import RequestFactory
+
+        self.admin = OrdersAdmin(Orders, AdminSite())
+        # Настоящий request: audit-логгер читает META (IP, user-agent).
+        self.request = RequestFactory().post('/admin/orders/orders/1/change/')
+        self.request.user = self.staff_user
+
+    def _save_via_admin(self, order, **new_values):
+        initial = {
+            'status_orders': order.status_orders,
+            'payment_status': order.payment_status,
+        }
+        for field, value in new_values.items():
+            setattr(order, field, value)
+        form = self._Form(list(new_values), initial)
+        self.admin.save_model(self.request, order, form, change=True)
+
+    def test_status_change_publishes_event(self):
+        order = self.make_order(status_orders=Orders.NEW)
+        with mock.patch("orders.services.publish_order_status_changed") as mocked:
+            with self.captureOnCommitCallbacks(execute=True):
+                self._save_via_admin(order, status_orders=Orders.WAITING)
+
+        self.assertEqual(mocked.call_count, 1)
+        order.refresh_from_db()
+        self.assertEqual(order.status_orders, Orders.WAITING)
+        self.assertEqual(order.event_seq, 1)
+
+    def test_payment_status_change_publishes_event(self):
+        order = self.make_order(status_orders=Orders.WAITING)
+        with mock.patch("orders.services.publish_order_status_changed") as mocked:
+            with self.captureOnCommitCallbacks(execute=True):
+                self._save_via_admin(order, payment_status=Orders.PENDING)
+
+        self.assertEqual(mocked.call_count, 1)
+        order.refresh_from_db()
+        self.assertEqual(order.payment_status, Orders.PENDING)
+
+    def test_both_fields_change_publishes_single_event(self):
+        """Ровно тот сценарий из отчёта: «Ожидание» + «ожидание оплаты» разом."""
+        order = self.make_order(status_orders=Orders.NEW, payment_status=Orders.NEW)
+        with mock.patch("orders.services.publish_order_status_changed") as mocked:
+            with self.captureOnCommitCallbacks(execute=True):
+                self._save_via_admin(
+                    order,
+                    status_orders=Orders.WAITING,
+                    payment_status=Orders.PENDING,
+                )
+
+        self.assertEqual(mocked.call_count, 1)
+        order.refresh_from_db()
+        self.assertEqual(order.status_orders, Orders.WAITING)
+        self.assertEqual(order.payment_status, Orders.PENDING)
+
+    def test_editing_only_presentation_fields_publishes_nothing(self):
+        """Правка комментария — не переход состояния, событие тут ни к чему."""
+        order = self.make_order(status_orders=Orders.WAITING)
+        with mock.patch("orders.services.publish_order_status_changed") as mocked:
+            with self.captureOnCommitCallbacks(execute=True):
+                order.staff_comments = 'заметка бариста'
+                form = self._Form(['staff_comments'], {})
+                self.admin.save_model(self.request, order, form, change=True)
+
+        self.assertEqual(mocked.call_count, 0)
+
+    def test_status_change_is_audited(self):
+        from admin_api.models import AdminActivityLog
+
+        order = self.make_order(status_orders=Orders.NEW)
+        with self.captureOnCommitCallbacks(execute=True):
+            self._save_via_admin(order, status_orders=Orders.WAITING)
+
+        self.assertTrue(
+            AdminActivityLog.objects.filter(entity_name='Orders', entity_id=order.id).exists()
         )

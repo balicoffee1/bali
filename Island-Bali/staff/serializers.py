@@ -19,7 +19,7 @@ class PendingOrdersAcceptSerializer(serializers.ModelSerializer):
         model = Orders
         fields = ("id", "user_id", "cart", "time_is_finish", "status_orders",
                   "client_comments", "payment_status", "receipt_photo", "staff_comments", "updated_time",
-                "updated_at", "created_at", "isTimeChangedDialog", "isOrderCancelled", "isThankYouDialogOpen", "client_confirmed",
+                "updated_at", "created_at", "client_confirmed",
                 "is_used_discount", "login", "cancellation_reason", "full_price", "checkLoaded", "issued", "is_appreciated", "is_updated")
 
 
@@ -69,45 +69,41 @@ class PatchOrderSerializer(serializers.Serializer):
         help_text="Дата обновления заказа",
         label="Updated At"
     )
-    isTimeChangedDialog = serializers.BooleanField(
-        default=False,
-        help_text="Флаг, указывающий, открыт ли диалог изменения времени",
-        label="Is Time Changed Dialog"
-    )
-    isOrderCancelled = serializers.BooleanField(
-        default=False,
-        help_text="Флаг, указывающий, отменен ли заказ",
-        label="Is Order Cancelled"
-    )
-    isThankYouDialogOpen = serializers.BooleanField(
-        default=False,
-        help_text="Флаг, указывающий, открыт ли диалог благодарности",
-        label="Is Thank You Dialog Open"
-    )
-    
     def update_order(self, instance, validated_data):
-        new_time_to_finish = validated_data.get('new_time_to_finish')
-        new_comments = validated_data.get('new_comments')
-        payment_status = validated_data.get('payment_status')
+        """
+        M7: updated_time/cancellation_reason больше не пишутся голым instance.save().
 
-        if new_time_to_finish:
-            instance.updated_time = new_time_to_finish
-            
-        if new_comments:
-            instance.cancellation_reason = new_comments
-        
+        Это единственные поля здесь, которые видит клиент и по которым он принимает
+        решение показать диалог («бариста изменил время»), — а голый save() не
+        публиковал WebSocket-событие, из-за чего диалог появлялся только на
+        следующем тике 5-секундного polling'а. После отказа от polling'а он не
+        появлялся бы вовсе, поэтому они уходят через OrderStateService.update_presentation,
+        которое инкрементирует event_seq и публикует событие после commit.
+        """
+        from orders.services import OrderStateService
+
+        presentation = {}
+        if new_time_to_finish := validated_data.get('new_time_to_finish'):
+            presentation['updated_time'] = new_time_to_finish
+        if new_comments := validated_data.get('new_comments'):
+            presentation['cancellation_reason'] = new_comments
+
+        local_fields = []
         if created_at := validated_data.get('created_at'):
             instance.created_at = created_at
+            local_fields.append('created_at')
         if updated_at := validated_data.get('updated_at'):
             instance.updated_at = updated_at
-        if isTimeChangedDialog := validated_data.get('isTimeChangedDialog'):
-            instance.isTimeChangedDialog = isTimeChangedDialog
-        if isOrderCancelled := validated_data.get('isOrderCancelled'):
-            instance.isOrderCancelled = isOrderCancelled
-        if isThankYouDialogOpen := validated_data.get('isThankYouDialogOpen'):
-            instance.isThankYouDialogOpen = isThankYouDialogOpen
+            local_fields.append('updated_at')
+        # Сначала локальные поля, потом presentation — чтобы опубликованный
+        # снапшот уже включал в себя всё изменённое этим запросом.
+        if local_fields:
+            instance.save(update_fields=local_fields)
 
-        instance.save()
+        if presentation:
+            instance = OrderStateService.update_presentation(
+                instance.pk, actor_type="staff", **presentation
+            )
         return instance
 
 
