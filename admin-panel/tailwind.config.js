@@ -7,6 +7,10 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      screens: {
+        // Узкий брейкпоинт для полей внутри диалогов на маленьких экранах
+        xs: '420px',
+      },
       colors: {
         brand: {
           lime: '#AEEC2A',

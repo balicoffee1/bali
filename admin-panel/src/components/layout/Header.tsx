@@ -104,7 +104,7 @@ export const Header: React.FC = () => {
           </button>
 
           {roleDropdownOpen && (
-            <div className="absolute right-0 mt-2 w-56 bg-white rounded-r12 shadow-xl border border-slate-100 p-1 z-50 animate-fade-in">
+            <div className="absolute right-0 mt-2 w-56 bg-white rounded-r12 shadow-xl border border-slate-100 p-1 z-50 animate-fade-in-up">
               <div className="px-3 py-2 border-b border-slate-100 text-[10px] font-bold text-brand-gray-blue uppercase">
                 Режим симуляции RBAC
               </div>

@@ -205,7 +205,7 @@ export const OrdersPage: React.FC = () => {
               <div key={st} className="bg-slate-100/70 rounded-r18 p-3 flex flex-col min-h-[450px]">
                 <div className="flex items-center justify-between px-2 py-1.5 mb-2">
                   <h4 className="text-xs font-extrabold text-brand-dark">{ORDER_STATUS_LABELS[st] || st}</h4>
-                  <span className="w-5 h-5 rounded-full bg-white text-[10px] font-extrabold flex items-center justify-center text-brand-dark-blue shadow-xs">
+                  <span className="w-5 h-5 rounded-full bg-white text-[10px] font-extrabold flex items-center justify-center text-brand-dark-blue shadow-sm">
                     {columnOrders.length}
                   </span>
                 </div>

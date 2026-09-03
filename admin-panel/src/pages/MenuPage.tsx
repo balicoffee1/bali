@@ -638,7 +638,7 @@ export const MenuPage: React.FC = () => {
               options={categories.map(c => ({ value: c.id, label: c.name }))}
             />
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 xs:grid-cols-3 gap-3">
               <Input
                 label="Цена S (₽)"
                 type="number"
@@ -720,7 +720,7 @@ export const MenuPage: React.FC = () => {
                         className={cn(
                           'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border',
                           isSelected
-                            ? 'bg-brand-lime text-brand-dark border-brand-lime font-bold shadow-xs'
+                            ? 'bg-brand-lime text-brand-dark border-brand-lime font-bold shadow-sm'
                             : 'bg-brand-light-gray text-brand-dark-blue border-slate-200/80 hover:bg-slate-200/60'
                         )}
                       >

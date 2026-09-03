@@ -41,7 +41,7 @@ export const Tabs: React.FC<TabsProps> = ({
             {tab.count !== undefined && (
               <span
                 className={cn(
-                  'px-1.5 py-0.2 rounded-full text-[10px] font-extrabold',
+                  'px-1.5 py-0.5 rounded-full text-[10px] font-extrabold',
                   isActive ? 'bg-brand-lime text-brand-dark' : 'bg-slate-200 text-slate-700'
                 )}
               >

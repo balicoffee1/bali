@@ -30,7 +30,23 @@
 }
 
 /* Animations */
+/*
+ * ВАЖНО: fadeIn НЕ должен использовать transform.
+ * Эта анимация висит на корневых контейнерах страниц, а элемент с transform
+ * становится containing block для position: fixed — из-за этого диалоги
+ * (Drawer/Modal) позиционировались внутри контента страницы, а не по вьюпорту.
+ * Если нужен сдвиг — используйте .animate-fade-in-up на локальном элементе.
+ */
 @keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInUp {
   from {
     opacity: 0;
     transform: translateY(4px);
@@ -52,6 +68,10 @@
 
 .animate-fade-in {
   animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .animate-slide-in-right {

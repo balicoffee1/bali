@@ -128,7 +128,7 @@ export const NotificationsPage: React.FC = () => {
               <div className="w-24 h-4 bg-brand-dark rounded-full mx-auto mb-4"></div>
 
               {/* Push notification banner */}
-              <div className="bg-slate-800/90 backdrop-blur-md rounded-2xl p-3 border border-white/10 shadow-lg animate-fade-in space-y-1">
+              <div className="bg-slate-800/90 backdrop-blur-md rounded-2xl p-3 border border-white/10 shadow-lg animate-fade-in-up space-y-1">
                 <div className="flex items-center justify-between text-[10px] text-slate-400">
                   <div className="flex items-center gap-1.5">
                     <div className="w-3.5 h-3.5 rounded-full bg-brand-lime flex items-center justify-center text-[8px] text-brand-dark font-bold">

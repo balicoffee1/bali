@@ -51,7 +51,7 @@ export const LoginPage: React.FC = () => {
           </div>
 
           {errorMessage && (
-            <div className="p-3.5 bg-red-50 border border-red-200 rounded-r12 flex items-center gap-2.5 text-xs text-brand-red font-medium animate-fade-in">
+            <div className="p-3.5 bg-red-50 border border-red-200 rounded-r12 flex items-center gap-2.5 text-xs text-brand-red font-medium animate-fade-in-up">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMessage}</span>
             </div>

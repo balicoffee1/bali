@@ -237,7 +237,7 @@ export const Sidebar: React.FC = () => {
 
                 {/* Submenu items */}
                 {!sidebarCollapsed && hasChildren && isGroupOpen && (
-                  <div className="pl-4 pr-1 py-1 space-y-0.5 border-l border-white/10 ml-5 my-0.5 animate-fade-in">
+                  <div className="pl-4 pr-1 py-1 space-y-0.5 border-l border-white/10 ml-5 my-0.5 animate-fade-in-up">
                     {item.children!.map(sub => {
                       const isSubActive =
                         isPageActive &&
@@ -251,7 +251,7 @@ export const Sidebar: React.FC = () => {
                           className={cn(
                             'w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-150',
                             isSubActive
-                              ? 'bg-brand-lime text-brand-dark font-bold shadow-xs'
+                              ? 'bg-brand-lime text-brand-dark font-bold shadow-sm'
                               : 'text-slate-400 hover:text-white hover:bg-white/5'
                           )}
                         >

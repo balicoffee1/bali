@@ -525,8 +525,8 @@ export const SettingsPage: React.FC = () => {
                 onChange={e => setEditingShop({ ...editingShop, city: Number(e.target.value) })}
                 options={cities.map(c => ({ value: c.id, label: c.name }))}
               />
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-2">
+              <div className="grid grid-cols-1 xs:grid-cols-3 gap-3">
+                <div className="xs:col-span-2">
                   <Input
                     label="Улица"
                     placeholder="ул. Заслонова"
@@ -545,7 +545,7 @@ export const SettingsPage: React.FC = () => {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 xs:grid-cols-2 gap-3">
                 <Input
                   label="Время открытия"
                   type="time"
