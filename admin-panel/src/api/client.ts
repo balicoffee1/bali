@@ -295,11 +295,12 @@ class ApiClient {
   }
 
   // --- Users ---
-  async getUsers(search?: string, roleFilter?: string): Promise<User[]> {
+  async getUsers(search?: string, roleFilter?: string, pageSize?: number): Promise<User[]> {
     try {
       const params = new URLSearchParams();
       if (search) params.append('search', search);
       if (roleFilter && roleFilter !== 'All') params.append('role', roleFilter);
+      if (pageSize) params.append('page_size', String(pageSize));
       const res: any = await this.request(`/users/?${params}`);
       return Array.isArray(res) ? res : res.results || [];
     } catch (error) {
@@ -312,6 +313,22 @@ class ApiClient {
       }
       return users;
     }
+  }
+
+  /**
+   * Точный поиск по номеру. Нужен, когда создание сотрудника упирается в занятый
+   * логин: человек уже заведён (например, как клиент), и его достаточно назначить
+   * на кофейню, а не заводить заново. Список пользователей отдаётся страницами
+   * по 20, поэтому ищем на сервере, а не в уже загруженной странице.
+   */
+  async findUserByPhone(phone: string): Promise<User | null> {
+    const normalized = phone.trim();
+    if (!normalized) return null;
+    // Без ведущего «+»: DRF ищет через icontains, а хранится номер в E.164.
+    const candidates = await this.getUsers(normalized.replace(/^\+/, ''), undefined, 50);
+    return (
+      candidates.find(u => u.phone_number === normalized || u.login === normalized) || null
+    );
   }
 
   /**

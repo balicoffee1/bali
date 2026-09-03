@@ -74,6 +74,9 @@ export const ShiftsPage: React.FC = () => {
   const [staffSource, setStaffSource] = useState<StaffSource>('existing');
   const [newEmployee, setNewEmployee] = useState<NewEmployeeDraft>(emptyEmployee);
   const [staffFormError, setStaffFormError] = useState<string | null>(null);
+  const [staffFormNotice, setStaffFormNotice] = useState<string | null>(null);
+  const [userSearchResults, setUserSearchResults] = useState<User[] | null>(null);
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
 
   const [staffToRemove, setStaffToRemove] = useState<StaffMember | null>(null);
   const [isRemovingStaff, setIsRemovingStaff] = useState(false);
@@ -134,13 +137,47 @@ export const ShiftsPage: React.FC = () => {
     );
   }, [staff, editingStaff?.place_of_work, editingStaff?.id]);
 
+  // Пользователи отдаются страницами по 20, а поиск фильтровал только уже
+  // загруженную страницу — на реальной базе нужного человека в ней почти
+  // никогда нет. Поэтому спрашиваем сервер.
+  useEffect(() => {
+    const query = userPickerQuery.trim();
+    if (!isStaffDrawerOpen || staffSource !== 'existing' || query.length < 2) {
+      setUserSearchResults(null);
+      setIsSearchingUsers(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsSearchingUsers(true);
+    const timer = setTimeout(async () => {
+      try {
+        const found = await api.getUsers(query.replace(/^\+/, ''), undefined, 50);
+        if (!cancelled) setUserSearchResults(found);
+      } catch {
+        if (!cancelled) setUserSearchResults([]);
+      } finally {
+        if (!cancelled) setIsSearchingUsers(false);
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [userPickerQuery, isStaffDrawerOpen, staffSource]);
+
   const selectableUsers = useMemo(() => {
     const query = userPickerQuery.trim().toLowerCase();
-    return users
+    // Пока идёт запрос — показываем совпадения из уже загруженного списка,
+    // чтобы поле не мигало пустотой.
+    const pool = userSearchResults ?? users;
+    const selected = editingStaff?.users;
+    return pool
       .filter(u => u.is_active)
-      .filter(u => !alreadyAtSelectedShop.has(u.id))
+      .filter(u => !alreadyAtSelectedShop.has(u.id) || u.id === selected)
       .filter(u => {
-        if (!query) return true;
+        if (!query || userSearchResults) return true;
         return (
           u.full_name?.toLowerCase().includes(query) ||
           u.phone_number?.toLowerCase().includes(query) ||
@@ -148,9 +185,13 @@ export const ShiftsPage: React.FC = () => {
         );
       })
       .slice(0, 40);
-  }, [users, userPickerQuery, alreadyAtSelectedShop]);
+  }, [users, userSearchResults, userPickerQuery, alreadyAtSelectedShop, editingStaff?.users]);
 
-  const selectedUser = editingStaff?.users ? users.find(u => u.id === editingStaff.users) : undefined;
+  // Выбранный может прийти из результатов серверного поиска, а не из первой
+  // загруженной страницы, поэтому ищем в обоих списках.
+  const selectedUser = editingStaff?.users
+    ? [...(userSearchResults ?? []), ...users].find(u => u.id === editingStaff.users)
+    : undefined;
 
   const openCreateStaff = () => {
     setEditingStaff({
@@ -159,6 +200,8 @@ export const ShiftsPage: React.FC = () => {
     });
     setUserPickerQuery('');
     setStaffFormError(null);
+    setStaffFormNotice(null);
+    setUserSearchResults(null);
     setAlsoSetEmployeeRole(true);
     setStaffSource('existing');
     setNewEmployee(emptyEmployee);
@@ -169,6 +212,8 @@ export const ShiftsPage: React.FC = () => {
     setEditingStaff({ ...member });
     setUserPickerQuery('');
     setStaffFormError(null);
+    setStaffFormNotice(null);
+    setUserSearchResults(null);
     setAlsoSetEmployeeRole(false);
     setStaffSource('existing');
     setNewEmployee(emptyEmployee);
@@ -180,14 +225,24 @@ export const ShiftsPage: React.FC = () => {
     setEditingStaff(null);
     setNewEmployee(emptyEmployee);
     setStaffFormError(null);
+    setStaffFormNotice(null);
+    setUserSearchResults(null);
   };
 
   const newEmployeePhone = normalizePhone(newEmployee.phone_number);
   const isNewEmployeeValid =
     newEmployee.first_name.trim().length > 0 && PHONE_PATTERN.test(newEmployeePhone);
 
+  // Выбранный может уже работать на этой точке: список его прячет, но после
+  // подхвата по занятому номеру он оказывается выбранным явно. Повторная
+  // запись Staff ничего не даёт, поэтому отправку блокируем.
+  const selectedAlreadyAtShop = Boolean(
+    editingStaff?.users && alreadyAtSelectedShop.has(editingStaff.users)
+  );
+
   const canSubmitStaff = Boolean(
     editingStaff?.place_of_work &&
+      !selectedAlreadyAtShop &&
       (staffSource === 'new' ? isNewEmployeeValid : editingStaff?.users)
   );
 
@@ -195,6 +250,7 @@ export const ShiftsPage: React.FC = () => {
     if (!editingStaff?.place_of_work || !canSubmitStaff) return;
     setIsSavingStaff(true);
     setStaffFormError(null);
+    setStaffFormNotice(null);
     try {
       let userId = editingStaff.users;
 
@@ -212,6 +268,36 @@ export const ShiftsPage: React.FC = () => {
           setUsers(prev => [...prev, createdUser]);
           userId = createdUser.id;
         } catch (error: any) {
+          // Занятый номер — не тупик: человек уже заведён (обычно как клиент),
+          // и его достаточно назначить на кофейню, а не создавать заново.
+          const existing = await api.findUserByPhone(newEmployeePhone).catch(() => null);
+          if (existing) {
+            setStaffSource('existing');
+            setUserPickerQuery(newEmployeePhone);
+            setEditingStaff({ ...editingStaff, users: existing.id });
+            setUsers(prev => (prev.some(u => u.id === existing.id) ? prev : [...prev, existing]));
+            setStaffFormError(null);
+
+            const atThisShop = staff.some(
+              m => m.users === existing.id && m.place_of_work === editingStaff.place_of_work
+            );
+            if (atThisShop) {
+              setStaffFormNotice(
+                `${existing.full_name} уже работает на этой кофейне — назначать повторно не нужно.`
+              );
+            } else {
+              setStaffFormNotice(
+                `${existing.full_name} уже есть в системе и выбран. Нажмите «Назначить бариста», чтобы дать доступ к заказам кофейни.`
+              );
+              addToast({
+                type: 'info',
+                title: 'Пользователь уже зарегистрирован',
+                message: 'Он выбран в списке — осталось назначить его на кофейню.',
+              });
+            }
+            return;
+          }
+
           const message = error?.message || 'Не удалось создать пользователя';
           setStaffFormError(message);
           addToast({ type: 'error', title: 'Сотрудник не создан', message });
@@ -549,6 +635,16 @@ export const ShiftsPage: React.FC = () => {
               </div>
             )}
 
+            {staffFormNotice && (
+              <div
+                role="status"
+                className="flex items-start gap-2.5 rounded-r12 bg-blue-50 border border-blue-200 p-3 text-xs text-brand-dark-blue"
+              >
+                <Info className="w-4 h-4 text-brand-blue shrink-0 mt-0.5" />
+                <span>{staffFormNotice}</span>
+              </div>
+            )}
+
             <Select
               label="Кофейня"
               value={editingStaff.place_of_work ?? ''}
@@ -643,11 +739,13 @@ export const ShiftsPage: React.FC = () => {
               />
 
               <div className="max-h-64 overflow-y-auto overscroll-contain rounded-r12 border border-slate-100 divide-y divide-slate-100">
-                {selectableUsers.length === 0 ? (
+                {isSearchingUsers && selectableUsers.length === 0 ? (
+                  <p className="p-4 text-xs text-brand-gray-blue text-center">Ищем по всей базе…</p>
+                ) : selectableUsers.length === 0 ? (
                   <p className="p-4 text-xs text-brand-gray-blue text-center">
                     {userPickerQuery
                       ? 'Никто не найден. Уже назначенные на эту кофейню в списке не показываются.'
-                      : 'Нет доступных пользователей.'}
+                      : 'Начните вводить имя или телефон — поиск идёт по всей базе.'}
                   </p>
                 ) : (
                   selectableUsers.map(u => {
