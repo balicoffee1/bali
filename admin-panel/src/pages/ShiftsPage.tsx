@@ -73,6 +73,7 @@ export const ShiftsPage: React.FC = () => {
   const [isSavingStaff, setIsSavingStaff] = useState(false);
   const [staffSource, setStaffSource] = useState<StaffSource>('existing');
   const [newEmployee, setNewEmployee] = useState<NewEmployeeDraft>(emptyEmployee);
+  const [staffFormError, setStaffFormError] = useState<string | null>(null);
 
   const [staffToRemove, setStaffToRemove] = useState<StaffMember | null>(null);
   const [isRemovingStaff, setIsRemovingStaff] = useState(false);
@@ -157,6 +158,7 @@ export const ShiftsPage: React.FC = () => {
       place_of_work: shopFilter !== 'all' ? shopFilter : coffeeShops[0]?.id,
     });
     setUserPickerQuery('');
+    setStaffFormError(null);
     setAlsoSetEmployeeRole(true);
     setStaffSource('existing');
     setNewEmployee(emptyEmployee);
@@ -166,6 +168,7 @@ export const ShiftsPage: React.FC = () => {
   const openEditStaff = (member: StaffMember) => {
     setEditingStaff({ ...member });
     setUserPickerQuery('');
+    setStaffFormError(null);
     setAlsoSetEmployeeRole(false);
     setStaffSource('existing');
     setNewEmployee(emptyEmployee);
@@ -176,6 +179,7 @@ export const ShiftsPage: React.FC = () => {
     setIsStaffDrawerOpen(false);
     setEditingStaff(null);
     setNewEmployee(emptyEmployee);
+    setStaffFormError(null);
   };
 
   const newEmployeePhone = normalizePhone(newEmployee.phone_number);
@@ -190,6 +194,7 @@ export const ShiftsPage: React.FC = () => {
   const handleSaveStaff = async () => {
     if (!editingStaff?.place_of_work || !canSubmitStaff) return;
     setIsSavingStaff(true);
+    setStaffFormError(null);
     try {
       let userId = editingStaff.users;
 
@@ -207,11 +212,9 @@ export const ShiftsPage: React.FC = () => {
           setUsers(prev => [...prev, createdUser]);
           userId = createdUser.id;
         } catch (error: any) {
-          addToast({
-            type: 'error',
-            title: 'Сотрудник не создан',
-            message: error?.message || 'Не удалось создать пользователя',
-          });
+          const message = error?.message || 'Не удалось создать пользователя';
+          setStaffFormError(message);
+          addToast({ type: 'error', title: 'Сотрудник не создан', message });
           return;
         }
       }
@@ -229,11 +232,10 @@ export const ShiftsPage: React.FC = () => {
         // Пользователь уже создан, а привязка не прошла. Молчать нельзя:
         // иначе повторная попытка упрётся в занятый номер телефона.
         if (staffSource === 'new') {
-          addToast({
-            type: 'warning',
-            title: 'Сотрудник создан, но не назначен',
-            message: `${newEmployee.first_name} уже есть в системе — назначьте его на кофейню через «Существующий сотрудник».`,
-          });
+          const reason = error?.message || 'не удалось привязать к кофейне';
+          const message = `${newEmployee.first_name} уже есть в системе, но не назначен на кофейню (${reason}). Назначьте его через «Существующий».`;
+          setStaffFormError(message);
+          addToast({ type: 'warning', title: 'Сотрудник создан, но не назначен', message });
           setStaffSource('existing');
           setEditingStaff({ ...editingStaff, users: userId });
           return;
@@ -268,11 +270,9 @@ export const ShiftsPage: React.FC = () => {
       });
       closeStaffDrawer();
     } catch (error: any) {
-      addToast({
-        type: 'error',
-        title: 'Ошибка',
-        message: error?.message || 'Не удалось сохранить сотрудника',
-      });
+      const message = error?.message || 'Не удалось сохранить сотрудника';
+      setStaffFormError(message);
+      addToast({ type: 'error', title: 'Ошибка', message });
     } finally {
       setIsSavingStaff(false);
     }
@@ -537,6 +537,18 @@ export const ShiftsPage: React.FC = () => {
           }
         >
           <div className="space-y-5 font-montserrat">
+            {/* Тост может остаться незамеченным, а причина отказа нужна прямо
+                здесь: диалог после ошибки не закрывается. */}
+            {staffFormError && (
+              <div
+                role="alert"
+                className="flex items-start gap-2.5 rounded-r12 bg-red-50 border border-red-200 p-3 text-xs text-brand-dark-blue"
+              >
+                <AlertTriangle className="w-4 h-4 text-brand-red shrink-0 mt-0.5" />
+                <span>{staffFormError}</span>
+              </div>
+            )}
+
             <Select
               label="Кофейня"
               value={editingStaff.place_of_work ?? ''}

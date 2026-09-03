@@ -16,6 +16,12 @@ class AdminUserSerializer(serializers.ModelSerializer):
     orders_count = serializers.SerializerMethodField()
     discount_rate = serializers.SerializerMethodField()
 
+    # Роли, открывающие доступ в саму админ-панель (AdminAuthLoginView пускает
+    # именно их). Выдавать их может только владелец: иначе admin поднимал бы
+    # права себе и другим обычным POST/PATCH на /users/, минуя IsSuperAdmin,
+    # которым закрыт эндпоинт set_role.
+    PRIVILEGED_ROLES = {'owner', 'admin', 'moderator', 'support'}
+
     class Meta:
         model = CustomUser
         fields = [
@@ -23,6 +29,36 @@ class AdminUserSerializer(serializers.ModelSerializer):
             'phone_number', 'email', 'role', 'is_active', 'is_staff',
             'is_superuser', 'photo', 'orders_count', 'discount_rate'
         ]
+        # is_superuser не выставляется через API ни при каких условиях, а
+        # is_staff — производное от роли, а не то, что присылает клиент.
+        read_only_fields = ['is_staff', 'is_superuser']
+
+    def _actor(self):
+        return getattr(self.context.get('request'), 'user', None)
+
+    def validate_role(self, value):
+        if value not in self.PRIVILEGED_ROLES:
+            return value
+        actor = self._actor()
+        if actor is not None and (actor.is_superuser or actor.role == 'owner'):
+            return value
+        raise serializers.ValidationError(
+            "Назначить роль с доступом в панель может только владелец."
+        )
+
+    @staticmethod
+    def _sync_staff_flag(instance):
+        expected = instance.role in ('owner', 'admin')
+        if instance.is_staff != expected:
+            instance.is_staff = expected
+            instance.save(update_fields=['is_staff'])
+        return instance
+
+    def create(self, validated_data):
+        return self._sync_staff_flag(super().create(validated_data))
+
+    def update(self, instance, validated_data):
+        return self._sync_staff_flag(super().update(instance, validated_data))
 
     def get_full_name(self, obj):
         return f"{obj.first_name} {obj.last_name or ''}".strip() or obj.login

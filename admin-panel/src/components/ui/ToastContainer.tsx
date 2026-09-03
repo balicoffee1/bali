@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../../context/AppContext';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 import { cn } from '../../utils/cn';
@@ -8,8 +9,11 @@ export const ToastContainer: React.FC = () => {
 
   if (toasts.length === 0) return null;
 
-  return (
-    <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none font-montserrat">
+  // Рендерим в body и выше диалогов: с z-50 уведомление уходило ЗА панель
+  // Drawer'а (z-90) и Modal (z-100). Из-за этого ошибка сохранения, после
+  // которой диалог остаётся открытым, вообще не была видна.
+  return createPortal(
+    <div className="fixed bottom-5 right-5 z-[200] flex flex-col gap-2.5 max-w-[calc(100vw-2.5rem)] sm:max-w-sm w-full pointer-events-none font-montserrat">
       {toasts.map(toast => {
         const icons = {
           success: <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />,
@@ -47,6 +51,7 @@ export const ToastContainer: React.FC = () => {
           </div>
         );
       })}
-    </div>
+    </div>,
+    document.body
   );
 };

@@ -217,6 +217,13 @@ class AdminUsersViewSet(viewsets.ModelViewSet):
             return AdminUserDetailSerializer
         return AdminUserSerializer
 
+    def perform_create(self, serializer):
+        user = serializer.save()
+        log_admin_activity(
+            self.request, 'CREATE', 'CustomUser', user.id,
+            f"Создан пользователь {user.login} с ролью {user.role}",
+        )
+
     def perform_update(self, serializer):
         user = serializer.save()
         log_admin_activity(self.request, 'UPDATE', 'CustomUser', user.id, f"Обновлен профиль пользователя {user.login}")

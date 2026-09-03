@@ -23,6 +23,44 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * DRF на ошибках валидации отвечает картой поле -> список сообщений
+ * ({"login": ["Уже существует."]}). Раньше читались только error и detail,
+ * поэтому пользователь вместо причины видел «Не удалось выполнить запрос».
+ */
+const FIELD_LABELS: Record<string, string> = {
+  login: 'Логин',
+  phone_number: 'Телефон',
+  email: 'Email',
+  first_name: 'Имя',
+  last_name: 'Фамилия',
+  role: 'Роль',
+  users: 'Сотрудник',
+  place_of_work: 'Кофейня',
+};
+
+function describeApiError(details: any): string {
+  const fallback = 'Не удалось выполнить запрос.';
+  if (!details) return fallback;
+  if (typeof details === 'string') return details;
+  if (details.error) return String(details.error);
+  if (details.detail) return String(details.detail);
+
+  const flatten = (value: unknown): string =>
+    Array.isArray(value) ? value.map(flatten).join(' ') : String(value);
+
+  const parts = Object.entries(details)
+    .filter(([, value]) => value !== null && value !== undefined)
+    .map(([field, value]) => {
+      const text = flatten(value);
+      if (field === 'non_field_errors') return text;
+      return `${FIELD_LABELS[field] || field}: ${text}`;
+    })
+    .filter(Boolean);
+
+  return parts.length ? parts.join('; ') : fallback;
+}
+
 // LocalStorage helpers to persist modifications in demo/offline mode
 function loadFromStorage<T>(key: string, defaultValue: T): T {
   try {
@@ -139,8 +177,7 @@ class ApiClient {
     if (!response.ok) {
       let details: any = null;
       try { details = await response.json(); } catch { /* empty error response */ }
-      const message = details?.error || details?.detail || 'Не удалось выполнить запрос.';
-      throw new ApiError(message, response.status, details);
+      throw new ApiError(describeApiError(details), response.status, details);
     }
 
     if (response.status === 204) return undefined as T;
