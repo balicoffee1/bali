@@ -552,13 +552,89 @@ class ApiClient {
     }
   }
 
-  async getStaff(): Promise<StaffMember[]> {
+  async getStaff(coffeeShopId?: number): Promise<StaffMember[]> {
     try {
-      const res: any = await this.request('/staff/');
+      const params = new URLSearchParams();
+      if (coffeeShopId) params.append('place_of_work', String(coffeeShopId));
+      const res: any = await this.request(`/staff/?${params}`);
       return Array.isArray(res) ? res : res.results || [];
     } catch (error) {
       this.ensureMockFallback(error);
-      return loadFromStorage('staff', mockStaff);
+      const staff: StaffMember[] = loadFromStorage('staff', mockStaff);
+      return coffeeShopId ? staff.filter(s => s.place_of_work === coffeeShopId) : staff;
+    }
+  }
+
+  /**
+   * Привязка бариста к кофейне. Именно строка Staff, а не роль пользователя,
+   * открывает доступ к заказам точки (staff-эндпоинты и WS-канал смены
+   * проверяют Staff.place_of_work), поэтому назначение и снятие идут через неё.
+   */
+  async saveStaff(staffData: { id?: number; users: number; place_of_work: number }): Promise<StaffMember> {
+    const payload = { users: staffData.users, place_of_work: staffData.place_of_work };
+    try {
+      if (staffData.id) {
+        return await this.request(`/staff/${staffData.id}/`, {
+          method: 'PATCH',
+          body: JSON.stringify(payload),
+        });
+      }
+      return await this.request('/staff/', { method: 'POST', body: JSON.stringify(payload) });
+    } catch (error) {
+      this.ensureMockFallback(error);
+      const staff: StaffMember[] = loadFromStorage('staff', mockStaff);
+      const users: User[] = loadFromStorage('users', mockUsers);
+      const shops: CoffeeShop[] = loadFromStorage('coffee_shops', mockCoffeeShops);
+      const user = users.find(u => u.id === staffData.users);
+      const shop = shops.find(c => c.id === staffData.place_of_work);
+      const shopName = shop
+        ? [`${shop.street}, ${shop.building_number}`, shop.city_name].filter(Boolean).join(' - ')
+        : undefined;
+      const describe = (member: StaffMember) =>
+        `${member.user_name} - ${member.place_of_work_name || 'кофейня #' + member.place_of_work}`;
+
+      if (staffData.id) {
+        const idx = staff.findIndex(m => m.id === staffData.id);
+        if (idx !== -1) {
+          staff[idx] = {
+            ...staff[idx],
+            users: staffData.users,
+            place_of_work: staffData.place_of_work,
+            user_name: user?.full_name || staff[idx].user_name,
+            user_phone: user?.phone_number || staff[idx].user_phone,
+            place_of_work_name: shopName || staff[idx].place_of_work_name,
+          };
+          saveToStorage('staff', staff);
+          this.logActivity('UPDATE', 'Staff', String(staffData.id), `Переведен бариста ${describe(staff[idx])}`);
+          return staff[idx];
+        }
+      }
+
+      const created: StaffMember = {
+        id: Date.now(),
+        users: staffData.users,
+        user_name: user?.full_name || 'Новый сотрудник',
+        user_phone: user?.phone_number || '',
+        place_of_work: staffData.place_of_work,
+        place_of_work_name: shopName,
+        current_shift_status: 'Closed',
+      };
+      staff.push(created);
+      saveToStorage('staff', staff);
+      this.logActivity('CREATE', 'Staff', String(created.id), `Назначен бариста ${describe(created)}`);
+      return created;
+    }
+  }
+
+  async deleteStaff(staffId: number): Promise<void> {
+    try {
+      await this.request(`/staff/${staffId}/`, { method: 'DELETE' });
+    } catch (error) {
+      this.ensureMockFallback(error);
+      let staff: StaffMember[] = loadFromStorage('staff', mockStaff);
+      staff = staff.filter(m => m.id !== staffId);
+      saveToStorage('staff', staff);
+      this.logActivity('DELETE', 'Staff', String(staffId), `Бариста #${staffId} откреплен от кофейни`);
     }
   }
 
