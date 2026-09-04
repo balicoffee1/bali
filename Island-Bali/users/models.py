@@ -1,6 +1,11 @@
+import hashlib
+from datetime import timedelta
+
 from cryptography.fernet import Fernet
+from django.conf import settings
 from django.contrib.auth.models import (AbstractBaseUser, BaseUserManager,
                                         PermissionsMixin)
+from django.utils import timezone
 from django.utils.crypto import get_random_string
 
 from django.db import models
@@ -142,3 +147,94 @@ class UserCard(models.Model):
         verbose_name = ("Карта пользователя")
         verbose_name_plural = ("Карты пользователей")
 
+
+
+class PhoneVerification(models.Model):
+    """
+    Одноразовый код подтверждения номера телефона.
+
+    Код хранится только в виде хеша, живёт ограниченное время и выдерживает
+    ограниченное число попыток ввода. Привязан к номеру, а не к пользователю,
+    чтобы работать и для ещё не зарегистрированных номеров.
+    """
+
+    MAX_ATTEMPTS = 5
+
+    phone = models.CharField(
+        max_length=20, db_index=True, verbose_name="Телефон"
+    )
+    code_hash = models.CharField(max_length=128, verbose_name="Хеш кода")
+    created_at = models.DateTimeField(
+        auto_now_add=True, verbose_name="Создан"
+    )
+    expires_at = models.DateTimeField(verbose_name="Истекает")
+    attempts = models.PositiveSmallIntegerField(
+        default=0, verbose_name="Попыток ввода"
+    )
+    is_used = models.BooleanField(
+        default=False, verbose_name="Использован"
+    )
+
+    class Meta:
+        db_table = "users_phone_verification"
+        ordering = ("-created_at",)
+        verbose_name = "Код подтверждения телефона"
+        verbose_name_plural = "Коды подтверждения телефона"
+
+    def __str__(self):
+        return f"Код для {self.phone} (использован: {self.is_used})"
+
+    @staticmethod
+    def hash_code(code: str) -> str:
+        return hashlib.sha256(
+            f"{settings.SECRET_KEY}:{code}".encode("utf-8")
+        ).hexdigest()
+
+    @property
+    def is_expired(self) -> bool:
+        return timezone.now() >= self.expires_at
+
+    @property
+    def is_spent(self) -> bool:
+        return self.is_used or self.is_expired or self.attempts >= self.MAX_ATTEMPTS
+
+    @classmethod
+    def issue(cls, phone: str, code: str) -> "PhoneVerification":
+        """Гасит прежние коды номера и создаёт новый."""
+        cls.objects.filter(phone=phone, is_used=False).update(is_used=True)
+        return cls.objects.create(
+            phone=phone,
+            code_hash=cls.hash_code(code),
+            expires_at=timezone.now() + timedelta(
+                seconds=settings.SMS_CODE_TTL
+            ),
+        )
+
+    @classmethod
+    def latest_for(cls, phone: str):
+        return cls.objects.filter(phone=phone).order_by("-created_at").first()
+
+    @classmethod
+    def verify(cls, phone: str, code: str) -> tuple:
+        """
+        Проверяет код. Возвращает (успех, текст ошибки).
+        Успешная проверка гасит код, неуспешная — увеличивает счётчик попыток.
+        """
+        verification = cls.latest_for(phone)
+        if verification is None:
+            return False, "Код не запрашивался. Запросите новый код."
+        if verification.is_used:
+            return False, "Код уже использован. Запросите новый код."
+        if verification.is_expired:
+            return False, "Срок действия кода истёк. Запросите новый код."
+        if verification.attempts >= cls.MAX_ATTEMPTS:
+            return False, "Превышено число попыток. Запросите новый код."
+
+        if verification.code_hash != cls.hash_code(str(code)):
+            verification.attempts += 1
+            verification.save(update_fields=["attempts"])
+            return False, "Неверный код."
+
+        verification.is_used = True
+        verification.save(update_fields=["is_used"])
+        return True, ""

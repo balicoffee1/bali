@@ -178,8 +178,32 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = env.str("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = env.str("EMAIL_HOST_PASSWORD")
 
+# --- SMS (провайдер iqsms.ru / Rocket SMS) ---
 SMS_LOGIN = env.str("SMS_LOGIN", default="")
 SMS_PASSWORD = env.str("SMS_PASSWORD", default="")
+# Имя отправителя должно быть заранее зарегистрировано у провайдера.
+# Список доступных: GET https://api.iqsms.ru/messages/v2/senders.json
+SMS_SENDER = env.str("SMS_SENDER", default="BiBipTrip")
+SMS_API_URL = env.str(
+    "SMS_API_URL", default="https://api.iqsms.ru/messages/v2/send.json"
+)
+SMS_TIMEOUT = env.int("SMS_TIMEOUT", default=10)
+# Если False (или не заданы логин/пароль) — код только пишется в лог,
+# реальная отправка не производится.
+SMS_ENABLED = env.bool("SMS_ENABLED", default=True)
+# Возвращать ли код подтверждения в теле HTTP-ответа.
+# ВНИМАНИЕ: True полностью обесценивает подтверждение по SMS.
+# Оставлено включённым для совместимости с текущим мобильным клиентом:
+# выключить сразу после выката версии приложения, читающей код из SMS.
+SMS_EXPOSE_CODE = env.bool("SMS_EXPOSE_CODE", default=True)
+# Разрешать ли вход/регистрацию без ввода кода (старый контракт приложения).
+# True — код в запросе необязателен, но если передан, он проверяется.
+# False — код обязателен, вход без него запрещён.
+SMS_ALLOW_LEGACY_AUTH = env.bool("SMS_ALLOW_LEGACY_AUTH", default=True)
+# Время жизни кода подтверждения, секунд.
+SMS_CODE_TTL = env.int("SMS_CODE_TTL", default=300)
+# Минимальный интервал между запросами кода на один номер, секунд.
+SMS_RESEND_INTERVAL = env.int("SMS_RESEND_INTERVAL", default=60)
 
 
 # Password validation

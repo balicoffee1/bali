@@ -1,3 +1,5 @@
+from django.conf import settings
+from django.utils import timezone
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import status
@@ -15,13 +17,12 @@ from users.utils import search_clients
 from users.utils import send_phone_reset
 
 
-from .models import CustomUser, UserCard
+from .models import CustomUser, PhoneVerification, UserCard
 from .serializers import UserCardSerializer, UsersSerializer
 
 TAGS_USER = ['Пользователи']
 
 
-@permission_classes([AllowAny])
 @swagger_auto_schema(
     method='post',
     request_body=openapi.Schema(
@@ -53,6 +54,7 @@ TAGS_USER = ['Пользователи']
     tags=TAGS_USER,
 )
 @api_view(["POST"])
+@permission_classes([AllowAny])
 def registration_get_code(request):
     try:
         values = request.data
@@ -62,19 +64,44 @@ def registration_get_code(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         phone = values["login"]
-        is_registered = False
-        if CustomUser.objects.filter(phone_number__exact=phone):
-            is_registered = True
-        # code, text = utils.send_phone_reset(phone)
-        code = "1234"
-        text = "test"
-        return Response(
-            {
-                "code": code,
-                "text": text,
-                "is_registered": is_registered,
-            }
-        )
+        is_registered = CustomUser.objects.filter(
+            phone_number__exact=phone).exists()
+
+        # Антифлуд: не чаще одного кода на номер в SMS_RESEND_INTERVAL секунд.
+        last = PhoneVerification.latest_for(phone)
+        if last is not None:
+            elapsed = (timezone.now() - last.created_at).total_seconds()
+            if elapsed < settings.SMS_RESEND_INTERVAL:
+                return Response(
+                    {
+                        "error": "Код уже отправлен, повторите позже.",
+                        "retry_after": int(
+                            settings.SMS_RESEND_INTERVAL - elapsed
+                        ),
+                    },
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
+                )
+
+        code = utils.generate_code()
+        try:
+            utils.send_phone_reset(phone, code)
+        except utils.SmsSendError as ex:
+            return Response(
+                {"error": str(ex)},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        PhoneVerification.issue(phone, code)
+
+        payload = {
+            "text": "Код подтверждения отправлен по SMS",
+            "is_registered": is_registered,
+            "expires_in": settings.SMS_CODE_TTL,
+        }
+        if settings.SMS_EXPOSE_CODE:
+            # Устаревшее поле: убрать вместе с SMS_EXPOSE_CODE=False.
+            payload["code"] = code
+        return Response(payload)
     except Exception as ex:
         return Response(
             {"error": f"Something goes wrong: {ex}"},
@@ -185,7 +212,17 @@ def registration(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         elif utils.is_phone_number(login):
-            
+            # Регистрация завершается только по коду из SMS, полученному
+            # через /registration_get_code/.
+            submitted_code = values.get("code")
+            ok, error = utils.verify_phone_code(login, submitted_code)
+            if not ok:
+                return Response(
+                    {"error": error},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            code_verified = bool(submitted_code)
+
             token, user = db.get_or_add_user(values)
             user.create_activation_code()
             if login == "+77777777771":
@@ -202,12 +239,22 @@ def registration(request):
                 },
                 status=status.HTTP_200_OK
             )
-            send_phone_reset(user.login, user.fcm_token)
+            if not code_verified:
+                # Старый контракт: код ещё не подтверждён, шлём его сейчас.
+                try:
+                    send_phone_reset(user.login, user.fcm_token)
+                except utils.SmsSendError as ex:
+                    return Response(
+                        {"error": str(ex)},
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    )
             return Response(
                 {
                     "token": token,
                     "id": user.id,
-                    "fcm_token": user.fcm_token,
+                    "fcm_token": (
+                        user.fcm_token if settings.SMS_EXPOSE_CODE else None
+                    ),
                     "auth_type": user.role,
                     "is_staff": user.is_staff
                 },
@@ -288,6 +335,13 @@ def auth(request):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         elif utils.is_phone_number(login):
+            # Вход по номеру разрешён только после подтверждения кода из SMS.
+            ok, error = utils.verify_phone_code(login, values.get("code"))
+            if not ok:
+                return Response(
+                    {"authorized": False, "error": error},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             user.fcm_token = fcm_token
             user.save()
             refresh = RefreshToken.for_user(user)

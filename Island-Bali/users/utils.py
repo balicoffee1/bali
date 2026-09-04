@@ -5,9 +5,18 @@ import re
 import phonenumbers
 import requests
 from django.core.mail import send_mail
+from loguru import logger
 from requests.auth import HTTPBasicAuth
 
-from island_bali.settings import EMAIL_HOST_USER, SMS_LOGIN, SMS_PASSWORD
+from island_bali.settings import (
+    EMAIL_HOST_USER,
+    SMS_API_URL,
+    SMS_ENABLED,
+    SMS_LOGIN,
+    SMS_PASSWORD,
+    SMS_SENDER,
+    SMS_TIMEOUT,
+)
 
 
 def is_email(string: str):
@@ -29,15 +38,89 @@ def is_phone_number(string: str):
         return False
 
 
+class SmsSendError(Exception):
+    """Не удалось отправить SMS через провайдера."""
+
+
+def normalize_phone(phone: str) -> str:
+    """Приводит номер к формату 7XXXXXXXXXX, который ждёт iqsms."""
+    digits = re.sub(r"\D", "", str(phone or ""))
+    if len(digits) == 11 and digits.startswith("8"):
+        digits = "7" + digits[1:]
+    return digits
+
+
+def send_sms(phone: str, text: str) -> dict:
+    """
+    Отправляет SMS через iqsms.ru (Rocket SMS).
+
+    Возвращает разобранный ответ провайдера, при неуспехе бросает SmsSendError.
+    Если отправка выключена (SMS_ENABLED=False) или не заданы учётные данные —
+    сообщение только пишется в лог.
+    """
+    recipient = normalize_phone(phone)
+    if not recipient:
+        raise SmsSendError("Не указан номер телефона")
+
+    if not (SMS_ENABLED and SMS_LOGIN and SMS_PASSWORD):
+        logger.warning(
+            "SMS отправка отключена, сообщение не доставлено. "
+            "Телефон: {}, текст: {}", recipient, text
+        )
+        return {"status": "disabled"}
+
+    body = {
+        "messages": [
+            {
+                "phone": recipient,
+                "sender": SMS_SENDER,
+                "clientId": recipient,
+                "text": text,
+            }
+        ],
+        "login": SMS_LOGIN,
+        "password": SMS_PASSWORD,
+    }
+
+    try:
+        response = requests.post(
+            SMS_API_URL,
+            data=json.dumps(body),
+            headers={"Content-Type": "application/json"},
+            timeout=SMS_TIMEOUT,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except (requests.exceptions.RequestException, ValueError) as ex:
+        logger.error("Ошибка обращения к SMS-шлюзу: {}", ex)
+        raise SmsSendError(
+            "Сервер отправки СМС в данный момент не работает. "
+            "Попробуйте позже"
+        ) from ex
+
+    messages = payload.get("messages") or []
+    status_ = messages[0].get("status") if messages else payload.get("status")
+    if status_ not in ("accepted", "queued"):
+        logger.error("SMS-шлюз отклонил сообщение: {}", payload)
+        raise SmsSendError(
+            "Сервер отправки СМС в данный момент не работает. "
+            "Попробуйте позже"
+        )
+
+    logger.info("SMS отправлено на {}, статус {}", recipient, status_)
+    return payload
+
+
 def send_phone_reset(phone, code=None):
+    """Отправляет код подтверждения на телефон. Возвращает отправленный код."""
     if code is None:
         code = str(random.randint(1000, 9999))
-    
-    print("\n" + "=" * 50)
-    print(f"[MOCK SMS] To: {phone}")
-    print(f"[MOCK SMS] Text: Ваш код подтверждения приложения Islandbali: {code}. Не говорите код!")
-    print("=" * 50 + "\n", flush=True)
-    
+
+    send_sms(
+        phone,
+        f"Ваш код подтверждения приложения Islandbali: {code}. "
+        f"Не говорите код!",
+    )
     return code
 
 
@@ -84,3 +167,32 @@ def search_clients(phone, login, password):
     except requests.exceptions.RequestException as e:
         print(f"An error occurred: {e}")
         return None
+
+
+def generate_code() -> str:
+    """Криптостойкий 4-значный код подтверждения."""
+    return f"{random.SystemRandom().randint(0, 9999):04d}"
+
+
+def verify_phone_code(phone: str, code) -> tuple:
+    """
+    Проверяет код подтверждения телефона.
+
+    Возвращает (успех, текст ошибки). Если код не передан и включён режим
+    совместимости SMS_ALLOW_LEGACY_AUTH, проверка пропускается — это
+    временное поведение для старых версий мобильного приложения.
+    """
+    from django.conf import settings
+
+    from .models import PhoneVerification
+
+    if code in (None, ""):
+        if settings.SMS_ALLOW_LEGACY_AUTH:
+            logger.warning(
+                "Вход без кода подтверждения для {} "
+                "(режим совместимости SMS_ALLOW_LEGACY_AUTH)", phone
+            )
+            return True, ""
+        return False, "Требуется код подтверждения из SMS."
+
+    return PhoneVerification.verify(phone, str(code).strip())
