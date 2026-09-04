@@ -174,25 +174,34 @@ def generate_code() -> str:
     return f"{random.SystemRandom().randint(0, 9999):04d}"
 
 
+def is_test_phone(phone) -> bool:
+    """Тестовый номер для ревью в сторах: SMS не шлём, код фиксированный."""
+    from django.conf import settings
+
+    if not settings.SMS_TEST_LOGIN_ENABLED:
+        return False
+    return normalize_phone(phone) == normalize_phone(settings.SMS_TEST_PHONE)
+
+
 def verify_phone_code(phone: str, code) -> tuple:
     """
-    Проверяет код подтверждения телефона.
+    Проверяет код подтверждения телефона. Возвращает (успех, текст ошибки).
 
-    Возвращает (успех, текст ошибки). Если код не передан и включён режим
-    совместимости SMS_ALLOW_LEGACY_AUTH, проверка пропускается — это
-    временное поведение для старых версий мобильного приложения.
+    Код обязателен всегда: вход без подтверждения не предусмотрен.
     """
     from django.conf import settings
 
     from .models import PhoneVerification
 
     if code in (None, ""):
-        if settings.SMS_ALLOW_LEGACY_AUTH:
-            logger.warning(
-                "Вход без кода подтверждения для {} "
-                "(режим совместимости SMS_ALLOW_LEGACY_AUTH)", phone
-            )
-            return True, ""
         return False, "Требуется код подтверждения из SMS."
 
-    return PhoneVerification.verify(phone, str(code).strip())
+    code = str(code).strip()
+
+    if is_test_phone(phone):
+        if code == settings.SMS_TEST_CODE:
+            logger.info("Вход по тестовому номеру {}", phone)
+            return True, ""
+        return False, "Неверный код."
+
+    return PhoneVerification.verify(phone, code)

@@ -14,7 +14,6 @@ from subtotal_api.connection_api import SubtotalClient
 from users import db_communication as db
 from users import utils
 from users.utils import search_clients
-from users.utils import send_phone_reset
 
 
 from .models import CustomUser, PhoneVerification, UserCard
@@ -67,6 +66,16 @@ def registration_get_code(request):
         is_registered = CustomUser.objects.filter(
             phone_number__exact=phone).exists()
 
+        # Тестовый номер: SMS не отправляем, код заранее известен.
+        if utils.is_test_phone(phone):
+            return Response(
+                {
+                    "text": "Тестовый номер: используйте фиксированный код",
+                    "is_registered": is_registered,
+                    "expires_in": settings.SMS_CODE_TTL,
+                }
+            )
+
         # Антифлуд: не чаще одного кода на номер в SMS_RESEND_INTERVAL секунд.
         last = PhoneVerification.latest_for(phone)
         if last is not None:
@@ -93,15 +102,13 @@ def registration_get_code(request):
 
         PhoneVerification.issue(phone, code)
 
-        payload = {
-            "text": "Код подтверждения отправлен по SMS",
-            "is_registered": is_registered,
-            "expires_in": settings.SMS_CODE_TTL,
-        }
-        if settings.SMS_EXPOSE_CODE:
-            # Устаревшее поле: убрать вместе с SMS_EXPOSE_CODE=False.
-            payload["code"] = code
-        return Response(payload)
+        return Response(
+            {
+                "text": "Код подтверждения отправлен по SMS",
+                "is_registered": is_registered,
+                "expires_in": settings.SMS_CODE_TTL,
+            }
+        )
     except Exception as ex:
         return Response(
             {"error": f"Something goes wrong: {ex}"},
@@ -212,49 +219,20 @@ def registration(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         elif utils.is_phone_number(login):
-            # Регистрация завершается только по коду из SMS, полученному
-            # через /registration_get_code/.
-            submitted_code = values.get("code")
-            ok, error = utils.verify_phone_code(login, submitted_code)
+            # Регистрация завершается только по коду, полученному через
+            # /registration_get_code/. Без него токены не выдаются.
+            ok, error = utils.verify_phone_code(login, values.get("code"))
             if not ok:
                 return Response(
                     {"error": error},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            code_verified = bool(submitted_code)
 
             token, user = db.get_or_add_user(values)
-            user.create_activation_code()
-            if login == "+77777777771":
-                user.fcm_token = "0000"
-                user.is_staff = False
-                user.save()
-                return Response(
-                {
-                    "token": token,
-                    "id": user.id,
-                    "fcm_token": "0000",
-                    "auth_type": user.role,
-                    "is_staff": user.is_staff
-                },
-                status=status.HTTP_200_OK
-            )
-            if not code_verified:
-                # Старый контракт: код ещё не подтверждён, шлём его сейчас.
-                try:
-                    send_phone_reset(user.login, user.fcm_token)
-                except utils.SmsSendError as ex:
-                    return Response(
-                        {"error": str(ex)},
-                        status=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    )
             return Response(
                 {
                     "token": token,
                     "id": user.id,
-                    "fcm_token": (
-                        user.fcm_token if settings.SMS_EXPOSE_CODE else None
-                    ),
                     "auth_type": user.role,
                     "is_staff": user.is_staff
                 },

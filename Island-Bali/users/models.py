@@ -6,7 +6,6 @@ from django.conf import settings
 from django.contrib.auth.models import (AbstractBaseUser, BaseUserManager,
                                         PermissionsMixin)
 from django.utils import timezone
-from django.utils.crypto import get_random_string
 
 from django.db import models
 from phonenumber_field.modelfields import PhoneNumberField
@@ -78,11 +77,6 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     USERNAME_FIELD = "login"
     REQUIRED_FIELDS = []
     
-    def create_activation_code(self):
-        code = get_random_string(length=4, allowed_chars='1234567890')
-        self.fcm_token = code
-        self.save()
-
     class Meta:
         managed = True
         db_table = "users"
