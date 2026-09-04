@@ -363,50 +363,6 @@ export const SettingsPage: React.FC = () => {
               </div>
             </Card>
 
-            {/* Subtotal API */}
-            <Card className="space-y-4">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-r12 bg-blue-500/20 text-blue-700 flex items-center justify-center font-extrabold text-xl">
-                    ST
-                  </div>
-                  <div>
-                    <h4 className="text-base font-extrabold text-brand-dark">Subtotal API</h4>
-                    <p className="text-xs text-brand-gray-blue">Интеграция скидок и остатков</p>
-                  </div>
-                </div>
-                <Badge variant="success">Подключено</Badge>
-              </div>
-
-              <div className="space-y-2.5 text-xs">
-                <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg">
-                  <span className="font-semibold text-brand-dark-blue">Скидочные карты клиентов:</span>
-                  <span className="font-bold text-emerald-600">Синхронизируются</span>
-                </div>
-                <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg">
-                  <span className="font-semibold text-brand-dark-blue">Сервер:</span>
-                  <span className="font-mono text-brand-dark">subtotal.ru/api</span>
-                </div>
-                <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg">
-                  <span className="font-semibold text-brand-dark-blue">Проверка скидок по номеру:</span>
-                  <span className="font-bold text-emerald-600">Включена</span>
-                </div>
-              </div>
-
-              <div className="pt-2 flex items-center justify-between">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  leftIcon={<RefreshCw className="w-4 h-4" />}
-                  onClick={() => addToast({ type: 'success', title: 'Subtotal API', message: 'Скидки успешно синхронизированы' })}
-                >
-                  Проверить связь
-                </Button>
-                <Button size="sm" variant="dark">
-                  Параметры API
-                </Button>
-              </div>
-            </Card>
           </div>
         </div>
       )}
@@ -415,18 +371,6 @@ export const SettingsPage: React.FC = () => {
       {activeSettingsTab === 'acquiring' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {/* Russian Standard */}
-            <Card className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-bold text-brand-dark">Русский Стандарт</h4>
-                <Badge variant="success">Активен</Badge>
-              </div>
-              <p className="text-xs text-brand-gray-blue">Основной эквайринг для оплаты заказов в мобильном приложении</p>
-              <div className="pt-2 text-xs space-y-1 text-brand-dark-blue">
-                <p><span className="font-bold">Шлюз:</span> demo.rsb-processing.ru</p>
-                <p><span className="font-bold">Сертификаты:</span> SSL X.509 загружены</p>
-              </div>
-            </Card>
 
             {/* LifePay */}
             <Card className="space-y-3">
@@ -454,29 +398,7 @@ export const SettingsPage: React.FC = () => {
               </div>
             </Card>
 
-            {/* Tinkoff Bank */}
-            <Card className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-bold text-brand-dark">Тинькофф Банк</h4>
-                <Badge variant="neutral">Резерв</Badge>
-              </div>
-              <p className="text-xs text-brand-gray-blue">Резервный эквайринг для онлайн-платежей</p>
-              <div className="pt-2 text-xs space-y-1 text-brand-dark-blue">
-                <p><span className="font-bold">Терминал:</span> Т-Банк E-Commerce</p>
-              </div>
-            </Card>
 
-            {/* Alfa Bank */}
-            <Card className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-bold text-brand-dark">Альфа-Банк</h4>
-                <Badge variant="neutral">Резерв</Badge>
-              </div>
-              <p className="text-xs text-brand-gray-blue">Резервный эквайринг для кофейных точек Казани</p>
-              <div className="pt-2 text-xs space-y-1 text-brand-dark-blue">
-                <p><span className="font-bold">Интеграция:</span> Готова к включению</p>
-              </div>
-            </Card>
           </div>
         </div>
       )}
