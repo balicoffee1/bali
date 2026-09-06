@@ -5,6 +5,7 @@ import { CoffeeShop, City } from '../types';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { PhoneInput } from '../components/ui/PhoneInput';
 import { Select } from '../components/ui/Select';
 import { Tabs } from '../components/ui/Tabs';
 import { Badge } from '../components/ui/Badge';
@@ -223,14 +224,14 @@ export const SettingsPage: React.FC = () => {
                   city: cities[0]?.id || 1,
                   street: '',
                   building_number: '',
-                  email: 'info@happy-island.coffee',
-                  telegram_username: '@island_point',
+                  email: '',
+                  telegram_username: '',
                   time_open: '08:00',
                   time_close: '22:00',
                   crm_email: '',
-                  crm_layer_name: 'Основной зал',
+                  crm_layer_name: '',
                   inn: '',
-                  phone_number: '+7 (917) ',
+                  phone_number: '',
                 });
                 setIsShopDrawerOpen(true);
               }}
@@ -481,11 +482,10 @@ export const SettingsPage: React.FC = () => {
                   onChange={e => setEditingShop({ ...editingShop, time_close: e.target.value })}
                 />
               </div>
-              <Input
+              <PhoneInput
                 label="Телефон точки"
-                placeholder="+7 (917) 000-00-00"
                 value={editingShop.phone_number || ''}
-                onChange={e => setEditingShop({ ...editingShop, phone_number: e.target.value })}
+                onChange={val => setEditingShop({ ...editingShop, phone_number: val })}
               />
               <Input
                 label="Email для отзывов"

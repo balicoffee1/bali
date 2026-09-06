@@ -574,6 +574,8 @@ def get_discount_for_user(request, id_shop: int):
     if request.method == 'GET':
         coffee_shop: CoffeeShop = CoffeeShop.objects.get(id=id_shop)
         crm_system_for_shop: CrmSystem = coffee_shop.crm_system
+        if not crm_system_for_shop:
+            return Response({"error": "CRM system is not configured"}, status=400)
         phone = request.GET['phone']
         email = crm_system_for_shop.login
         password = crm_system_for_shop.password

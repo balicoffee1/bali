@@ -9,6 +9,8 @@ import { Table, Column } from '../components/ui/Table';
 import { Tabs } from '../components/ui/Tabs';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { PhoneInput } from '../components/ui/PhoneInput';
+import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { Select } from '../components/ui/Select';
 import { Drawer } from '../components/ui/Drawer';
 import { Modal } from '../components/ui/Modal';
@@ -40,14 +42,27 @@ const shopLabel = (shop: CoffeeShop) =>
 
 // Номер служит и логином: мобильное приложение ищет сотрудника по
 // phone_number, а PhoneNumberField на бэкенде принимает только E.164.
-const PHONE_PATTERN = /^\+7\d{10}$/;
 const normalizePhone = (raw: string) => {
+  if (!raw) return '';
+  try {
+    const parsed = parsePhoneNumberFromString(raw.trim());
+    if (parsed) return parsed.number; // E.164 e.g. +79170000000 or +6281234567890
+  } catch {}
   const digits = raw.replace(/\D/g, '');
-  if (!digits) return '';
-  const national = digits.length === 11 && (digits[0] === '8' || digits[0] === '7')
-    ? digits.slice(1)
-    : digits;
-  return `+7${national}`;
+  if (digits.length === 11 && (digits[0] === '8' || digits[0] === '7')) {
+    return `+7${digits.slice(1)}`;
+  }
+  return digits ? `+${digits}` : '';
+};
+
+const isPhoneValid = (raw: string) => {
+  if (!raw) return false;
+  try {
+    const parsed = parsePhoneNumberFromString(raw.trim());
+    return Boolean(parsed && parsed.isValid());
+  } catch {
+    return false;
+  }
 };
 
 export const ShiftsPage: React.FC = () => {
@@ -233,7 +248,7 @@ export const ShiftsPage: React.FC = () => {
 
   const newEmployeePhone = normalizePhone(newEmployee.phone_number);
   const isNewEmployeeValid =
-    newEmployee.first_name.trim().length > 0 && PHONE_PATTERN.test(newEmployeePhone);
+    newEmployee.first_name.trim().length > 0 && isPhoneValid(newEmployee.phone_number);
 
   // Выбранный может уже работать на этой точке: список его прячет, но после
   // подхвата по занятому номеру он оказывается выбранным явно. Повторная
@@ -698,14 +713,13 @@ export const ShiftsPage: React.FC = () => {
                   />
                 </div>
 
-                <Input
+                <PhoneInput
                   label="Телефон"
-                  placeholder="+7 917 000-00-00"
                   value={newEmployee.phone_number}
-                  onChange={e => setNewEmployee({ ...newEmployee, phone_number: e.target.value })}
+                  onChange={val => setNewEmployee({ ...newEmployee, phone_number: val })}
                   error={
-                    newEmployee.phone_number && !PHONE_PATTERN.test(newEmployeePhone)
-                      ? 'Нужен российский номер: +7 и 10 цифр'
+                    newEmployee.phone_number && !isPhoneValid(newEmployee.phone_number)
+                      ? 'Некорректный номер телефона'
                       : undefined
                   }
                   requiredAsterisk

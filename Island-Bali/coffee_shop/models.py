@@ -51,16 +51,16 @@ class CoffeeShop(models.Model):
     city = models.ForeignKey(City, on_delete=models.CASCADE,
                              verbose_name="Город")
     street = models.CharField(max_length=120, verbose_name="Улица")
-    building_number = models.CharField(max_length=15,
+    building_number = models.CharField(max_length=30, blank=True, default='',
                                        verbose_name="Номер строения")
     email = models.EmailField(
-        verbose_name="Почта для получения плохих отзывов", blank=False,
-        null=False,
+        verbose_name="Почта для получения плохих отзывов", blank=True,
+        default='',
         help_text="Пожалуйста введите вашу почту чтобы вы "
                   "могли контролировать отзывы)")
     
 
-    telegram_username = models.CharField(max_length=20,
+    telegram_username = models.CharField(max_length=100, blank=True, default='',
                                          verbose_name="Username в Telegram. "
                                                       "Пример <@col1ecti0n>",
                                          help_text="Введите ваш username "
@@ -74,31 +74,38 @@ class CoffeeShop(models.Model):
         "из Telegram"
         "Посмотреть id можно в боте @getmyid_bot.",
         null=True,
-        blank=True              
+        blank=True,
+        default=''
     )
     
 
-    crm_system = models.ForeignKey(CrmSystem, max_length=20,
-                                      verbose_name="CRM-Система",
-                                      on_delete=models.CASCADE)
+    crm_system = models.ForeignKey(CrmSystem,
+                                   verbose_name="CRM-Система",
+                                   on_delete=models.SET_NULL,
+                                   null=True,
+                                   blank=True)
     acquiring = models.ForeignKey(Acquiring, verbose_name="Эквайринг",
-                                     on_delete=models.CASCADE)
+                                  on_delete=models.SET_NULL,
+                                  null=True,
+                                  blank=True)
     
     time_open = models.TimeField(verbose_name="Время открытия заведения",
-                                 default='10:00')
+                                 default='08:00')
     time_close = models.TimeField(verbose_name="Время закрытия заведения",
-                                  default='23:00')
+                                  default='22:00')
     crm_email = models.EmailField(
-        verbose_name="Логин для CRM системы", blank=False,
+        verbose_name="Логин для CRM системы", blank=True,
         null=True,
+        default='',
         help_text="Пожалуйста введите вашу почту чтобы вы "
                   "могли контролировать отзывы")
-    crm_password = models.CharField(max_length=20, default='', 
+    crm_password = models.CharField(max_length=100, default='', blank=True,
                                     verbose_name="Пароль для CRM системы",
                                     )
     crm_layer_name = models.CharField(
-        max_length=100, blank=False,
+        max_length=100, blank=True,
         null=True,
+        default='',
         verbose_name="Название слоя в CRM системе",
         help_text="Пожалуйста введите название слоя в CRM системе"
     )
@@ -107,27 +114,31 @@ class CoffeeShop(models.Model):
         verbose_name="API ключ LifePay",
         blank=True,
         null=True,
+        default='',
         help_text="Ваш API ключ от LifePay"
     )
     lifepay_login = models.CharField(
-        max_length=20,
+        max_length=50,
         verbose_name="Логин LifePay",
         blank=True,
         null=True,
+        default='',
         help_text="Логин администратора в LifePay, обычно номер телефона"
     )
     inn = models.CharField(
-        max_length=12,
+        max_length=30,
         verbose_name="ИНН",
         blank=True,
         null=True,
+        default='',
         help_text="Введите ИНН вашей кофейни"
     )
     phone_number = models.CharField(
-        max_length=15,
+        max_length=32,
         verbose_name="Номер телефона",
         blank=True,
         null=True,
+        default='',
         help_text="Введите номер телефона вашей кофейни"
     )
     

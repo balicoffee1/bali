@@ -20,7 +20,7 @@ class GenerateQRCodeView(APIView):
 
         try:
             shop = CoffeeShop.objects.get(city__name=shop_city, street=shop_street)
-            if shop.crm_system.name == "SubTotal":
+            if shop.crm_system and shop.crm_system.name == "SubTotal":
                 client = SubtotalClient(email=shop.email, password=shop.password)
                 discount = None
                 if client.login():

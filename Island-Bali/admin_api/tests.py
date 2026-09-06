@@ -2,6 +2,7 @@ from django.test import TestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from admin_api.models import AdminActivityLog
+from coffee_shop.models import City, CoffeeShop, CrmSystem, Acquiring
 from users.models import CustomUser
 
 
@@ -145,3 +146,82 @@ class AdminUserSerializerPrivilegeTests(TestCase):
         target.refresh_from_db()
         self.assertEqual(target.role, 'moderator')
         self.assertFalse(target.is_staff)
+
+
+class AdminCoffeeShopTests(TestCase):
+    def setUp(self):
+        self.admin = CustomUser.objects.create_user(
+            login='+79990000003', password='pw', role='admin', first_name='Admin'
+        )
+        self.city = City.objects.create(name='Казань')
+        self.crm = CrmSystem.objects.create(name='QuickRestoApi')
+        self.acquiring = Acquiring.objects.create(
+            for_coffeeshop='Test', name='RussianStandart', login='l', password='p'
+        )
+
+    def auth_as(self, user):
+        refresh = RefreshToken.for_user(user)
+        self.client.defaults['HTTP_AUTHORIZATION'] = f'Bearer {refresh.access_token}'
+
+    def test_create_coffee_shop_minimal_fields(self):
+        self.auth_as(self.admin)
+        response = self.client.post(
+            '/api/admin/coffee-shops/',
+            data={'city': self.city.id, 'street': 'Баумана'},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        shop = CoffeeShop.objects.get(id=response.data['id'])
+        self.assertEqual(shop.street, 'Баумана')
+        self.assertEqual(shop.city, self.city)
+        # Network defaults auto-assigned
+        self.assertEqual(shop.crm_system, self.crm)
+        self.assertEqual(shop.acquiring, self.acquiring)
+
+        # Audit log created
+        log = AdminActivityLog.objects.filter(action='CREATE', entity_name='CoffeeShop').first()
+        self.assertIsNotNone(log)
+
+    def test_create_coffee_shop_international_phone(self):
+        self.auth_as(self.admin)
+        response = self.client.post(
+            '/api/admin/coffee-shops/',
+            data={
+                'city': self.city.id,
+                'street': 'Jl. Pantai Batu Bolong',
+                'building_number': '14A',
+                'phone_number': '+62 812 3456 7890',
+            },
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        shop = CoffeeShop.objects.get(id=response.data['id'])
+        self.assertEqual(shop.phone_number, '+62 812 3456 7890')
+
+    def test_create_coffee_shop_blank_optional_fields(self):
+        self.auth_as(self.admin)
+        response = self.client.post(
+            '/api/admin/coffee-shops/',
+            data={
+                'city': self.city.id,
+                'street': 'Пушкина',
+                'building_number': '',
+                'crm_email': '',
+                'crm_layer_name': '',
+                'telegram_username': '',
+                'phone_number': '',
+                'inn': '',
+            },
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+
+    def test_create_coffee_shop_missing_street_fails(self):
+        self.auth_as(self.admin)
+        response = self.client.post(
+            '/api/admin/coffee-shops/',
+            data={'city': self.city.id},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn('street', response.data)

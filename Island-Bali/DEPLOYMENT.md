@@ -18,6 +18,58 @@ The production checkout currently contains local changes and untracked files.
 Do not run `git reset`, `git clean`, or blindly replace the application directory.
 For a focused hotfix, deploy only the reviewed files and keep a timestamped backup.
 
+## Firebase credentials (push notifications)
+
+Push delivery needs a Firebase service account. Without it Django refuses to
+start when `DEBUG=false`, which is deliberate: a missing key previously turned
+into silently undelivered notifications rather than a visible failure.
+
+The file is never stored in git. Production runs under systemd (not
+docker-compose), so there is no volume to mount — the key simply lives on the
+host and is referenced from `.env`:
+
+1. Copy the service account JSON to the server, outside the git checkout:
+
+   ```sh
+   scp secrets/firebase-service-account.json \
+       root@79.174.81.151:/root/bali/secrets/firebase-service-account.json
+   ```
+
+2. Restrict it and point `.env` at it:
+
+   ```sh
+   ssh root@79.174.81.151 'chmod 600 /root/bali/secrets/firebase-service-account.json'
+   ```
+
+   In `/root/bali/Island-Bali/.env`:
+
+   ```
+   FIREBASE_CREDENTIALS_PATH=/root/bali/secrets/firebase-service-account.json
+   ```
+
+3. Restart the HTTP and worker services — the Firebase app is created once at
+   settings import, so both Gunicorn and Celery need the new environment:
+
+   ```sh
+   ssh root@79.174.81.151 'systemctl restart island_bali.service \
+       island_bali_celery.service island_bali_celery_beat.service'
+   ```
+
+4. Verify end to end against a real device (the user must have opened the app
+   at least once while logged in, so the token is registered):
+
+   ```sh
+   ssh root@79.174.81.151 'cd /root/bali/Island-Bali && \
+       myvenv/bin/python manage.py send_test_push --phone +79991234567'
+   ```
+
+   The command prints the registered devices and the FCM result synchronously.
+   "Нет активных устройств" means the app never reached
+   `POST /api/users/fcm/register/` — check the app, not the server.
+
+The `../secrets` volume in `docker-compose.yaml` / `docker-compose.prod.yml`
+covers local and container-based environments only.
+
 ## Focused backend hotfix
 
 Run the relevant tests locally first:

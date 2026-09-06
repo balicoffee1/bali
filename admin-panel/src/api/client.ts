@@ -37,6 +37,17 @@ const FIELD_LABELS: Record<string, string> = {
   role: 'Роль',
   users: 'Сотрудник',
   place_of_work: 'Кофейня',
+  city: 'Город',
+  street: 'Улица',
+  building_number: 'Номер дома',
+  time_open: 'Время открытия',
+  time_close: 'Время закрытия',
+  crm_system: 'CRM-система',
+  acquiring: 'Эквайринг',
+  crm_email: 'Логин CRM',
+  crm_layer_name: 'Слой CRM',
+  inn: 'ИНН',
+  telegram_username: 'Telegram',
 };
 
 function describeApiError(details: any): string {
@@ -857,7 +868,8 @@ class ApiClient {
     try {
       const res: any = await this.request('/cities/');
       return Array.isArray(res) ? res : res.results || [];
-    } catch {
+    } catch (error) {
+      this.ensureMockFallback(error);
       return loadFromStorage('cities', mockCities);
     }
   }
@@ -869,7 +881,8 @@ class ApiClient {
       } else {
         return await this.request('/cities/', { method: 'POST', body: JSON.stringify(cityData) });
       }
-    } catch {
+    } catch (error) {
+      this.ensureMockFallback(error);
       const cities: City[] = loadFromStorage('cities', mockCities);
       if (cityData.id) {
         const idx = cities.findIndex(c => c.id === cityData.id);
@@ -895,7 +908,8 @@ class ApiClient {
   async deleteCity(cityId: number): Promise<void> {
     try {
       await this.request(`/cities/${cityId}/`, { method: 'DELETE' });
-    } catch {
+    } catch (error) {
+      this.ensureMockFallback(error);
       let cities: City[] = loadFromStorage('cities', mockCities);
       cities = cities.filter(c => c.id !== cityId);
       saveToStorage('cities', cities);
@@ -907,7 +921,8 @@ class ApiClient {
     try {
       const res: any = await this.request('/coffee-shops/');
       return Array.isArray(res) ? res : res.results || [];
-    } catch {
+    } catch (error) {
+      this.ensureMockFallback(error);
       return loadFromStorage('coffee_shops', mockCoffeeShops);
     }
   }
@@ -919,7 +934,8 @@ class ApiClient {
       } else {
         return await this.request('/coffee-shops/', { method: 'POST', body: JSON.stringify(shopData) });
       }
-    } catch {
+    } catch (error) {
+      this.ensureMockFallback(error);
       const shops: CoffeeShop[] = loadFromStorage('coffee_shops', mockCoffeeShops);
       const cities: City[] = loadFromStorage('cities', mockCities);
       const cityName = cities.find(c => c.id === shopData.city)?.name || 'Альметьевск';
@@ -959,7 +975,8 @@ class ApiClient {
   async deleteCoffeeShop(shopId: number): Promise<void> {
     try {
       await this.request(`/coffee-shops/${shopId}/`, { method: 'DELETE' });
-    } catch {
+    } catch (error) {
+      this.ensureMockFallback(error);
       let shops: CoffeeShop[] = loadFromStorage('coffee_shops', mockCoffeeShops);
       shops = shops.filter(s => s.id !== shopId);
       saveToStorage('coffee_shops', shops);

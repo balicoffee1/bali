@@ -120,9 +120,30 @@ class AdminCoffeeShopSerializer(serializers.ModelSerializer):
             'lifepay_api_key', 'lifepay_login', 'inn', 'phone_number'
         ]
         extra_kwargs = {
-            'crm_password': {'write_only': True, 'required': False},
-            'lifepay_api_key': {'write_only': True, 'required': False},
+            'building_number': {'required': False, 'allow_blank': True},
+            'email': {'required': False, 'allow_blank': True},
+            'telegram_username': {'required': False, 'allow_blank': True},
+            'telegram_id': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'crm_system': {'required': False, 'allow_null': True},
+            'acquiring': {'required': False, 'allow_null': True},
+            'time_open': {'required': False},
+            'time_close': {'required': False},
+            'crm_email': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'crm_password': {'write_only': True, 'required': False, 'allow_blank': True},
+            'crm_layer_name': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'lifepay_api_key': {'write_only': True, 'required': False, 'allow_blank': True, 'allow_null': True},
+            'lifepay_login': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'inn': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'phone_number': {'required': False, 'allow_blank': True, 'allow_null': True},
         }
+
+    def create(self, validated_data):
+        # crm_system и acquiring едины для всей сети — автоматически назначаем сетевые дефолты
+        if ('crm_system' not in validated_data or validated_data['crm_system'] is None) and CrmSystem.objects.exists():
+            validated_data['crm_system'] = CrmSystem.objects.first()
+        if ('acquiring' not in validated_data or validated_data['acquiring'] is None) and Acquiring.objects.exists():
+            validated_data['acquiring'] = Acquiring.objects.first()
+        return super().create(validated_data)
 
 
 class AdminCategorySerializer(serializers.ModelSerializer):
