@@ -2,7 +2,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from acquiring.clients import RussianStandard
-from cart.models import ShoppingCart
+from cart.models import get_active_cart
 from coffee_shop.models import City, CoffeeShop
 from users.models import CustomUser
 
@@ -51,26 +51,47 @@ class CheckoutSerializer(serializers.Serializer):
     )
 
     def create(self, validated_data):
+        from bonus_system.services import calculate_cart_pricing
+
         user_data = validated_data.get('user')
         user_id = user_data.get('id')
         user = CustomUser.objects.get(id=user_id)
-        cart = ShoppingCart.objects.get(user_id=user_id, is_active=True)
+        cart = get_active_cart(user)
 
         if not cart.items.exists():
             raise serializers.ValidationError("Корзина пуста")
 
+        first_item = cart.items.select_related(
+            "product__coffee_shop__city"
+        ).first()
+        if first_item is None or first_item.product is None:
+            raise serializers.ValidationError("Не удалось определить кофейню заказа")
+        coffee_shop = first_item.product.coffee_shop
+
         # Создаем заказ
+        pricing = calculate_cart_pricing(user, cart)
         order = cart.send_orders_for_confirmation_to_barista(
             user=user,
-            city_choose=cart.city,
-            coffee_shop=cart.coffee_shop,
+            city_choose=coffee_shop.city,
+            coffee_shop=coffee_shop,
             client_comments="",
+            staff=None,
+            time_is_finish=None,
             cart=cart
         )
+        order.subtotal_price = pricing.subtotal
+        order.discount_percent = pricing.discount_percent
+        order.discount_amount = pricing.discount_amount
+        order.full_price = pricing.total
+        order.is_used_discount = pricing.discount_amount > 0
+        order.save(update_fields=[
+            "subtotal_price", "discount_percent", "discount_amount",
+            "full_price", "is_used_discount",
+        ])
 
         # Генерация ссылки на оплату
         payment_link = rus_standard.link_for_payment(
-            cart.cart_total_price,
+            pricing.total,
             user.first_name,
             'Оплата заказа',
             user.email,
@@ -112,7 +133,8 @@ CUSTOMER_ORDER_FIELDS = [
     "id", "user", "city_choose", "coffee_shop", "cart", "client_comments",
     "staff_comments", "time_is_finish", "staff", "status_orders",
     "payment_status", "receipt_photo", "created_at", "updated_at", "updated_time", "issued",
-    "full_price", "cancellation_reason", "client_confirmed", "is_appreciated",
+    "full_price", "subtotal_price", "discount_percent", "discount_amount",
+    "cancellation_reason", "client_confirmed", "is_appreciated",
     "city_choose_name", "coffee_shop_name", "is_updated",
     "is_used_discount", "is_testing", "version", "event_seq", "acknowledged_dialogs",
 ]
@@ -137,11 +159,11 @@ class AcknowledgedDialogsField(serializers.Field):
 
 
 class OrderSerializers(serializers.ModelSerializer):
-    user = serializers.PrimaryKeyRelatedField(queryset=CustomUser.objects.all(), required=False)
+    user = serializers.PrimaryKeyRelatedField(read_only=True)
     staff = serializers.PrimaryKeyRelatedField(queryset=CustomUser.objects.all(), required=False)
     city_choose = serializers.PrimaryKeyRelatedField(queryset=City.objects.all())
     coffee_shop = serializers.PrimaryKeyRelatedField(queryset=CoffeeShop.objects.all())
-    cart = serializers.PrimaryKeyRelatedField(queryset=ShoppingCart.objects.all(), required=False)
+    cart = serializers.PrimaryKeyRelatedField(read_only=True)
     cart_data = CartSerializer(source='cart', read_only=True)
     city_choose_name = serializers.CharField(source='city_choose.name', read_only=True)
     coffee_shop_name = serializers.StringRelatedField(source='coffee_shop')
@@ -157,6 +179,11 @@ class OrderSerializers(serializers.ModelSerializer):
     class Meta:
         model = Orders
         fields = CUSTOMER_ORDER_FIELDS + ["cart_data"]
+        read_only_fields = [
+            "user", "cart", "full_price", "subtotal_price", "discount_percent",
+            "discount_amount", "is_used_discount", "status_orders", "payment_status",
+            "version", "event_seq", "acknowledged_dialogs",
+        ]
         
 
 

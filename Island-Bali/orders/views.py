@@ -26,7 +26,7 @@ from .serializers import (CheckoutSerializer, GetStatusPaymentSerializer, Notifi
                           OrdersCreateSerializer, OrdersSerializer, OrderSerializers, PaymentSerializer, CheckOrderSerializer)
 # from .validators import validate_cafe_open_or_not
 from .state_machine import OrderTransitionError
-from cart.models import ShoppingCart
+from cart.models import get_active_cart
 from users.models import CustomUser
 from notifications.main import send_push_notification
 
@@ -63,18 +63,8 @@ def view_orders(request):
 
 class CheckoutView(APIView):
     """
-    NB (обнаружено при пере-верификации M2, не входит в скоуп M0/M1):
-    CheckoutSerializer.create() вызывает
-    cart.send_orders_for_confirmation_to_barista(user=..., city_choose=...,
-    coffee_shop=..., client_comments=..., cart=...) без обязательных
-    аргументов staff/time_is_finish метода в cart/models.py — вызов упадёт
-    с TypeError при любом реальном запросе. Мобильное приложение (Flutter)
-    этот endpoint (`checkout/`) НЕ вызывает — реальное создание заказа идёт
-    через POST /api/orders/orders/ (OrderViewSet.perform_create, ниже),
-    подтверждено grep'ом по happy_island. Т.к. эндпоинт не используется и
-    его починка потребовала бы придумывать недостающие staff/time_is_finish
-    (unrelated redesign), он оставлен как есть, с этим комментарием — см.
-    финальный отчёт §F ("предсуществующие баги вне мобильного контракта").
+    Альтернативный checkout также использует серверный расчёт стоимости.
+    Основное мобильное приложение создаёт заказ через POST /api/orders/orders/.
     """
     @swagger_auto_schema(
         request_body=CheckoutSerializer,
@@ -96,7 +86,7 @@ class CheckoutView(APIView):
         if existing_order:
             return Response({"error": "У вас есть неоплаченный заказ."}, status=status.HTTP_400_BAD_REQUEST)
 
-        cart = ShoppingCart.objects.get(user=user, is_active=True)
+        cart = get_active_cart(user)
         if not cart.items.exists():
             return Response({"error": "Ваша корзина пуста."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -169,8 +159,19 @@ class OrderViewSet(ModelViewSet):
 
     def perform_create(self, serializer):
         """Создание нового заказа с валидацией времени"""
-        cart = ShoppingCart.objects.get(user=self.request.user, is_active=True)
-        order = serializer.save(user=self.request.user, cart=cart)
+        cart = get_active_cart(self.request.user)
+        from bonus_system.services import calculate_cart_pricing
+
+        pricing = calculate_cart_pricing(self.request.user, cart)
+        order = serializer.save(
+            user=self.request.user,
+            cart=cart,
+            subtotal_price=pricing.subtotal,
+            discount_percent=pricing.discount_percent,
+            discount_amount=pricing.discount_amount,
+            full_price=pricing.total,
+            is_used_discount=pricing.discount_amount > 0,
+        )
 
         # M7: создание — не переход state machine, но клиенту нужно событие, иначе
         # диалог «ожидание подтверждения» не откроется без REST-поллинга.
@@ -180,12 +181,10 @@ class OrderViewSet(ModelViewSet):
 
     def update(self, request, *args, **kwargs):
         """
-        P0 (mass assignment): OrderSerializers не помечает status_orders/
-        payment_status как read_only, а голый PUT/PATCH сюда (в отличие от
-        именованных @action ниже) не проходит через OrderStateService —
-        владелец заказа мог напрямую выставить себе Completed/Paid или
-        воскресить отменённый заказ. Мобильное приложение этот путь не
-        использует (все PATCH идут на именованные /cancel/, /confirm/,
+        P0 (mass assignment): бизнес-статусы и серверные поля цены помечены
+        read-only, а голый PUT/PATCH дополнительно отключён, чтобы изменения
+        не обходили OrderStateService и расчёт стоимости. Мобильное приложение
+        этот путь не использует (все PATCH идут на именованные /cancel/, /confirm/,
         /complete/, /pay/, /client_confirmation/, /update-time/,
         /staff-update/), поэтому голый update/partial_update отключён
         целиком, а не point-fix'ится per-field.

@@ -20,7 +20,9 @@ class PendingOrdersAcceptSerializer(serializers.ModelSerializer):
         fields = ("id", "user_id", "cart", "time_is_finish", "status_orders",
                   "client_comments", "payment_status", "receipt_photo", "staff_comments", "updated_time",
                 "updated_at", "created_at", "client_confirmed",
-                "is_used_discount", "login", "cancellation_reason", "full_price", "checkLoaded", "issued", "is_appreciated", "is_updated")
+                "is_used_discount", "login", "cancellation_reason", "full_price",
+                "subtotal_price", "discount_percent", "discount_amount",
+                "checkLoaded", "issued", "is_appreciated", "is_updated")
 
 
 class StaffSerializer(serializers.ModelSerializer):

@@ -1,0 +1,6 @@
+# Секреты: service-account Firebase и прочие ключи — только на диске/в проде,
+# никогда в git.
+secrets/
+
+# Служебные каталоги Claude Code (worktrees содержат полную копию репозитория).
+.claude/

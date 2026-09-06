@@ -1,11 +1,20 @@
 from django.contrib.auth.models import AnonymousUser
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import status
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from bonus_system.models import DiscountCard
 from bonus_system.serializers import DiscountCardSerializer
+from bonus_system.services import get_loyalty_status
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_loyalty_status_for_user(request) -> Response:
+    """Прогресс и скидка пользователя, рассчитанные по заказам на сервере."""
+    return Response(get_loyalty_status(request.user).as_dict())
 
 @swagger_auto_schema(
     methods=['GET'],

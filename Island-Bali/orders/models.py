@@ -71,6 +71,15 @@ class Orders(models.Model):
     full_price = models.DecimalField(
         max_digits=10, decimal_places=2, verbose_name='Полная стоимость заказа', default=0
     )
+    subtotal_price = models.DecimalField(
+        max_digits=10, decimal_places=2, verbose_name='Стоимость до скидки', default=0
+    )
+    discount_percent = models.DecimalField(
+        max_digits=5, decimal_places=2, verbose_name='Процент скидки', default=0
+    )
+    discount_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, verbose_name='Сумма скидки', default=0
+    )
     updated_time = models.DateTimeField(
         verbose_name='Время обновления заказа', blank=True, null=True,
     )

@@ -199,6 +199,7 @@ class AdminOrderSerializer(serializers.ModelSerializer):
             'coffee_shop', 'coffee_shop_address', 'staff', 'staff_name',
             'client_comments', 'staff_comments', 'time_is_finish',
             'status_orders', 'payment_status', 'receipt_photo', 'full_price',
+            'subtotal_price', 'discount_percent', 'discount_amount', 'is_used_discount',
             'cancellation_reason', 'client_confirmed', 'issued', 'is_testing',
             'created_at', 'updated_at', 'items', 'review_details'
         ]

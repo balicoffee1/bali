@@ -7,6 +7,7 @@ from drf_yasg import openapi
 
 from coffee_shop.models import CoffeeShop
 from menu_coffee_product.models import Addon, Product, AdditiveFlavors
+from bonus_system.services import calculate_cart_pricing
 
 from .models import CartItem, ShoppingCart
 from cart.models import get_active_cart
@@ -239,12 +240,12 @@ class ViewCartView(APIView):
 
         cart_items = cart.items.all()
         serializer = CartItemSerializer(cart_items, many=True)
-        total_cart_price = sum(item['item_total_price'] for item in serializer.data)
+        pricing = calculate_cart_pricing(user, cart)
 
         response_data = {
             'cart_id': cart.id,
             'basket': serializer.data,
-            'total_cart_price': total_cart_price
+            **pricing.as_dict(),
         }
         return Response(response_data, status=status.HTTP_200_OK)
 
