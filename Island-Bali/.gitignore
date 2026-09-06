@@ -3,6 +3,7 @@
 !users/migrations/*.py
 !admin_api/migrations/*.py
 !franchise/migrations/*.py
+!coffee_shop/migrations/*.py
 db.sqlite3
 media
 .idea
