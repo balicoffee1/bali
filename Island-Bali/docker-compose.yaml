@@ -24,8 +24,7 @@ services:
     env_file:
       - island_bali/.env
     entrypoint: >
-      sh -c "python manage.py makemigrations &&
-             python manage.py migrate &&
+      sh -c "python manage.py migrate &&
              python manage.py collectstatic --noinput &&
              exec gunicorn island_bali.wsgi:application -b 0.0.0.0:8000"
 

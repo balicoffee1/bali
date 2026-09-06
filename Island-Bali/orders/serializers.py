@@ -61,12 +61,9 @@ class CheckoutSerializer(serializers.Serializer):
         if not cart.items.exists():
             raise serializers.ValidationError("Корзина пуста")
 
-        first_item = cart.items.select_related(
-            "product__coffee_shop__city"
-        ).first()
-        if first_item is None or first_item.product is None:
-            raise serializers.ValidationError("Не удалось определить кофейню заказа")
-        coffee_shop = first_item.product.coffee_shop
+        coffee_shop, shop_error = cart.resolve_coffee_shop()
+        if shop_error:
+            raise serializers.ValidationError(shop_error)
 
         # Создаем заказ
         pricing = calculate_cart_pricing(user, cart)
@@ -161,8 +158,9 @@ class AcknowledgedDialogsField(serializers.Field):
 class OrderSerializers(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
     staff = serializers.PrimaryKeyRelatedField(queryset=CustomUser.objects.all(), required=False)
-    city_choose = serializers.PrimaryKeyRelatedField(queryset=City.objects.all())
-    coffee_shop = serializers.PrimaryKeyRelatedField(queryset=CoffeeShop.objects.all())
+    # Выводятся из состава корзины в OrderViewSet.perform_create.
+    city_choose = serializers.PrimaryKeyRelatedField(read_only=True)
+    coffee_shop = serializers.PrimaryKeyRelatedField(read_only=True)
     cart = serializers.PrimaryKeyRelatedField(read_only=True)
     cart_data = CartSerializer(source='cart', read_only=True)
     city_choose_name = serializers.CharField(source='city_choose.name', read_only=True)
@@ -180,7 +178,8 @@ class OrderSerializers(serializers.ModelSerializer):
         model = Orders
         fields = CUSTOMER_ORDER_FIELDS + ["cart_data"]
         read_only_fields = [
-            "user", "cart", "full_price", "subtotal_price", "discount_percent",
+            "user", "cart",
+            "full_price", "subtotal_price", "discount_percent",
             "discount_amount", "is_used_discount", "status_orders", "payment_status",
             "version", "event_seq", "acknowledged_dialogs",
         ]

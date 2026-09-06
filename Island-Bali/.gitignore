@@ -1,9 +1,10 @@
-**/migrations/*.py
-!**/migrations/__init__.py
-!users/migrations/*.py
-!admin_api/migrations/*.py
-!franchise/migrations/*.py
-!coffee_shop/migrations/*.py
+# Секреты окружения. Значения на проде и в docker-compose разные, и раньше
+# .env лежал в git: выкатка затирала боевую конфигурацию репозиторной, а сами
+# секреты были опубликованы в публичном репозитории. Шаблон — в .env.example.
+.env
+*.env
+!.env.example
+
 db.sqlite3
 media
 .idea

@@ -19,6 +19,32 @@ class ShoppingCart(models.Model):
     def __str__(self):
         return f"Корзина пользователя: {self.user}"
 
+    def resolve_coffee_shop(self):
+        """Кофейня, которой принадлежит корзина, — по товарам, а не по клиенту.
+
+        Клиент раньше присылал coffee_shop в теле запроса на создание заказа, и
+        сервер ему верил. Приложение при этом не очищает корзину при смене
+        точки: набрал в кофейне A, переключился на B — заказ уезжал в B вместе
+        с позициями, которых у B нет в меню.
+
+        Возвращает (coffee_shop, error): error заполнен, если корзина пуста или
+        в ней товары разных кофеен.
+        """
+        shops = {
+            item.product.coffee_shop
+            for item in self.items.select_related("product__coffee_shop")
+            if item.product_id is not None
+        }
+        if not shops:
+            return None, "Корзина пуста"
+        if len(shops) > 1:
+            names = ", ".join(sorted(str(shop) for shop in shops))
+            return None, (
+                f"В корзине товары разных кофеен ({names}). "
+                "Оформите заказы отдельно или очистите корзину."
+            )
+        return shops.pop(), None
+
     @property
     def cart_total_price(self):
         """Высчитывает полную стоимость корзины."""

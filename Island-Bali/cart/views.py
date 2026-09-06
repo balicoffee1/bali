@@ -46,7 +46,11 @@ class AddToCartView(APIView):
 
             try:
                 coffee_shop = CoffeeShop.objects.get(city__name=city_name, street=street_name)
-                product = Product.objects.get(product=product_name)
+                # Кофейня из URL раньше не участвовала в поиске товара: имя было
+                # глобально уникальным, и product.coffee_shop мог оказаться
+                # чужим. Теперь имя уникально в пределах точки, и товар ищется
+                # именно в той кофейне, которую открыл клиент.
+                product = Product.objects.get(coffee_shop=coffee_shop, product=product_name)
             except CoffeeShop.DoesNotExist:
                 return Response({"error": "Кофейня не найдена"}, status=status.HTTP_404_NOT_FOUND)
             except Product.DoesNotExist:
@@ -154,8 +158,13 @@ class ChangeQuantityView(APIView):
                 if cart_item_id:
                     cart_item = CartItem.objects.get(id=cart_item_id, cart__user=user)
                 else:
-                    product = Product.objects.get(product=product_name)
-                    cart_item = CartItem.objects.filter(product=product, cart__user=user).first()
+                    # Ищем позицию в корзине пользователя, а не товар в общем
+                    # каталоге: имя товара уникально только внутри кофейни, и
+                    # глобальный Product.objects.get(product=...) упал бы с
+                    # MultipleObjectsReturned на второй точке сети.
+                    cart_item = CartItem.objects.filter(
+                        product__product=product_name, cart__user=user, cart__is_active=True
+                    ).first()
                     if not cart_item:
                         raise CartItem.DoesNotExist
 
@@ -205,8 +214,13 @@ class RemoveFromCartView(APIView):
                     cart_item = CartItem.objects.get(id=cart_item_id, cart__user=user)
                     cart_item.delete()
                 else:
-                    product = Product.objects.get(product=product_name)
-                    cart_item = CartItem.objects.filter(product=product, cart__user=user).first()
+                    # Ищем позицию в корзине пользователя, а не товар в общем
+                    # каталоге: имя товара уникально только внутри кофейни, и
+                    # глобальный Product.objects.get(product=...) упал бы с
+                    # MultipleObjectsReturned на второй точке сети.
+                    cart_item = CartItem.objects.filter(
+                        product__product=product_name, cart__user=user, cart__is_active=True
+                    ).first()
                     if not cart_item:
                         raise CartItem.DoesNotExist
                     cart_item.delete()

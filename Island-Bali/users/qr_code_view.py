@@ -21,7 +21,9 @@ class GenerateQRCodeView(APIView):
         try:
             shop = CoffeeShop.objects.get(city__name=shop_city, street=shop_street)
             if shop.crm_system and shop.crm_system.name == "SubTotal":
-                client = SubtotalClient(email=shop.email, password=shop.password)
+                # shop.password не существует: поле объявлено на модели
+                # Acquiring. Для CRM нужны crm_email/crm_password.
+                client = SubtotalClient(email=shop.crm_email, password=shop.crm_password)
                 discount = None
                 if client.login():
                     discount = client.get_discount_for_phone_number(user.login)

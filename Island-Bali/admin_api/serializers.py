@@ -138,11 +138,14 @@ class AdminCoffeeShopSerializer(serializers.ModelSerializer):
         }
 
     def create(self, validated_data):
-        # crm_system и acquiring едины для всей сети — автоматически назначаем сетевые дефолты
-        if ('crm_system' not in validated_data or validated_data['crm_system'] is None) and CrmSystem.objects.exists():
-            validated_data['crm_system'] = CrmSystem.objects.first()
-        if ('acquiring' not in validated_data or validated_data['acquiring'] is None) and Acquiring.objects.exists():
-            validated_data['acquiring'] = Acquiring.objects.first()
+        # crm_system и acquiring едины для всей сети — подставляем сетевой
+        # дефолт. Раньше здесь был .first() без ordering: при двух записях
+        # эквайринга новая кофейня молча получала произвольный мерчант-аккаунт,
+        # и первые же платежи уходили не туда. Порядок задаём явно.
+        if not validated_data.get('crm_system'):
+            validated_data['crm_system'] = CrmSystem.objects.order_by('id').first()
+        if not validated_data.get('acquiring'):
+            validated_data['acquiring'] = Acquiring.objects.order_by('id').first()
         return super().create(validated_data)
 
 

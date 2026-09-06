@@ -10,6 +10,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.decorators import action
@@ -162,10 +163,20 @@ class OrderViewSet(ModelViewSet):
         cart = get_active_cart(self.request.user)
         from bonus_system.services import calculate_cart_pricing
 
+        # coffee_shop/city_choose раньше приходили из тела запроса и сервер им
+        # верил: клиент назначал точку исполнения произвольно, а приложение
+        # присылало ещё и захардкоженный city_choose=1. Теперь и то, и другое
+        # выводится из состава корзины, а смешанная корзина отклоняется.
+        coffee_shop, error = cart.resolve_coffee_shop()
+        if error:
+            raise ValidationError({"coffee_shop": error})
+
         pricing = calculate_cart_pricing(self.request.user, cart)
         order = serializer.save(
             user=self.request.user,
             cart=cart,
+            coffee_shop=coffee_shop,
+            city_choose=coffee_shop.city,
             subtotal_price=pricing.subtotal,
             discount_percent=pricing.discount_percent,
             discount_amount=pricing.discount_amount,

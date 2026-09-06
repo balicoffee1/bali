@@ -108,7 +108,6 @@ class Product(models.Model):
                                  verbose_name='Категория')
     product = models.CharField(
         max_length=100,
-        unique=True,
         verbose_name='Продукт',
         help_text='Понятное название продукта'
     )
@@ -171,6 +170,17 @@ class Product(models.Model):
         verbose_name = 'Продукт'
         verbose_name_plural = 'Продукты'
         indexes = (models.Index('product', name='product'),)
+        constraints = (
+            # Раньше на названии стоял глобальный unique=True: «Латте» мог
+            # существовать в сети ровно один раз и принадлежать ровно одной
+            # точке. Из-за этого add_to_cart искал товар только по имени и
+            # игнорировал кофейню из URL, а вторая кофейня сети потребовала бы
+            # переименования всего меню. Уникальность нужна в пределах точки.
+            models.UniqueConstraint(
+                fields=('coffee_shop', 'product'),
+                name='unique_product_per_coffee_shop',
+            ),
+        )
 
 
 class SeasonMenu(models.Model):

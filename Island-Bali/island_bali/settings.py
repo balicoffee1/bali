@@ -3,7 +3,6 @@ from datetime import timedelta
 from pathlib import Path
 
 import environ
-from django.core.exceptions import ImproperlyConfigured
 
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost',
@@ -334,10 +333,14 @@ if FIREBASE_CREDENTIALS_PATH:
             _firebase_credentials.Certificate(FIREBASE_CREDENTIALS_PATH)
         )
 elif not DEBUG:
-    # На проде молчаливое отсутствие ключа = молчаливое отсутствие пушей.
-    # Лучше упасть на старте, чем месяц не замечать.
-    raise ImproperlyConfigured(
-        "FIREBASE_CREDENTIALS_PATH не задан — push-уведомления работать не будут."
+    # Раньше здесь был raise ImproperlyConfigured. Радиус поражения оказался
+    # несоразмерным: settings импортируют gunicorn, daphne, celery и beat, то
+    # есть опечатка в пути роняла весь бэкенд, а не только доставку пушей.
+    # Молчаливый отказ и так закрыт: deliver_push логирует push_all_failed.
+    import logging as _logging
+
+    _logging.getLogger("notifications").error(
+        "FIREBASE_CREDENTIALS_PATH не задан — push-уведомления отправляться не будут"
     )
 
 

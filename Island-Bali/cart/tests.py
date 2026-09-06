@@ -284,3 +284,72 @@ class ViewCartEmptyStateTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['cart_id'], newest.id)
+
+
+class ResolveCoffeeShopTests(TestCase):
+    """Кофейня заказа выводится из корзины, а не приходит от клиента.
+
+    Раньше coffee_shop и city_choose брались из тела запроса на создание
+    заказа, а приложение вдобавок присылало захардкоженный city_choose=1.
+    Смена точки корзину не очищает, поэтому заказ мог уехать в кофейню, где
+    половины позиций нет в меню.
+    """
+
+    def setUp(self):
+        self.user = CustomUser.objects.create_user(login='+79990001122', password='pwd')
+        self.city_a = City.objects.create(name="Казань")
+        self.city_b = City.objects.create(name="Москва")
+        self.shop_a = CoffeeShop.objects.create(city=self.city_a, street="Баумана")
+        self.shop_b = CoffeeShop.objects.create(city=self.city_b, street="Арбат")
+        self.cat_a = Category.objects.create(coffee_shop=self.shop_a, name="Кофе")
+        self.cat_b = Category.objects.create(coffee_shop=self.shop_b, name="Кофе")
+        self.cart = ShoppingCart.objects.create(user=self.user)
+
+    def _add(self, shop, category, name):
+        # Одноимённый товар в двух точках — то, что глобальный unique=True
+        # раньше делал невозможным.
+        product = Product.objects.create(
+            coffee_shop=shop, category=category, product=name,
+            price_s=Decimal('100.00'), price_m=Decimal('150.00'),
+            price_l=Decimal('200.00'), product_type="coffee",
+        )
+        return CartItem.objects.create(cart=self.cart, product=product, amount=1, size="S")
+
+    def test_single_shop_cart_resolves_to_that_shop(self):
+        self._add(self.shop_a, self.cat_a, "Латте")
+        shop, error = self.cart.resolve_coffee_shop()
+
+        self.assertIsNone(error)
+        self.assertEqual(shop, self.shop_a)
+        # city_choose тоже выводится отсюда, а не из константы на клиенте.
+        self.assertEqual(shop.city, self.city_a)
+
+    def test_empty_cart_reports_error(self):
+        shop, error = self.cart.resolve_coffee_shop()
+
+        self.assertIsNone(shop)
+        self.assertIn("пуста", error)
+
+    def test_mixed_shop_cart_is_rejected(self):
+        self._add(self.shop_a, self.cat_a, "Латте")
+        self._add(self.shop_b, self.cat_b, "Латте")
+
+        shop, error = self.cart.resolve_coffee_shop()
+
+        self.assertIsNone(shop)
+        self.assertIn("разных кофеен", error)
+
+    def test_same_product_name_allowed_in_two_shops(self):
+        # Проверяем сам инвариант: глобальный unique снят, уникальность
+        # действует в пределах кофейни.
+        self._add(self.shop_a, self.cat_a, "Латте")
+        self._add(self.shop_b, self.cat_b, "Латте")
+
+        self.assertEqual(Product.objects.filter(product="Латте").count(), 2)
+
+    def test_duplicate_product_name_in_one_shop_is_forbidden(self):
+        from django.db import IntegrityError
+
+        self._add(self.shop_a, self.cat_a, "Латте")
+        with self.assertRaises(IntegrityError):
+            self._add(self.shop_a, self.cat_a, "Латте")
