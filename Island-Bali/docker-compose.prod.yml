@@ -58,7 +58,10 @@ services:
   web:
     image: aigam/bali_backend:latest
     restart: always
+    # Firebase service account для FCM (FIREBASE_CREDENTIALS_PATH в .env).
+    # Каталог ../secrets в git не хранится — заливается на хост отдельно.
     volumes:
+      - ../secrets:/app/secrets:ro
       - static_value:/app/static/
       - media_value:/app/media/
     depends_on:
@@ -88,6 +91,10 @@ services:
       - web
     links:
       - db:db
+    # Firebase service account для FCM (FIREBASE_CREDENTIALS_PATH в .env).
+    # Каталог ../secrets в git не хранится — заливается на хост отдельно.
+    volumes:
+      - ../secrets:/app/secrets:ro
     env_file:
       - .env
     command: daphne -b 0.0.0.0 -p 8001 island_bali.asgi:application

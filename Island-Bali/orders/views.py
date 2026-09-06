@@ -497,5 +497,11 @@ class SendNotifications(APIView):
         if not is_staff_for_order(request.user, order):
             return Response({'error': 'Вы не являетесь сотрудником этой кофейни'}, status=status.HTTP_403_FORBIDDEN)
         message = request.data.get("message")
-        send_push_notification(order.user, "Новое сообщение", message)
+        send_push_notification(
+            order.user,
+            "Сообщение по заказу",
+            message,
+            order_id=order.id,
+            event="staff_message",
+        )
         return Response({'message': 'Уведомление отправлено'}, status=status.HTTP_200_OK)

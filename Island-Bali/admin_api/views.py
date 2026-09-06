@@ -403,15 +403,9 @@ class AdminOrdersViewSet(viewsets.ModelViewSet):
         except OrderTransitionError as exc:
             return Response({"error": exc.code, "message": exc.message}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Отправка пуш-уведомления клиенту
-        status_messages = {
-            Orders.WAITING: "Ваш заказ переведен в ожидание",
-            Orders.IN_PROGRESS: "Ваш заказ готовится",
-            Orders.COMPLETED: "Ваш заказ готов к выдаче!",
-            Orders.CANCELED: f"Заказ отменен: {cancellation_reason or 'Не указано'}",
-        }
-        if new_status in status_messages and order.user:
-            send_push_notification(order.user, "Статус заказа изменен", status_messages[new_status])
+        # Пуш клиенту отправляет сам OrderStateService.admin_override: раньше
+        # он дублировался здесь, и при переводе в In Progress клиент получал
+        # два уведомления вместо одного.
 
         return Response({"status": "Статус заказа обновлен", "order": AdminOrderSerializer(order).data})
 
@@ -503,7 +497,7 @@ class AdminNotificationBroadcastView(APIView):
         sent_count = 0
         for user in recipients_qs:
             try:
-                send_push_notification(user, title, message)
+                send_push_notification(user, title, message, event="broadcast")
                 sent_count += 1
             except Exception:
                 pass

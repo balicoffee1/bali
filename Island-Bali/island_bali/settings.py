@@ -3,6 +3,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import environ
+from django.core.exceptions import ImproperlyConfigured
 
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost',
@@ -301,6 +302,43 @@ MEDIA_ROOT = os.path.join(BASE_DIR, '')
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+
+
+# ---------------------------------------------------------------------------
+# Firebase Cloud Messaging
+# ---------------------------------------------------------------------------
+# fcm-django 3.x с DEFAULT_FIREBASE_APP=None берёт firebase_admin.get_app(),
+# то есть *default* приложение. Раньше его никто не создавал: send_message()
+# падал с "The default Firebase app does not exist", исключение глоталось в
+# notifications/tasks.py, и ни один пуш никогда не уходил. Инициализируем
+# ровно один раз здесь, при загрузке настроек.
+FIREBASE_CREDENTIALS_PATH = env.str("FIREBASE_CREDENTIALS_PATH", default="")
+
+FCM_DJANGO_SETTINGS = {
+    "DEFAULT_FIREBASE_APP": None,
+    "APP_VERBOSE_NAME": "Happy Island push",
+    # Одному пользователю — несколько устройств (телефон + планшет).
+    "ONE_DEVICE_PER_USER": False,
+    # Мёртвые токены (UNREGISTERED от FCM) помечаются active=False, но строки
+    # остаются: по ним видно историю устройств пользователя.
+    "DELETE_INACTIVE_DEVICES": False,
+    "UPDATE_ON_DUPLICATE_REG_ID": True,
+}
+
+if FIREBASE_CREDENTIALS_PATH:
+    import firebase_admin
+    from firebase_admin import credentials as _firebase_credentials
+
+    if not firebase_admin._apps:
+        firebase_admin.initialize_app(
+            _firebase_credentials.Certificate(FIREBASE_CREDENTIALS_PATH)
+        )
+elif not DEBUG:
+    # На проде молчаливое отсутствие ключа = молчаливое отсутствие пушей.
+    # Лучше упасть на старте, чем месяц не замечать.
+    raise ImproperlyConfigured(
+        "FIREBASE_CREDENTIALS_PATH не задан — push-уведомления работать не будут."
+    )
 
 
 CELERY_BROKER_URL = env.str("CELERY_BROKER_URL", default="redis://redis:6379/0")

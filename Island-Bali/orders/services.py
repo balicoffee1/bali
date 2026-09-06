@@ -74,26 +74,107 @@ def _schedule_payment_poll(order_id):
     transaction.on_commit(_schedule)
 
 
-def _notify_customer_order_in_progress(order_id):
-    """Best-effort customer push; a broker/FCM outage must not fail the API."""
+def _notify_customer(order_id, title, body_builder, *, event):
+    """Best-effort customer push; a broker/FCM outage must not fail the API.
+
+    body_builder — callable(order) -> str, а не готовая строка: заказ всё равно
+    перечитывается здесь (уже после commit), и текст вроде причины отмены должен
+    браться из зафиксированного состояния, а не из объекта в памяти вызывающего.
+    """
     try:
         from notifications.main import send_push_notification
 
         order = Orders.objects.select_related("user").get(pk=order_id)
         send_push_notification(
             order.user,
-            "Заказ готовится",
-            f"Заказ №{order.id} принят в работу",
+            title,
+            body_builder(order),
+            order_id=order.id,
+            event=event,
         )
     except Exception:
         logger.exception(
-            "order_in_progress_notification_failed order_id=%s", order_id
+            "customer_notification_failed order_id=%s event=%s", order_id, event
         )
 
 
 def _schedule_in_progress_notification(order):
     transaction.on_commit(
-        lambda order_id=order.id: _notify_customer_order_in_progress(order_id)
+        lambda order_id=order.id: _notify_customer(
+            order_id,
+            "Заказ готовится",
+            lambda order: f"Заказ №{order.id} принят в работу",
+            event="order_in_progress",
+        )
+    )
+
+
+def _schedule_cancel_notification(order, *, actor_type):
+    """Пуш об отмене.
+
+    Отмену, инициированную самим клиентом, не анонсируем: он только что нажал
+    кнопку и уже видит результат. Системная автоотмена по истечении окна оплаты,
+    наоборот, — единственный случай, когда клиент вообще ничего не узнает:
+    приложение к этому моменту обычно закрыто, а ручки staff/admin, которые
+    раньше были единственными источниками пуша об отмене, здесь не участвуют.
+    """
+    if actor_type == "customer":
+        return
+
+    if actor_type == "system":
+        def body(order):
+            return f"Заказ №{order.id} отменён: оплата не поступила"
+    else:
+        def body(order):
+            reason = (order.cancellation_reason or "").strip()
+            return (
+                f"Заказ №{order.id} отменён: {reason}"
+                if reason
+                else f"Заказ №{order.id} отменён"
+            )
+
+    transaction.on_commit(
+        lambda order_id=order.id: _notify_customer(
+            order_id, "Заказ отменён", body, event="order_canceled"
+        )
+    )
+
+
+ADMIN_STATUS_MESSAGES = {
+    Orders.WAITING: (
+        "Статус заказа изменён",
+        lambda order: f"Заказ №{order.id} переведён в ожидание",
+    ),
+    Orders.IN_PROGRESS: (
+        "Заказ готовится",
+        lambda order: f"Заказ №{order.id} принят в работу",
+    ),
+    Orders.COMPLETED: (
+        "Заказ готов",
+        lambda order: f"Заказ №{order.id} готов к выдаче",
+    ),
+}
+
+
+def _schedule_admin_status_notification(order, new_status):
+    """Пуш при ручной смене статуса админом.
+
+    Отмену отдаём общему пути (_schedule_cancel_notification), чтобы текст с
+    причиной был один и тот же, кто бы отмену ни инициировал.
+    """
+    if new_status == Orders.CANCELED:
+        _schedule_cancel_notification(order, actor_type="admin")
+        return
+
+    message = ADMIN_STATUS_MESSAGES.get(new_status)
+    if message is None:
+        return
+
+    title, body_builder = message
+    transaction.on_commit(
+        lambda order_id=order.id: _notify_customer(
+            order_id, title, body_builder, event="order_status_changed"
+        )
     )
 
 
@@ -176,6 +257,14 @@ class OrderStateService:
             order.staff = _resolve_staff(staff_user, order.coffee_shop_id)
             order.version += 1
             _save_and_publish(order, ["status_orders", "staff", "version"])
+            transaction.on_commit(
+                lambda order_id=order.id: _notify_customer(
+                    order_id,
+                    "Заказ подтверждён",
+                    lambda order: f"Заказ №{order.id} принят. Оплатите в течение 1,5 минут",
+                    event="order_accepted",
+                )
+            )
 
         transaction.on_commit(
             lambda: _log_transition(
@@ -212,6 +301,7 @@ class OrderStateService:
             # OrderDialogAck, который пишет само приложение после показа.
             order.version += 1
             _save_and_publish(order, ["status_orders", "cancellation_reason", "version"])
+            _schedule_cancel_notification(order, actor_type=actor_type)
 
         transaction.on_commit(
             lambda: _log_transition(
@@ -243,6 +333,14 @@ class OrderStateService:
                 order.staff = _resolve_staff(staff_user, order.coffee_shop_id)
             order.version += 1
             _save_and_publish(order, ["status_orders", "staff", "version"])
+            transaction.on_commit(
+                lambda order_id=order.id: _notify_customer(
+                    order_id,
+                    "Заказ готов",
+                    lambda order: f"Заказ №{order.id} готов к выдаче",
+                    event="order_completed",
+                )
+            )
 
             if order.cart_id:
                 order.cart.is_active = False
@@ -621,11 +719,8 @@ class OrderStateService:
             # (status_orders/payment_status), а не на голый reason-only override.
             if new_order_status or new_payment_status:
                 _save_and_publish(order, update_fields)
-                if (
-                    old_order_status != Orders.IN_PROGRESS
-                    and order.status_orders == Orders.IN_PROGRESS
-                ):
-                    _schedule_in_progress_notification(order)
+                if new_order_status and new_order_status != old_order_status:
+                    _schedule_admin_status_notification(order, new_order_status)
             else:
                 order.save(update_fields=update_fields)
 

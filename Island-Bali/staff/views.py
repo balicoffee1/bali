@@ -144,9 +144,6 @@ class PendingOrdersAcceptView(APIView):
         except OrderTransitionError as exc:
             return Response({"error": exc.message}, status=status.HTTP_400_BAD_REQUEST)
 
-        send_push_notification(order.user, "Новое сообщение", "Ваш заказ подтвержден")
-        send_push_notification(order.user, "Новое сообщение", "Оплатите заказ в течение 1,5 минут")
-
         serializer = PendingOrdersAcceptSerializer(order)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -184,7 +181,13 @@ class PendingOrdersAcceptView(APIView):
                 serializer.update_order(order, serializer.validated_data)
 
                 serializer = PendingOrdersAcceptSerializer(order)
-                send_push_notification(order.user, "Новое сообщение", "Ваш заказ изменен")
+                send_push_notification(
+                    order.user,
+                    "Заказ изменён",
+                    f"Заказ №{order.id} изменён",
+                    order_id=order.id,
+                    event="order_updated",
+                )
 
                 return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -232,7 +235,6 @@ class PendingOrdersAcceptView(APIView):
                 return Response({"error": exc.message}, status=status.HTTP_400_BAD_REQUEST)
 
             serializer = PendingOrdersAcceptSerializer(order)
-            send_push_notification(order.user, "Новое сообщение", "Ваш заказ отменен")
 
             return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -305,7 +307,6 @@ class CompleteOrdersView(APIView):
                 return Response({"error": exc.message}, status=status.HTTP_400_BAD_REQUEST)
 
             serializer = PendingOrdersAcceptSerializer(order)
-            send_push_notification(order.user, "Новое сообщение", "Ваш заказ готов")
 
             return Response(serializer.data, status=status.HTTP_200_OK)
 

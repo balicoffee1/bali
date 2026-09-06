@@ -1125,3 +1125,81 @@ class RealRedisChannelLayerIntegrationTests(SimpleTestCase):
 
         self.assertEqual(message["type"], "order.status_changed")
         self.assertEqual(message["payload"]["order_id"], 1)
+
+
+class CustomerPushTests(RealtimeFixtureMixin, TestCase):
+    """Кто именно и при каком переходе получает push.
+
+    До этих правок пуш об отмене висел только на HTTP-ручках staff/admin:
+    автоотмена по истечении окна оплаты (Celery) не уведомляла клиента вообще,
+    а перевод заказа в In Progress из админки слал два уведомления сразу —
+    одно из сервиса, второе из admin_api/views.py.
+    """
+
+    def setUp(self):
+        self._make_fixtures()
+        self.order = self.make_order()
+
+    def _cancel(self, actor_type, reason=""):
+        with mock.patch("notifications.main.send_push_notification") as push:
+            with self.captureOnCommitCallbacks(execute=True):
+                OrderStateService.cancel(
+                    self.order.id, actor_type=actor_type, reason=reason
+                )
+        return push
+
+    def test_system_autocancel_notifies_customer(self):
+        push = self._cancel("system")
+
+        self.assertEqual(push.call_count, 1)
+        self.assertEqual(push.call_args.args[0].id, self.customer.id)
+        self.assertIn("оплата не поступила", push.call_args.args[2])
+        self.assertEqual(push.call_args.kwargs["event"], "order_canceled")
+        self.assertEqual(push.call_args.kwargs["order_id"], self.order.id)
+
+    def test_customer_self_cancel_sends_no_push(self):
+        # Клиент только что сам нажал «отменить» — уведомлять его не о чем.
+        self.assertEqual(self._cancel("customer").call_count, 0)
+
+    def test_staff_cancel_includes_reason(self):
+        push = self._cancel("staff", reason="закончился сироп")
+
+        self.assertEqual(push.call_count, 1)
+        self.assertIn("закончился сироп", push.call_args.args[2])
+
+    def test_admin_override_to_in_progress_sends_single_push(self):
+        with mock.patch("notifications.main.send_push_notification") as push:
+            with self.captureOnCommitCallbacks(execute=True):
+                OrderStateService.admin_override(
+                    self.order.id,
+                    admin_user=self.staff_user,
+                    new_order_status=Orders.IN_PROGRESS,
+                    reason="ручное подтверждение оплаты",
+                )
+
+        self.assertEqual(push.call_count, 1)
+
+    def test_admin_override_reason_only_sends_no_push(self):
+        # Голый reason-override не меняет business state — уведомлять не о чем.
+        with mock.patch("notifications.main.send_push_notification") as push:
+            with self.captureOnCommitCallbacks(execute=True):
+                OrderStateService.admin_override(
+                    self.order.id,
+                    admin_user=self.staff_user,
+                    reason="комментарий без смены статуса",
+                )
+
+        self.assertEqual(push.call_count, 0)
+
+    def test_complete_notifies_customer_with_order_id(self):
+        OrderStateService.accept(self.order.id, staff_user=None)
+        OrderStateService.payment_succeeded(
+            self.order.id, provider="lifepay", provider_transaction_id="tx-complete"
+        )
+        with mock.patch("notifications.main.send_push_notification") as push:
+            with self.captureOnCommitCallbacks(execute=True):
+                OrderStateService.complete(self.order.id, staff_user=None)
+
+        self.assertEqual(push.call_count, 1)
+        self.assertIn(str(self.order.id), push.call_args.args[2])
+        self.assertEqual(push.call_args.kwargs["order_id"], self.order.id)
