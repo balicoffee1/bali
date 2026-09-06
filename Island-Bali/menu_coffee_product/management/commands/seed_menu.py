@@ -16,6 +16,7 @@ from coffee_shop.models import Acquiring, CoffeeShop, CrmSystem, City
 from menu_coffee_product.data.menu_happy_island import (
     ADDON_FLAVORS,
     ADDONS,
+    COFFEE_SHOPS,
     MAIN_MENU,
     SEASON_MENU,
 )
@@ -34,15 +35,21 @@ class Command(BaseCommand):
     help = "Завести кофейню и наполнить её меню Happy Island."
 
     def add_arguments(self, parser):
-        parser.add_argument("--city", default="Казань")
-        parser.add_argument("--street", help="Улица кофейни (обязательна при создании)")
-        parser.add_argument("--building", default="", help="Номер строения")
+        parser.add_argument(
+            "--street",
+            action="append",
+            dest="streets",
+            help="Улица точки. Можно повторять. Без этого флага наполняются все "
+                 "точки сети из COFFEE_SHOPS.",
+        )
+        parser.add_argument("--city", default="Казань", help="Город для --street")
+        parser.add_argument("--building", default="", help="Номер строения для --street")
         parser.add_argument(
             "--season",
-            choices=sorted(SEASON_MENU) + ["none"],
-            default="winter",
-            help="Какой сезонный набор сделать доступным. Позиции другого сезона "
-                 "остаются в базе, но с availability=False.",
+            choices=sorted(SEASON_MENU) + ["all", "none"],
+            default="all",
+            help="Какие сезонные наборы доступны: winter, spring, all или none. "
+                 "Скрытые позиции остаются в базе с availability=False.",
         )
         parser.add_argument("--dry-run", action="store_true")
 
@@ -50,54 +57,62 @@ class Command(BaseCommand):
         self.dry = opts["dry_run"]
         season = opts["season"]
 
+        if opts["streets"]:
+            targets = [(opts["city"], st, opts["building"]) for st in opts["streets"]]
+        else:
+            targets = COFFEE_SHOPS
+
         with transaction.atomic():
-            shop = self._shop(opts)
-            main = self._load_sections(shop, MAIN_MENU, "main_menu")
-            seasonal = {}
-            for name, sections in SEASON_MENU.items():
-                seasonal[name] = self._load_sections(
-                    shop, sections, "season_menu", prefix=SEASON_TITLES[name]
-                )
-            self._apply_season(shop, seasonal, season)
-            self._addons(shop)
+            for city, street, building in targets:
+                self.stdout.write(self.style.MIGRATE_HEADING(f"\n{city}, ул. {street}"))
+                shop = self._shop(city, street, building)
+                self._load_sections(shop, MAIN_MENU, "main_menu")
+                seasonal = {
+                    name: self._load_sections(
+                        shop, sections, "season_menu", prefix=SEASON_TITLES[name]
+                    )
+                    for name, sections in SEASON_MENU.items()
+                }
+                self._apply_season(shop, seasonal, season)
+                self._addons(shop)
 
             if self.dry:
                 self.stdout.write(self.style.WARNING("\n--dry-run: изменения откачены"))
                 transaction.set_rollback(True)
 
-        total_main = sum(len(items) for _, items in MAIN_MENU)
-        total_season = sum(len(i) for s in SEASON_MENU.values() for _, i in s)
+        per_shop = (
+            sum(len(items) for _, items in MAIN_MENU)
+            + sum(len(i) for s in SEASON_MENU.values() for _, i in s)
+        )
         self.stdout.write(
             self.style.SUCCESS(
-                f"\nГотово. Основное меню: {total_main} позиций, "
-                f"сезонное: {total_season}. Активен сезон: {season}."
+                f"\nГотово. Точек: {len(targets)}, позиций на точку: {per_shop}, "
+                f"всего: {per_shop * len(targets)}. Сезон: {season}."
             )
         )
 
     # ------------------------------------------------------------------ shop
 
-    def _shop(self, opts):
-        city, _ = City.objects.get_or_create(name=opts["city"])
-        shop = CoffeeShop.objects.filter(city=city).first()
+    def _shop(self, city_name, street, building):
+        city, _ = City.objects.get_or_create(name=city_name)
+        shop = CoffeeShop.objects.filter(city=city, street=street).first()
 
         if shop is None:
-            if not opts["street"]:
-                raise CommandError(
-                    "Кофейни в этом городе ещё нет — укажите --street "
-                    '(например: --street "Баумана" --building 10)'
-                )
             shop = CoffeeShop(
                 city=city,
-                street=opts["street"],
-                building_number=opts["building"],
+                street=street,
+                building_number=building,
                 # Сетевые дефолты: единственные записи, если они заведены.
                 crm_system=CrmSystem.objects.order_by("id").first(),
                 acquiring=Acquiring.objects.order_by("id").first(),
             )
             shop.save()
-            self.stdout.write(self.style.SUCCESS(f"Создана кофейня: {city.name}, {shop.street}"))
+            self.stdout.write(self.style.SUCCESS(f"  создана кофейня (д. {building or '—'})"))
         else:
-            self.stdout.write(f"Кофейня уже есть: {city.name}, {shop.street}")
+            if building and shop.building_number != building:
+                shop.building_number = building
+                shop.save(update_fields=["building_number"])
+            self.stdout.write("  кофейня уже есть")
         return shop
 
     # ------------------------------------------------------------------ menu
@@ -140,7 +155,7 @@ class Command(BaseCommand):
     def _apply_season(self, shop, seasonal, active):
         """Активный сезон доступен, остальные — скрыты, но остаются в базе."""
         for name, sections in seasonal.items():
-            on = name == active
+            on = active == "all" or name == active
             ids = [p.id for products in sections.values() for p in products]
             Product.objects.filter(id__in=ids).update(availability=on)
 
