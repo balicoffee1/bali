@@ -69,6 +69,11 @@ YOUR_APPS = [
     "quickresto.apps.QuickrestoConfig",
     "seo.apps.SeoConfig",
     "admin_api.apps.AdminApiConfig",
+    # Пакет использовался только импортом (notifications.main), поэтому не
+    # был приложением — и Django не находил его management-команды:
+    # manage.py send_test_push падал с "Unknown command". Моделей тут нет,
+    # так что миграций регистрация не добавляет.
+    "notifications",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + YOUR_APPS
