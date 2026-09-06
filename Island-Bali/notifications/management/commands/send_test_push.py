@@ -44,13 +44,40 @@ class Command(BaseCommand):
             )
 
         # Прямой вызов, минуя брокер: нужен немедленный, видимый результат.
-        deliver_push(
+        result = deliver_push(
             user_id=user.id,
             title=options["title"],
             body=options["body"],
             data={"type": "test"},
         )
-        self.stdout.write(self.style.SUCCESS("Отправлено — смотрите лог выше."))
+        if result is None:
+            raise CommandError("Отправка не выполнялась: активных устройств нет.")
+
+        # Печатаем итог здесь, а не полагаемся на логгер: у management-команды
+        # его вывод в консоль обычно не настроен, и «отправлено» без цифр не
+        # отличает успех от отказа FCM.
+        self.stdout.write(
+            f"Отправлено на токенов: {len(result.registration_ids_sent)}, "
+            f"успешно: {result.success_count}, с ошибкой: {result.failure_count}, "
+            f"деактивировано: {len(result.deactivated_registration_ids)}"
+        )
+        for response in getattr(result.response, "responses", []):
+            if not response.success:
+                error = response.exception
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"  {type(error).__name__} "
+                        f"[{getattr(error, 'code', '—')}]: {error}"
+                    )
+                )
+
+        if result.failure_count:
+            raise CommandError(
+                "FCM отклонил часть сообщений — см. ошибки выше. Частые причины: "
+                "протухший service account или несоответствие APNs-окружения "
+                "(sandbox против production)."
+            )
+        self.stdout.write(self.style.SUCCESS("Доставлено в FCM."))
 
     @staticmethod
     def _resolve_user(options):
