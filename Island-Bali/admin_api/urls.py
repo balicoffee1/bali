@@ -5,7 +5,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     AdminAuthLoginView, AdminAuthMeView, AdminDashboardStatsView,
     AdminUsersViewSet, AdminCitiesViewSet, AdminCoffeeShopsViewSet,
-    AdminCategoriesViewSet, AdminProductsViewSet, AdminAddonsViewSet, AdminAdditiveFlavorsViewSet,
+    AdminCategoriesViewSet, AdminProductsViewSet, AdminAddonsViewSet, AdminAdditiveFlavorsViewSet, AdminSeasonMenuViewSet,
     AdminOrdersViewSet, AdminStaffViewSet, AdminShiftsViewSet,
     AdminReviewsViewSet, AdminFranchiseRequestsViewSet, AdminDiscountCardsViewSet,
     AdminNotificationBroadcastView, AdminActivityLogViewSet
@@ -19,6 +19,7 @@ router.register(r'categories', AdminCategoriesViewSet, basename='admin-categorie
 router.register(r'products', AdminProductsViewSet, basename='admin-products')
 router.register(r'addons', AdminAddonsViewSet, basename='admin-addons')
 router.register(r'flavors', AdminAdditiveFlavorsViewSet, basename='admin-flavors')
+router.register(r'season-menus', AdminSeasonMenuViewSet, basename='admin-season-menus')
 router.register(r'orders', AdminOrdersViewSet, basename='admin-orders')
 router.register(r'staff', AdminStaffViewSet, basename='admin-staff')
 router.register(r'shifts', AdminShiftsViewSet, basename='admin-shifts')

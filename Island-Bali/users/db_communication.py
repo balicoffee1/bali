@@ -88,7 +88,7 @@ def reset_password1(values):
         user = get_user(login=login)
         if not user:
             raise ObjectDoesNotExist
-        code = utils.send_phone_reset(login)
+        code, _sent = utils.send_phone_reset(login)
         user.code = code
         user.save()
         return {"login": login}

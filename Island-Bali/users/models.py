@@ -169,6 +169,27 @@ class PhoneVerification(models.Model):
         default=False, verbose_name="Использован"
     )
 
+    # --- Доставка сообщения провайдером (iqsms) ---
+    # Без этих полей на жалобу «код не приходит» ответить нечем: непонятно,
+    # сообщение не дошло или пользователь его не ввёл.
+    client_id = models.CharField(
+        max_length=32, blank=True, default="", db_index=True,
+        verbose_name="clientId у провайдера",
+        help_text="Наш идентификатор сообщения, по нему сверяется статус.",
+    )
+    smsc_id = models.CharField(
+        max_length=64, blank=True, default="", db_index=True,
+        verbose_name="smscId у провайдера",
+    )
+    delivery_status = models.CharField(
+        max_length=32, blank=True, default="",
+        verbose_name="Статус доставки",
+        help_text="queued, smsc submit, delivered, smsc reject, delivery error",
+    )
+    status_checked_at = models.DateTimeField(
+        null=True, blank=True, verbose_name="Статус проверен"
+    )
+
     class Meta:
         db_table = "users_phone_verification"
         ordering = ("-created_at",)
@@ -192,9 +213,20 @@ class PhoneVerification(models.Model):
     def is_spent(self) -> bool:
         return self.is_used or self.is_expired or self.attempts >= self.MAX_ATTEMPTS
 
+    @property
+    def delivery_is_final(self) -> bool:
+        """Провайдер уже сказал последнее слово — опрашивать больше нечего."""
+        from .sms import DELIVERY_FINAL_STATUSES
+
+        return self.delivery_status in DELIVERY_FINAL_STATUSES
+
     @classmethod
-    def issue(cls, phone: str, code: str) -> "PhoneVerification":
-        """Гасит прежние коды номера и создаёт новый."""
+    def issue(cls, phone: str, code: str, sent=None) -> "PhoneVerification":
+        """Гасит прежние коды номера и создаёт новый.
+
+        ``sent`` — результат ``users.sms.send_sms``: его ``smscId`` нужен,
+        чтобы позже спросить у провайдера статус доставки.
+        """
         cls.objects.filter(phone=phone, is_used=False).update(is_used=True)
         return cls.objects.create(
             phone=phone,
@@ -202,6 +234,8 @@ class PhoneVerification(models.Model):
             expires_at=timezone.now() + timedelta(
                 seconds=settings.SMS_CODE_TTL
             ),
+            client_id=getattr(sent, "client_id", "") or "",
+            smsc_id=getattr(sent, "smsc_id", "") or "",
         )
 
     @classmethod

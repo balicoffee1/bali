@@ -22,10 +22,17 @@ class CartItemSerializer(serializers.ModelSerializer):
     product = ProductSerializer()
     item_total_price = serializers.SerializerMethodField()
     addons = serializers.SerializerMethodField()
+    is_available = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = CartItem
-        fields = ["id", 'product', 'amount', 'item_total_price', 'size', 'addons']
+        # temperature_type здесь — выбор клиента для этой позиции. Внутри
+        # `product` лежит одноимённое поле каталога («каким товар бывает»);
+        # клиент раньше читал именно его и поэтому никогда не видел свой выбор.
+        fields = [
+            "id", 'product', 'amount', 'item_total_price', 'size',
+            'temperature_type', 'is_available', 'addons',
+        ]
 
     def get_addons(self, obj):
         serializer = CartItemAddonSerializer(obj.addons.all(), many=True, context={'cart_item': obj})
@@ -57,7 +64,9 @@ class AddToCartSerializer(serializers.Serializer):
                                         help_text="Укажите количество",
                                         label="Количество товара")
     temperature_type = serializers.ChoiceField(
-        choices=Product.TEMPERATURE_TYPE_CHOICES,
+        # Только Hot/Cold: "All" — это свойство товара в каталоге, а не то,
+        # что может выбрать клиент.
+        choices=CartItem.TemperatureChoices.choices,
         required=False,
         help_text="Выберите тип температуры: холодный или горячий",
         label="Тип температуры напитка")
@@ -153,7 +162,7 @@ class UpdateCartItemSerializer(serializers.Serializer):
         help_text="Размер продукта: S, M, L"
     )
     temperature_type = serializers.ChoiceField(
-        choices=Product.TEMPERATURE_TYPE_CHOICES,
+        choices=CartItem.TemperatureChoices.choices,
         required=False,
         allow_null=True,
         help_text="Температура напитка: Hot или Cold"

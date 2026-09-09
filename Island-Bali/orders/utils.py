@@ -1,1 +1,20 @@
-from cart.models import CartItem, ShoppingCartfrom cart.serializers import CartItemSerializerfrom coffee_shop.models import City, CoffeeShopfrom menu_coffee_product.models import Productdef get_menu_item(menu_item_id):    """Эта функция будет отвечать за поиск продукта в базе данных    и обработку случая, если продукт не найден."""    try:        return Product.objects.get(id=menu_item_id)    except Product.DoesNotExist:        return Nonedef get_or_create_user_cart(user):    """Эта функция создаёт или возвращает существующую корзину пользователя."""    return ShoppingCart.objects.get_or_create(user=user)def add_or_update_cart_item(cart, menu_item, quantity):    """    Эта функция обновляет количество товара в корзине или    добавляет новый товар.    """    cart_item, created = CartItem.objects.get_or_create(cart=cart,                                                        product=menu_item)    cart_item.quantity += int(quantity)    cart_item.save()    return cart_itemdef get_city_and_coffee_shop(city_id, coffee_shop_id):    """Эта функция будет отвечать за проверку существования     города и кофейни в базе данных"""    try:        city = City.objects.get(id=city_id)        coffee_shop = CoffeeShop.objects.get(id=coffee_shop_id)        return city, coffee_shop    except (City.DoesNotExist, CoffeeShop.DoesNotExist):        return None, Nonedef check_temperature_requirements(menu_item, temperature_type):    if menu_item.can_be_hot_and_cold and not temperature_type:        return ("For items that can be hot and cold, "                "temperature type must be specified.")    if menu_item.product_type == 'coffee' and not temperature_type:        return "For coffee, temperature type must be specified."    if menu_item.product_type == 'tea' and not temperature_type:        return "For tea, temperature type must be specified."    if menu_item.product_type == 'cocktail' and temperature_type != "Cold":        return "Cocktails must be cold."    if (menu_item.product_type in            ['ice_cream',             'fresh_juice'] and temperature_type != "Cold"):        return "Ice cream and fresh juice must be cold."    if menu_item.product_type == 'matcha' and not temperature_type:        return "For matcha, temperature type must be specified."    return Nonedef process_cart_item(user, menu_item, quantity):    cart, created = get_or_create_user_cart(user)    cart_item = add_or_update_cart_item(cart, menu_item, quantity)    return CartItemSerializer(cart_item).data
+"""Модуль намеренно пуст.
+
+Здесь лежал набор функций, который не импортировался ни из одного места:
+``get_menu_item``, ``get_or_create_user_cart``, ``add_or_update_cart_item``,
+``get_city_and_coffee_shop``, ``process_cart_item`` и
+``check_temperature_requirements``. Часть из них была уже нерабочей —
+``add_or_update_cart_item`` обращался к ``cart_item.quantity``, которого у
+``CartItem`` нет.
+
+Опаснее всего был ``check_temperature_requirements``: он выглядел как
+действующая проверка температуры напитка, но не вызывался никогда, и из-за
+него казалось, что правила («коктейли только холодные», «для кофе
+температура обязательна») где-то работают.
+
+Актуальные проверки — ``resolve_temperature`` и ``resolve_size`` в
+``cart/views.py``. Правило «каким бывает напиток» задаётся полем
+``Product.temperature_type`` в админке, а не списком product_type в коде.
+
+Историю удалённого кода можно поднять из git.
+"""

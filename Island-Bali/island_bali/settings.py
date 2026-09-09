@@ -183,14 +183,20 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = env.str("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = env.str("EMAIL_HOST_PASSWORD")
 
-# --- SMS (провайдер iqsms.ru / Rocket SMS) ---
+# --- SMS (единственный провайдер: СМС Дисконт, iqsms.ru) ---
+# Документация API: https://iqsms.ru/api/api_about/
+# Клиент: users/sms.py
 SMS_LOGIN = env.str("SMS_LOGIN", default="")
 SMS_PASSWORD = env.str("SMS_PASSWORD", default="")
-# Имя отправителя должно быть заранее зарегистрировано у провайдера.
-# Список доступных: GET https://api.iqsms.ru/messages/v2/senders.json
-SMS_SENDER = env.str("SMS_SENDER", default="BiBipTrip")
-SMS_API_URL = env.str(
-    "SMS_API_URL", default="https://api.iqsms.ru/messages/v2/send.json"
+# Имя отправителя обязано быть заранее зарегистрировано у провайдера, иначе
+# send.json отвечает `sender address invalid` и пользователь видит 503.
+# Утверждённые подписи аккаунта: manage.py sms_senders.
+SMS_SENDER = env.str("SMS_SENDER", default="HappyIsland")
+# Базовый URL JSON API: https://iqsms.ru/api/api_json/
+# Эндпоинты send.json / status.json / balance.json / senders.json
+# собираются из него в users/sms.py.
+SMS_API_BASE_URL = env.str(
+    "SMS_API_BASE_URL", default="https://api.iqsms.ru/messages/v2/"
 )
 SMS_TIMEOUT = env.int("SMS_TIMEOUT", default=10)
 # Если False (или не заданы логин/пароль) — код только пишется в лог,
@@ -208,6 +214,16 @@ SMS_TEST_CODE = env.str("SMS_TEST_CODE", default="0000")
 SMS_CODE_TTL = env.int("SMS_CODE_TTL", default=300)
 # Минимальный интервал между запросами кода на один номер, секунд.
 SMS_RESEND_INTERVAL = env.int("SMS_RESEND_INTERVAL", default=60)
+# --- Контроль баланса ---
+# Порог в рублях, ниже которого задача notify_low_sms_balance шлёт
+# предупреждение в Telegram. Пополнение у провайдера — от 3000 ₽,
+# поэтому запас должен быть заметно больше стоимости одной рассылки.
+SMS_BALANCE_MIN = env.float("SMS_BALANCE_MIN", default=500.0)
+# Кому слать предупреждение. Пусто — задача только пишет в лог.
+# id можно посмотреть в боте @getmyid_bot.
+SMS_BALANCE_ALERT_CHAT_ID = env.str("SMS_BALANCE_ALERT_CHAT_ID", default="")
+# Сколько часов держать в опросе сообщение без финального статуса.
+SMS_STATUS_MAX_AGE_HOURS = env.int("SMS_STATUS_MAX_AGE_HOURS", default=24)
 
 
 # Password validation

@@ -1,0 +1,953 @@
+<title>Ревизия Happy Island</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+  :root {
+    --paper:      #e9edf0;
+    --surface:    #ffffff;
+    --surface-2:  #f4f6f8;
+    --ink:        #131c24;
+    --ink-2:      #33454f;
+    --muted:      #5c6b78;
+    --line:       #cdd6dd;
+    --line-soft:  #dee5ea;
+    --accent:     #1f4d63;
+    --accent-ink: #ffffff;
+    --crit:       #a3231c;
+    --crit-bg:    #f7e5e3;
+    --high:       #a2620d;
+    --high-bg:    #faeedb;
+    --med:        #3a6a8f;
+    --med-bg:     #e2ecf4;
+    --ok:         #2f6b4f;
+
+    --f-disp: "IBM Plex Sans Condensed", "Helvetica Neue", Arial, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", Roboto, sans-serif;
+    --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #0e1418;
+      --surface:    #161e24;
+      --surface-2:  #1c262d;
+      --ink:        #e4ebef;
+      --ink-2:      #b7c5ce;
+      --muted:      #8595a1;
+      --line:       #2b3841;
+      --line-soft:  #222d35;
+      --accent:     #6fb3c9;
+      --accent-ink: #0e1418;
+      --crit:       #f08e85;
+      --crit-bg:    #2e1b1a;
+      --high:       #e0ab5c;
+      --high-bg:    #2c2418;
+      --med:        #8ab6d8;
+      --med-bg:     #1a252e;
+      --ok:         #74b997;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:      #0e1418;
+    --surface:    #161e24;
+    --surface-2:  #1c262d;
+    --ink:        #e4ebef;
+    --ink-2:      #b7c5ce;
+    --muted:      #8595a1;
+    --line:       #2b3841;
+    --line-soft:  #222d35;
+    --accent:     #6fb3c9;
+    --accent-ink: #0e1418;
+    --crit:       #f08e85;
+    --crit-bg:    #2e1b1a;
+    --high:       #e0ab5c;
+    --high-bg:    #2c2418;
+    --med:        #8ab6d8;
+    --med-bg:     #1a252e;
+    --ok:         #74b997;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sheet {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 24px 96px;
+  }
+
+  /* ---------- Шапка ---------- */
+
+  .masthead {
+    border-bottom: 2px solid var(--ink);
+    padding: 40px 0 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 28px;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+  .masthead h1 {
+    font-family: var(--f-disp);
+    font-weight: 700;
+    font-size: clamp(34px, 5.2vw, 56px);
+    line-height: 1.02;
+    letter-spacing: -0.015em;
+    margin: 6px 0 10px;
+    text-wrap: balance;
+  }
+  .eyebrow {
+    font-family: var(--f-disp);
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .masthead p {
+    margin: 0;
+    max-width: 54ch;
+    color: var(--ink-2);
+  }
+  .stamp {
+    font-family: var(--f-mono);
+    font-size: 12px;
+    line-height: 1.9;
+    color: var(--muted);
+    border-left: 2px solid var(--line);
+    padding-left: 14px;
+    white-space: nowrap;
+  }
+  .stamp b { color: var(--ink-2); font-weight: 500; }
+
+  /* ---------- Шкала серьёзности ---------- */
+
+  .ledger {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    border: 1px solid var(--line);
+    border-top: none;
+    background: var(--surface);
+  }
+  .ledger div {
+    padding: 16px 18px 14px;
+    border-left: 1px solid var(--line-soft);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .ledger div:first-child { border-left: none; }
+  .ledger .n {
+    font-family: var(--f-disp);
+    font-weight: 700;
+    font-size: 34px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .ledger .k {
+    font-family: var(--f-disp);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .ledger .c0 .n { color: var(--crit); }
+  .ledger .c1 .n { color: var(--high); }
+  .ledger .c2 .n { color: var(--med); }
+
+  .bar {
+    display: flex;
+    height: 6px;
+    border: 1px solid var(--line);
+    border-top: none;
+    overflow: hidden;
+  }
+  .bar span { display: block; }
+
+  /* ---------- Каркас ---------- */
+
+  .body-grid {
+    display: grid;
+    grid-template-columns: 232px minmax(0, 1fr);
+    gap: 48px;
+    margin-top: 44px;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .body-grid { grid-template-columns: 1fr; gap: 32px; }
+    .rail { position: static !important; }
+  }
+
+  .rail { position: sticky; top: 24px; }
+  .rail h2 {
+    font-family: var(--f-disp);
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 10px;
+    font-weight: 600;
+  }
+  .rail nav { display: flex; flex-direction: column; }
+  .rail nav a {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--line-soft);
+    color: var(--ink-2);
+    text-decoration: none;
+    font-size: 14px;
+  }
+  .rail nav a:hover { color: var(--accent); }
+  .rail nav a .ct {
+    font-family: var(--f-mono);
+    font-size: 12px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .rail .note {
+    margin-top: 22px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--muted);
+    border-left: 2px solid var(--line);
+    padding-left: 12px;
+  }
+
+  /* ---------- Разделы ---------- */
+
+  section { scroll-margin-top: 20px; }
+  section + section { margin-top: 56px; }
+
+  .sec-head {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 8px;
+    margin-bottom: 4px;
+  }
+  .sec-head h2 {
+    font-family: var(--f-disp);
+    font-weight: 700;
+    font-size: 26px;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+  .sec-head .tally {
+    font-family: var(--f-mono);
+    font-size: 12px;
+    color: var(--muted);
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+  }
+  .sec-intro {
+    color: var(--ink-2);
+    max-width: 68ch;
+    margin: 14px 0 26px;
+  }
+
+  /* ---------- Находка ---------- */
+
+  .find {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--med);
+    padding: 18px 22px 20px;
+    margin-top: 14px;
+  }
+  .find.s0 { border-left-color: var(--crit); }
+  .find.s1 { border-left-color: var(--high); }
+  .find.s2 { border-left-color: var(--med); }
+
+  .find > header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 10px 12px;
+    margin-bottom: 8px;
+  }
+  .id {
+    font-family: var(--f-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+  }
+  .find h3 {
+    font-family: var(--f-disp);
+    font-weight: 600;
+    font-size: 20px;
+    line-height: 1.25;
+    margin: 0;
+    flex: 1 1 320px;
+    text-wrap: balance;
+  }
+  .chip {
+    font-family: var(--f-disp);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+  .chip.s0 { background: var(--crit-bg); color: var(--crit); }
+  .chip.s1 { background: var(--high-bg); color: var(--high); }
+  .chip.s2 { background: var(--med-bg);  color: var(--med); }
+  .chip.area {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--line);
+  }
+
+  .paths {
+    font-family: var(--f-mono);
+    font-size: 12.5px;
+    line-height: 1.85;
+    color: var(--muted);
+    margin: 0 0 12px;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding-bottom: 2px;
+  }
+  .paths b { color: var(--ink-2); font-weight: 500; }
+
+  .find p { margin: 0 0 10px; color: var(--ink-2); max-width: 74ch; }
+  .find p:last-child { margin-bottom: 0; }
+  .find code {
+    font-family: var(--f-mono);
+    font-size: 0.88em;
+    background: var(--surface-2);
+    padding: 1px 5px;
+    border-radius: 2px;
+    color: var(--ink);
+  }
+  .fix {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line-soft);
+  }
+  .fix::before {
+    content: "Что делать";
+    display: block;
+    font-family: var(--f-disp);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+
+  pre {
+    font-family: var(--f-mono);
+    font-size: 12.5px;
+    line-height: 1.7;
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+    padding: 12px 14px;
+    overflow-x: auto;
+    margin: 12px 0 0;
+    color: var(--ink);
+  }
+
+  /* ---------- План ---------- */
+
+  .plan { border-top: 1px solid var(--line); }
+  .step {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    gap: 18px;
+    align-items: baseline;
+    padding: 15px 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .step .num {
+    font-family: var(--f-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .step .what { color: var(--ink); }
+  .step .what small { display: block; color: var(--muted); font-size: 13.5px; }
+  .step .when {
+    font-family: var(--f-disp);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  @media (max-width: 620px) {
+    .step { grid-template-columns: 30px minmax(0, 1fr); }
+    .step .when { grid-column: 2; }
+  }
+
+  footer {
+    margin-top: 64px;
+    padding-top: 18px;
+    border-top: 2px solid var(--ink);
+    font-size: 13px;
+    color: var(--muted);
+    max-width: 74ch;
+  }
+
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<div class="sheet">
+
+  <header class="masthead">
+    <div>
+      <div class="eyebrow">Аудит безопасности и качества кода</div>
+      <h1>Ревизия Happy&nbsp;Island</h1>
+      <p>Бэкенд <code>balicoffee1/bali</code>, мобильный клиент <code>vektemok/Happy-Island</code>, админ-панель. Ветка <code>main</code>, коммит <code>419c037</code>.</p>
+    </div>
+    <div class="stamp">
+      Дата &nbsp;&nbsp;&nbsp;<b>08.09.2026</b><br>
+      Метод &nbsp;&nbsp;<b>статический разбор</b><br>
+      Охват &nbsp;&nbsp;<b>319 файлов в git</b><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b>189 .dart в клиенте</b>
+    </div>
+  </header>
+
+  <div class="ledger">
+    <div class="c0"><span class="n">7</span><span class="k">Критично</span></div>
+    <div class="c1"><span class="n">10</span><span class="k">Высокий</span></div>
+    <div class="c2"><span class="n">14</span><span class="k">Средний</span></div>
+    <div><span class="n">4</span><span class="k">Мёртвых маршрута</span></div>
+  </div>
+  <div class="bar" aria-hidden="true">
+    <span style="flex:7;background:var(--crit)"></span>
+    <span style="flex:10;background:var(--high)"></span>
+    <span style="flex:14;background:var(--med)"></span>
+  </div>
+
+  <div class="body-grid">
+
+    <aside class="rail">
+      <h2>Содержание</h2>
+      <nav>
+        <a href="#summary">Главное<span class="ct">—</span></a>
+        <a href="#p0">Критично<span class="ct">7</span></a>
+        <a href="#p1">Высокий<span class="ct">10</span></a>
+        <a href="#p2">Средний<span class="ct">14</span></a>
+        <a href="#plan">Порядок работ<span class="ct">9</span></a>
+      </nav>
+      <p class="note">Значения секретов в отчёте не приводятся — только файлы, где они лежат. Считайте скомпрометированным всё, что перечислено в S-01…S-03.</p>
+    </aside>
+
+    <main>
+
+      <!-- ========== СВОДКА ========== -->
+      <section id="summary">
+        <div class="sec-head"><h2>Главное</h2></div>
+        <p class="sec-intro">
+          Предыдущие итерации (M0–M7) закрыли платёжный флоу и state machine заказа — это видно по коду и держится хорошо. Но за пределами того скоупа осталось три класса проблем, и все три активны на проде.
+        </p>
+        <p class="sec-intro">
+          <b>Первое — секреты.</b> Ротация от 06.09 закрыла <code>.env</code>, но в публичном репозитории остались ещё три источника: файл <code>Island-Bali/Доступы</code> с паролем root от прод-сервера, живая Telegram-сессия личного аккаунта и приватный ключ мерчанта РСБ. Все три лежат в git с самых первых коммитов.
+        </p>
+        <p class="sec-intro">
+          <b>Второе — авторизация.</b> Флип <code>DEFAULT_PERMISSION_CLASSES</code> на <code>IsAuthenticated</code> закрыл анонимный доступ, но «аутентифицирован» в этом проекте означает «прошёл вход по SMS», то есть любой человек с телефоном. За этой границей открыто: выгрузка базы заказов с телефонами клиентов, прокси к CRM с операциями над бонусными балансами, редактирование меню — и повышение прав до суперюзера Django одним PUT-запросом.
+        </p>
+        <p class="sec-intro">
+          <b>Третье — транспорт.</b> Приложение в сторах ходит на <code>http://79.174.81.151/</code> без TLS, с принудительно снятыми защитами на обеих платформах. По этому каналу идут SMS-коды, JWT и номера банковских карт, которые бэкенд хранит в открытом виде.
+        </p>
+      </section>
+
+      <!-- ========== P0 ========== -->
+      <section id="p0">
+        <div class="sec-head"><h2>Критично</h2><span class="tally">7 находок</span></div>
+        <p class="sec-intro">Эксплуатируется сегодня, без специальных условий. Порядок — по тому, что чинить первым.</p>
+
+        <article class="find s0">
+          <header>
+            <span class="id">S-01</span>
+            <h3>Пароль root от прод-сервера лежит в публичном репозитории</h3>
+            <span class="chip s0">Критично</span><span class="chip area">Секреты</span>
+          </header>
+          <p class="paths"><b>Island-Bali/Доступы</b> — в индексе git с коммита <code>1e2942a</code> (26.07.2024)</p>
+          <p>Обычный текстовый файл на 1 КБ. В нём: логин и пароль root от <code>79.174.81.151</code>, старый <code>SECRET_KEY</code>, пароль Postgres, логин и пароль SMS-шлюза, app password почтового ящика, legacy server key FCM. Файл не попал под ротацию 06.09 — тогда чистили только <code>.env</code>.</p>
+          <p>Отдельно стоит отметить, что <code>docs/deploy-runbook.md:183</code> предупреждает: «если он когда-нибудь окажется закоммичен, содержимое уедет в историю навсегда». Он закоммичен два года.</p>
+          <div class="fix">
+            <p>Сменить пароль root и отключить <code>PasswordAuthentication</code> в sshd (ключ уже прописан, вход по паролю больше не нужен). Ротировать SMS-креды и app password почты. Удалить файл из рабочего дерева и добавить в <code>.gitignore</code>. Затем — решение по истории: <code>git filter-repo</code> либо перевод репозитория в private; до этого все значения считать публичными.</p>
+          </div>
+        </article>
+
+        <article class="find s0">
+          <header>
+            <span class="id">S-02</span>
+            <h3>Telegram-сессия личного аккаунта в git</h3>
+            <span class="chip s0">Критично</span><span class="chip area">Секреты</span>
+          </header>
+          <p class="paths"><b>Island-Bali/session_name.session</b> · <b>Island-Bali/reviews/session_name.session</b> · <b>reviews/tg_bot.py:3-4</b> · <b>reviews/tasks.py:49-50</b></p>
+          <p>Это файл сессии Telethon — SQLite с живым <code>auth_key</code> на 256 байт для DC2. Кто угодно кладёт его рядом со скриптом и работает от имени владельца аккаунта: читает переписку, пишет от его имени, видит контакты. Двухфакторка на это не влияет — сессия уже авторизована.</p>
+          <p>В таблице <code>entities</code> того же файла закэширован контакт с реальными ФИО и телефоном постороннего человека — это ещё и утечка персональных данных. Рядом в коде захардкожены <code>api_id</code> и <code>api_hash</code> приложения, продублированные в двух файлах.</p>
+          <div class="fix">
+            <p>Terminate all other sessions в настройках Telegram — прямо сейчас, это единственное, что реально отзывает ключ. Удалить оба <code>.session</code> из git, добавить <code>*.session</code> в <code>.gitignore</code>. Отзыв уведомлений о плохих отзывах через личный аккаунт заменить на бота (<code>reviews/telegram_bot.py</code> уже это умеет), <code>tg_bot.py</code> и вызов из <code>send_review_for_email</code> — удалить.</p>
+          </div>
+        </article>
+
+        <article class="find s0">
+          <header>
+            <span class="id">S-03</span>
+            <h3>Приватный ключ мерчанта РСБ в git</h3>
+            <span class="chip s0">Критично</span><span class="chip area">Секреты</span>
+          </header>
+          <p class="paths"><b>Island-Bali/cert/private.key</b> · <b>cert/9298136607.pem</b> · <b>request.csr</b> · <b>openssl.exe</b></p>
+          <p>RSA-ключ и клиентский сертификат TSP <code>9298136607</code>, которыми <code>RSBClient</code> подписывает mTLS-соединение с эквайрингом. Опубликованы в открытом репозитории вместе с CSR и бинарником openssl.</p>
+          <p>Сейчас взрыв ограничен тем, что клиент смотрит в тестовый контур (см. H-08), но ключ — боевой актив мерчанта и подлежит отзыву независимо от этого.</p>
+          <div class="fix">
+            <p>Запросить в банке отзыв сертификата и перевыпуск. Ключи держать на хосте рядом с <code>secrets/firebase-service-account.json</code>, а пути в <code>SSL_CERT_PATH</code>/<code>SSL_KEY_PATH</code> брать из окружения, а не собирать от <code>BASE_DIR</code>.</p>
+          </div>
+        </article>
+
+        <article class="find s0">
+          <header>
+            <span class="id">A-01</span>
+            <h3>Любой пользователь приложения делает себя суперюзером одним PUT</h3>
+            <span class="chip s0">Критично</span><span class="chip area">Бэкенд</span>
+          </header>
+          <p class="paths"><b>users/serializers.py:6-9</b> · <b>users/views.py:381</b> · маршрут <code>PUT /api/users/user_profile/</code></p>
+          <p><code>UsersSerializer</code> объявлен через чёрный список: <code>exclude = ("password", "last_login")</code>. Значит DRF генерирует записываемые поля для всего остального, что есть в модели, — включая <code>is_superuser</code>, <code>is_staff</code>, <code>role</code>, <code>groups</code> и <code>user_permissions</code>. Тот же сериализатор используется на запись в <code>user_profile</code>.</p>
+          <p>Полная цепочка: вход по SMS → один PUT → доступ в <code>/admin/</code> и в админ-панель со всеми правами, которые <code>admin_api</code> аккуратно раздаёт по ролям. Сигнал <code>check_owner_exists</code> ловит только <code>role="owner"</code>; <code>admin</code> и <code>is_superuser</code> проходят свободно.</p>
+          <pre>curl -X PUT http://79.174.81.151/api/users/user_profile/ \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"is_superuser": true, "is_staff": true, "role": "admin"}'</pre>
+          <div class="fix">
+            <p>Перевести сериализатор на белый список. Легитимный клиент шлёт ровно три поля (<code>UserDto.toJson()</code> в приложении), так что это не ломает контракт:</p>
+            <pre>class UsersSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = ("id", "login", "first_name", "last_name",
+                  "email", "phone_number", "photo", "role",
+                  "is_staff", "fcm_token")
+        read_only_fields = ("id", "login", "phone_number",
+                            "role", "is_staff")</pre>
+            <p>После правки — проверить в БД, не поднял ли кто-нибудь себе права: <code>SELECT id, login, role, is_staff, is_superuser FROM users WHERE is_superuser OR role != 'user';</code></p>
+          </div>
+        </article>
+
+        <article class="find s0">
+          <header>
+            <span class="id">M-01</span>
+            <h3>Весь трафик приложения идёт без TLS</h3>
+            <span class="chip s0">Критично</span><span class="chip area">Мобильное</span>
+          </header>
+          <p class="paths"><b>lib/src/core/constant/keys.dart:18</b> · <b>android/app/src/main/AndroidManifest.xml:9</b> · <b>ios/Runner/Info.plist:35-39</b></p>
+          <p>База — <code>http://79.174.81.151/</code>, и обе платформенные защиты сняты явно и глобально: <code>android:usesCleartextTraffic="true"</code> без <code>network_security_config</code>, <code>NSAllowsArbitraryLoads=true</code> без исключений. WebSocket выводится из той же строки, то есть <code>ws://</code>, и Bearer-токен уходит в заголовке handshake открытым текстом.</p>
+          <p>По этому каналу передаются: коды подтверждения из SMS, access и refresh JWT, номера банковских карт (см. D-01), телефоны и состав заказов. Любой узел на пути — публичный Wi-Fi, оператор, транзит — читает и подменяет всё это. Приложение уже опубликовано в App Store и Google Play.</p>
+          <div class="fix">
+            <p>Домена нет, но провайдерское имя <code>79-174-81-151.cloudvps.regruhosting.ru</code> резолвится на этот IP и годится под Let's Encrypt как временный вариант. Дальше: <code>baseUrl</code> на <code>https://</code>, <code>usesCleartextTraffic</code> убрать, <code>NSAllowsArbitraryLoads</code> убрать, на бэкенде включить <code>SECURE_SSL_REDIRECT</code>, <code>SESSION_COOKIE_SECURE</code>, <code>CSRF_COOKIE_SECURE</code> и HSTS. Пока это не сделано, всё остальное в отчёте лечится лишь частично — перехваченный токен обходит любую серверную проверку.</p>
+          </div>
+        </article>
+
+        <article class="find s0">
+          <header>
+            <span class="id">D-01</span>
+            <h3>Номера банковских карт хранятся в открытом виде</h3>
+            <span class="chip s0">Критично</span><span class="chip area">Данные</span>
+          </header>
+          <p class="paths"><b>users/models.py:127-129</b> · <b>users/serializers.py:12-21</b> · <b>lib/src/feature/user_profile/data/bank_cards_repository.dart</b></p>
+          <p>Поле подписано «Зашифрованный номер карты», в модуле импортирован <code>Fernet</code>, рядом стоит модель <code>EncryptionKey</code> — но <code>create_new_card</code> кладёт PAN в базу как есть. Ничего из этого не используется: шифрование задумали и не дописали, а подпись поля осталась и вводит в заблуждение.</p>
+          <p>Замыкает круг сериализатор: <code>get_card_number</code> отдаёт сохранённое значение обратно клиенту целиком. Плюс <code>__str__</code> печатает полный номер в списке объектов Django-админки. С учётом M-01 PAN ещё и летит по HTTP в обе стороны.</p>
+          <div class="fix">
+            <p>Хранить PAN нельзя — это прямое нарушение PCI DSS, и никакое шифрование в своей базе от этого требования не освобождает. Убрать эндпоинт <code>bank_cards</code> и экран в приложении; если нужен «сохранённый способ оплаты» — брать токен карты у LifePay, а у себя держать только последние 4 цифры и платёжный токен. Существующие строки в <code>users_usercard</code> — удалить, а не мигрировать.</p>
+          </div>
+        </article>
+
+        <article class="find s0">
+          <header>
+            <span class="id">A-02</span>
+            <h3><code>quickresto</code> — открытый прокси к CRM с операциями над бонусами</h3>
+            <span class="chip s0">Критично</span><span class="chip area">Бэкенд</span>
+          </header>
+          <p class="paths"><b>quickresto/views.py</b> (12 классов) · <b>quickresto/urls.py</b> · маршруты <code>/api/quick-resto/*</code></p>
+          <p>Ни один из двенадцати вьюсетов не объявляет <code>permission_classes</code> и не проверяет роль — то есть работает под дефолтным <code>IsAuthenticated</code>. Что доступно любому зарегистрированному пользователю приложения:</p>
+          <p><code>api/list/</code> и <code>api/read/</code> — выгрузка клиентской базы CRM. <code>api/create|update|remove/</code> — правка и удаление клиентов. <code>bonuses/debit-hold/</code>, <code>credit-hold/</code>, <code>reverse/</code> — операции по бонусным счетам, то есть начисление себе средств.</p>
+          <p>Кофейня, чьими сохранёнными кредами <code>(crm_email, crm_password)</code> прокси аутентифицируется в QuickResto, выбирается по <code>shop_city</code>/<code>shop_street</code> из тела запроса — то есть тоже атакующим. Вызовы идут без таймаутов, <code>CoffeeShop.objects.get()</code> — без обработки <code>DoesNotExist</code>.</p>
+          <div class="fix">
+            <p>Самый быстрый безопасный шаг — снять <code>path('api/quick-resto/', ...)</code> из <code>island_bali/urls.py</code>: в мобильном клиенте нет ни одного обращения к этим маршрутам. Если функциональность нужна панели — вернуть под <code>IsAdminRole</code> из <code>admin_api.permissions</code>, кофейню брать из <code>Staff</code> текущего пользователя, добавить таймауты.</p>
+          </div>
+        </article>
+      </section>
+
+      <!-- ========== P1 ========== -->
+      <section id="p1">
+        <div class="sec-head"><h2>Высокий</h2><span class="tally">10 находок</span></div>
+        <p class="sec-intro">Требуют учётки в приложении — то есть телефона и SMS — но дальше не ограничены ничем.</p>
+
+        <article class="find s1">
+          <header>
+            <span class="id">H-01</span>
+            <h3>Вся база заказов с телефонами клиентов — по одному GET</h3>
+            <span class="chip s1">Высокий</span><span class="chip area">Бэкенд</span>
+          </header>
+          <p class="paths"><b>staff/views.py:74, 257, 354, 376, 736</b> · <b>staff/serializers.py:16</b></p>
+          <p>Мутирующие staff-эндпоинты защищены <code>is_staff_for_order()</code> — это сделано аккуратно. А читающие остались на голом <code>IsAuthenticated</code>: <code>GET /api/staff/</code>, <code>GET /api/staff/complete_order/</code>, <code>GET /api/staff/orders/</code>, <code>POST /api/staff/orders_by_status/</code>, <code>GetCanceledOrdersView</code>.</p>
+          <p>Отдают они <code>PendingOrdersAcceptSerializer</code>, где есть поле <code>login</code> — номер телефона клиента, а также состав корзины, суммы и комментарии. Часть выборок вообще не фильтруется по кофейне: <code>CompleteOrdersView.get</code> без параметров возвращает все завершённые заказы сети за всё время.</p>
+          <div class="fix">
+            <p>Ввести <code>IsStaffMember</code> (по аналогии с <code>is_staff_for_order</code>, но на уровне вьюхи) и повесить на все пять. Кофейню брать из <code>Staff</code> текущего пользователя, а не из query-параметров. <code>login</code> из сериализатора либо убрать, либо маскировать до последних четырёх цифр — бариста номер целиком не нужен.</p>
+          </div>
+        </article>
+
+        <article class="find s1">
+          <header>
+            <span class="id">H-02</span>
+            <h3>Смену любого сотрудника можно открыть и закрыть по чужому id</h3>
+            <span class="chip s1">Высокий</span><span class="chip area">Бэкенд</span>
+          </header>
+          <p class="paths"><b>staff/views.py:404-508</b> — <code>ShiftToggleView</code></p>
+          <p>Все три метода берут идентификатор сотрудника из запроса и не сверяют его с <code>request.user</code>: <code>GET ?id=</code>, <code>POST {"id": …}</code>, <code>PATCH {"id": …}</code>. Последний переключает смену — то есть перебором id можно закрыть смену любому бариста, а <code>close_shift</code> ещё и пересчитывает статистику смены.</p>
+          <p>Рядом <code>ShiftCloseOpenView.post</code> принимает <code>start_time</code> от клиента и делает <code>Staff.objects.get(users=request.user)</code> без обработки <code>DoesNotExist</code> — 500 на любом не-сотруднике.</p>
+          <div class="fix">
+            <p>Убрать <code>id</code> из контракта и работать всегда от <code>request.user</code>; если нужен просмотр чужой смены — только для роли админа. <code>start_time</code> ставить серверным <code>now()</code>.</p>
+          </div>
+        </article>
+
+        <article class="find s1">
+          <header>
+            <span class="id">H-03</span>
+            <h3>Перебор карточек сотрудников с телефонами и почтой</h3>
+            <span class="chip s1">Высокий</span><span class="chip area">Бэкенд</span>
+          </header>
+          <p class="paths"><b>staff/views.py:684-716</b> · <b>staff/serializers.py:28-40</b> · <code>GET /api/staff/staff/&lt;pk&gt;/</code></p>
+          <p><code>StaffDetailView</code> не объявляет проверок вообще, а <code>StaffSerializer</code> собран через <code>fields = "__all__"</code> с вложенным <code>UsersSerializer</code>, который сам построен на <code>exclude</code>. В итоге по инкременту pk отдаются учётные записи сотрудников целиком: телефон, почта, роль, флаги прав, FCM-токен.</p>
+          <div class="fix">
+            <p>Закрыть вьюху ролью, а <code>StaffSerializer</code> перевести на явный список полей. То же касается <code>UsersSerializer</code> — см. A-01, там это же <code>exclude</code> даёт запись.</p>
+          </div>
+        </article>
+
+        <article class="find s1">
+          <header>
+            <span class="id">H-04</span>
+            <h3>Чеки всех заказов доступны на чтение и запись</h3>
+            <span class="chip s1">Высокий</span><span class="chip area">Бэкенд</span>
+          </header>
+          <p class="paths"><b>orders/views.py:462-497</b> — <code>CheckOrderViewSet</code> · <code>/api/orders/check_orders/</code></p>
+          <p><code>ModelViewSet</code> с <code>queryset = CheckOrder.objects.all()</code> и без переопределённого <code>get_queryset()</code>. В отличие от соседних <code>OrderViewSet</code> и <code>NotificationViewSet</code>, где скоуп по пользователю есть, здесь он потерян — значит любой пользователь читает, редактирует и удаляет фото чеков по всем заказам сети, а также может прикрепить свой файл к чужому заказу.</p>
+          <div class="fix">
+            <p>Добавить <code>get_queryset()</code> с фильтром по <code>order__user=self.request.user</code>, а операции записи оставить только сотрудникам кофейни заказа.</p>
+          </div>
+        </article>
+
+        <article class="find s1">
+          <header>
+            <span class="id">H-05</span>
+            <h3>Сезонное меню и SEO-контент правит любой пользователь</h3>
+            <span class="chip s1">Высокий</span><span class="chip area">Бэкенд</span>
+          </header>
+          <p class="paths"><b>menu_coffee_product/views.py:145</b> · <b>seo/views.py:8-21</b></p>
+          <p><code>SeasonMenuViewSet</code> — полноценный <code>ModelViewSet</code>, у которого просто забыли <code>permission_classes</code>; дефолт <code>IsAuthenticated</code> открывает POST, PATCH и DELETE по сезонному меню, включая цены. У <code>ColorModelViewSet</code> и <code>MarkdownModelViewSet</code> стоит <code>IsAuthenticatedOrReadOnly</code> — тот же эффект для контента витрины.</p>
+          <p>Это ровно тот сценарий, ради которого меняли дефолт на <code>IsAuthenticated</code>: забытый <code>permission_classes</code> больше не открывает вьюху всему интернету, но всё ещё открывает её всем клиентам приложения.</p>
+          <div class="fix">
+            <p>Всем трём — <code>IsModeratorOrReadOnly</code> из <code>admin_api.permissions</code>. Заодно стоит пройти <code>grep -L permission_classes</code> по всем <code>views.py</code>: это единственный способ поймать остальные такие пропуски.</p>
+          </div>
+        </article>
+
+        <article class="find s1">
+          <header>
+            <span class="id">H-06</span>
+            <h3>Четырёхзначный код входа и включённый по умолчанию тестовый вход</h3>
+            <span class="chip s1">Высокий</span><span class="chip area">Бэкенд</span>
+          </header>
+          <p class="paths"><b>users/utils.py</b> — <code>generate_code()</code> · <b>island_bali/settings.py</b> — <code>SMS_TEST_LOGIN_ENABLED</code></p>
+          <p>Сама механика <code>PhoneVerification</code> сделана правильно: хеш вместо кода, TTL, счётчик попыток, гашение прошлых кодов. Но пространство — 10 000 значений при пяти попытках на код и одном коде в минуту. Это примерно 33 часа на гарантированный подбор конкретного номера, и заметно меньше при удаче; никакой блокировки номера после серии неудачных кодов нет.</p>
+          <p>Второе: <code>SMS_TEST_LOGIN_ENABLED</code> имеет <code>default=True</code> в коде, а телефон <code>+77777777777</code> и код <code>0000</code> — тоже дефолты в открытом репозитории. Достаточно, чтобы переменная не попала в <code>.env</code>, и вход по ним включается сам.</p>
+          <div class="fix">
+            <p>Код — на 6 цифр. Дефолт <code>SMS_TEST_LOGIN_ENABLED</code> поменять на <code>False</code>, чтобы обход подтверждения включался только явно. После публикации в сторах — выключить и на проде. Добавить троттлинг <code>registration_get_code</code> по IP: сейчас антифлуд считает только по номеру.</p>
+          </div>
+        </article>
+
+        <article class="find s1">
+          <header>
+            <span class="id">H-07</span>
+            <h3>Проверка скидки по чужому номеру телефона</h3>
+            <span class="chip s1">Высокий</span><span class="chip area">Бэкенд</span>
+          </header>
+          <p class="paths"><b>users/views.py</b> — <code>get_discount_for_user</code> · <code>GET /api/users/get_discount/&lt;id_shop&gt;/?phone=</code></p>
+          <p>Номер приходит в query-параметре и никак не сверяется с владельцем токена. То есть по произвольному телефону можно узнать, есть ли такой клиент в CRM кофейни и какая у него скидка — это оракул для перебора номеров и утечка клиентской информации.</p>
+          <p><code>CoffeeShop.objects.get(id=id_shop)</code> здесь тоже без обработки исключения, и <code>request.GET['phone']</code> без <code>.get()</code> — оба дают 500 вместо 400.</p>
+          <div class="fix">
+            <p>Брать номер из <code>request.user.phone_number</code> и убрать параметр из контракта.</p>
+          </div>
+        </article>
+
+        <article class="find s1">
+          <header>
+            <span class="id">H-08</span>
+            <h3>Платёжные вьюхи ссылаются на поля, которых нет в модели</h3>
+            <span class="chip s1">Высокий</span><span class="chip area">Бэкенд</span>
+          </header>
+          <p class="paths"><b>acquiring/views.py:49, 84, 104, 133, 178</b> · <b>acquiring/clients.py:83, 120, 141</b> · <b>coffee_shop/models.py</b></p>
+          <p>Семь маршрутов вида <code>/api/payment/{russian-standard,alpha,tinkoff,rsb}/…</code> читают <code>coffee_shop.bank_user</code>, <code>bank_password</code>, <code>bank_api_token</code>, <code>bank_shop_id</code>. Ни одного из этих полей в модели <code>CoffeeShop</code> нет — есть только <code>lifepay_*</code> и <code>crm_*</code>. Каждый вызов падает <code>AttributeError</code>, то есть 500.</p>
+          <p>Клиенты сломаны независимо: <code>AlphaBankClient._get_headers()</code> читает <code>AlphaBankClient.API_TOKEN</code>, которого нет (конструктор кладёт в <code>self.api_token</code>); у <code>TinkoffClient</code> то же с <code>API_TOKEN</code> и <code>SHOP_ID</code>; <code>RSBClient.__init__</code> вообще не принимает аргументов, а вьюха зовёт его с <code>user=</code> и <code>password=</code>.</p>
+          <p>Комментарий в коде описывает эти вьюхи как «IDOR по <code>coffee_shop_id</code>, известный риск вне скоупа». Фактически риска нет ровно потому, что код нерабочий, — но семь маршрутов в проде гарантированно отдают 500 и мешают отличить настоящую поломку от фоновой.</p>
+          <div class="fix">
+            <p>Удалить маршруты и модули Alpha/Tinkoff/RSB/RussianStandard. Реальный платёжный флоу — LifePay, он живой и покрыт тестами. Если какой-то из провайдеров планируется, писать его заново по образцу <code>acquiring/providers.py</code>, а не чинить это.</p>
+          </div>
+        </article>
+
+        <article class="find s1">
+          <header>
+            <span class="id">H-09</span>
+            <h3>Зависимости с известными уязвимостями</h3>
+            <span class="chip s1">Высокий</span><span class="chip area">Инфраструктура</span>
+          </header>
+          <p class="paths"><b>Island-Bali/requirements.txt</b> — 28 версий закреплены, 7 нет</p>
+          <p><code>gunicorn==20.0.4</code> — CVE-2024-1135, HTTP request smuggling через обработку <code>Transfer-Encoding</code>; сервис стоит за nginx, то есть конфигурация как раз та, где это эксплуатируется. <code>Pillow==10.1.0</code> — CVE-2023-50447, выполнение кода через <code>ImageMath.eval</code>; через <code>change_photo</code> в Pillow попадает пользовательский base64. Плюс <code>Django==4.2.6</code> (октябрь 2023, с тех пор в ветке 4.2 закрыто больше десятка CVE), <code>requests==2.31.0</code>, <code>cryptography==41.0.5</code>.</p>
+          <p>Отдельно: в списке есть <code>environ==1.0</code> — это не <code>django-environ</code>, а давно заброшенный пакет с похожим именем. Он не используется и его стоит убрать хотя бы из соображений цепочки поставки.</p>
+          <div class="fix">
+            <p>Поднять до актуальных патчей внутри мажоров: Django 4.2.x, gunicorn ≥ 22, Pillow ≥ 10.3, requests ≥ 2.32. Закрепить оставшиеся семь (<code>psycopg2-binary</code>, <code>sqlalchemy</code>, <code>django-filter</code>, <code>django-colorfield</code>, <code>pandas</code>). Удалить <code>environ==1.0</code>.</p>
+          </div>
+        </article>
+
+        <article class="find s1">
+          <header>
+            <span class="id">M-02</span>
+            <h3>Токены в SharedPreferences, отозвать их нечем</h3>
+            <span class="chip s1">Высокий</span><span class="chip area">Мобильное</span>
+          </header>
+          <p class="paths"><b>lib/src/feature/auth/data/auth_repository.dart:54</b> · <b>android/app/build.gradle:57</b> · <b>settings.py</b> — <code>SIMPLE_JWT</code></p>
+          <p>Пара access + refresh пишется в <code>SharedPreferences</code> как обычный JSON — на Android это XML-файл в песочнице, на iOS plist. <code>flutter_secure_storage</code> в зависимостях нет, Keychain и Keystore не используются. На рутованном устройстве или из бэкапа значение достаётся напрямую.</p>
+          <p>Цена достаётся высокая из-за настроек на сервере: refresh живёт 30 дней, <code>ROTATE_REFRESH_TOKENS=False</code>, <code>BLACKLIST_AFTER_ROTATION=False</code> — то есть утёкший refresh действует месяц и его нечем отозвать, кроме смены <code>SECRET_KEY</code> (что разлогинит всех). В релизной сборке вдобавок <code>minifyEnabled false</code> и <code>shrinkResources false</code>, <code>android:allowBackup</code> не выключен.</p>
+          <div class="fix">
+            <p>Перенести сессию в <code>flutter_secure_storage</code>. Включить <code>ROTATE_REFRESH_TOKENS</code> и <code>BLACKLIST_AFTER_ROTATION</code> (<code>token_blacklist</code> в <code>INSTALLED_APPS</code>) — интерцептор в приложении уже умеет подхватывать новый refresh из ответа. Добавить <code>android:allowBackup="false"</code> и включить minify в release.</p>
+          </div>
+        </article>
+      </section>
+
+      <!-- ========== P2 ========== -->
+      <section id="p2">
+        <div class="sec-head"><h2>Средний</h2><span class="tally">14 находок</span></div>
+        <p class="sec-intro">Хардкод, мёртвый код и решения, которые стоит переделать иначе. Не эксплуатируются напрямую, но именно из них потом вырастают инциденты.</p>
+
+        <article class="find s2">
+          <header>
+            <span class="id">C-01</span>
+            <h3>Захардкоженные адреса и параметры в платёжном коде</h3>
+            <span class="chip s2">Средний</span><span class="chip area">Бэкенд</span>
+          </header>
+          <p class="paths"><b>acquiring/clients.py:25, 148-149, 166</b> · <b>acquiring/views.py:37, 287</b> · <b>orders/views.py:34</b></p>
+          <p>Настройка <code>RUSSIAN_STANDARD_BASE_URL</code> читается в <code>settings.py</code> и нигде не используется: <code>RussianStandard._base_url</code> прибит к <code>https://demo.rsb-processing.ru</code>, а <code>RSBClient</code> — к <code>testsecurepay2.rsb.ru</code>, то есть к тестовому контуру банка. Конструктор <code>RussianStandard</code> имеет дефолты <code>user='demo', password='demo'</code>, и <code>orders/views.py:34</code> создаёт с ними модульный синглтон <code>rus_standard</code>, который затем обслуживает <code>/api/orders/payment/status/</code>.</p>
+          <p><code>client_ip_addr</code> в запросе к РСБ зашит как <code>"79.174.81.151"</code> — это поле антифрода, туда полагается IP плательщика, а не сервера. <code>callback_url</code> в <code>create_invoice</code> — строковый литерал с <code>http://</code> и IP. <code>LIFEPAY_API_URL</code> — тоже литерал.</p>
+          <div class="fix">
+            <p>Всё, что меняется между контурами, — в настройки: базовые URL провайдеров, callback (собирать от <code>ALLOWED_HOSTS</code> или отдельного <code>PUBLIC_BASE_URL</code>). <code>client_ip_addr</code> брать из <code>X-Forwarded-For</code>. Удалить дефолты <code>demo/demo</code> — пусть отсутствие кредов падает на старте, а не молча ходит в чужой демо-контур.</p>
+          </div>
+        </article>
+
+        <article class="find s2">
+          <header>
+            <span class="id">C-02</span>
+            <h3>Личные контакты и чужие ключи в коде</h3>
+            <span class="chip s2">Средний</span><span class="chip area">Бэкенд</span>
+          </header>
+          <p class="paths"><b>reviews/tasks.py:90, 95</b> · <b>menu_coffee_product/utils.py:1</b> · <b>users/utils.py:151</b></p>
+          <p>Каждый плохой отзыв уходит на <code>makhotin.07@gmail.com</code> и в телеграм <code>@col1ecti0n</code> — личные адреса разработчика, зашитые в <code>generate_recipient_list_*</code> как обязательные получатели. Ключ OpenWeather <code>c3914048…</code> лежит прямо в исходнике, и запрос к API идёт по <code>http://</code>, то есть ключ виден в трафике. Тенант QuickResto <code>vp336.quickresto.ru</code> захардкожен в <code>search_clients</code>, хотя у модели <code>CoffeeShop</code> есть поле <code>crm_layer_name</code> ровно для этого.</p>
+          <div class="fix">
+            <p>Получателей уведомлений — в настройки кофейни (поля <code>email</code> и <code>telegram_id</code> уже есть). Ключ погоды — в <code>.env</code> и ротировать, вызов перевести на <code>https</code>. В <code>search_clients</code> использовать <code>crm_layer_name</code>.</p>
+          </div>
+        </article>
+
+        <article class="find s2">
+          <header>
+            <span class="id">C-03</span>
+            <h3>Мёртвый маршрут активации, который не может выполниться</h3>
+            <span class="chip s2">Средний</span><span class="chip area">Бэкенд</span>
+          </header>
+          <p class="paths"><b>users/urls.py</b> — <code>path("activate/", ActivationView)</code> · <b>users/views.py</b> — <code>ActivationView.get(self, request, fcm_token)</code></p>
+          <p>Маршрут зарегистрирован без параметра, а метод обязательно требует <code>fcm_token</code> — любой запрос падает <code>TypeError</code>. Если бы маршрут был объявлен верно, получилась бы неаутентифицированная активация чужого аккаунта по FCM-токену: вьюха стоит под <code>AllowAny</code> и делает <code>is_active = True</code> по одному GET.</p>
+          <div class="fix">
+            <p>Удалить вьюху и маршрут. Активация аккаунта по FCM-токену — не та схема, которую стоит чинить.</p>
+          </div>
+        </article>
+
+        <article class="find s2">
+          <header>
+            <span class="id">C-04</span>
+            <h3>Параметры лояльности зашиты в код</h3>
+            <span class="chip s2">Средний</span><span class="chip area">Бэкенд</span>
+          </header>
+          <p class="paths"><b>bonus_system/services.py:9-10</b></p>
+          <p><code>LOYALTY_THRESHOLD = 5000</code> и <code>LOYALTY_DISCOUNT_PERCENT = 5</code> — модульные константы. Сам расчёт сделан правильно: серверный, от суммы завершённых заказов, клиент на него не влияет. Но чтобы поменять порог или процент — акция, сезон, отдельные условия для города — нужен деплой.</p>
+          <div class="fix">
+            <p>Вынести в модель настроек программы лояльности с редактированием из админ-панели. В <code>admin_api</code> уже есть <code>DiscountCard</code> — логично держать это рядом.</p>
+          </div>
+        </article>
+
+        <article class="find s2">
+          <header>
+            <span class="id">C-05</span>
+            <h3>Загрузки пишутся в корень проекта</h3>
+            <span class="chip s2">Средний</span><span class="chip area">Бэкенд</span>
+          </header>
+          <p class="paths"><b>settings.py</b> — <code>MEDIA_URL = ''</code>, <code>MEDIA_ROOT = BASE_DIR</code> · <b>users/db_communication.py</b> — <code>change_photo</code></p>
+          <p><code>MEDIA_ROOT</code> совпадает с корнем исходников, а <code>MEDIA_URL</code> пустой — то есть аватарки, фото чеков и картинки товаров ложатся в рабочее дерево вперемешку с кодом, и раздача медиа опирается на алиас в nginx, а не на настройки Django.</p>
+          <p><code>change_photo</code> определяет расширение файла из строки, которую прислал клиент (<code>format.split("/")[-1]</code>), не проверяет размер и падает <code>ValueError</code> на строке без <code>;base64,</code>. Это и есть путь, по которому пользовательский ввод доходит до Pillow (см. H-09).</p>
+          <div class="fix">
+            <p><code>MEDIA_ROOT = BASE_DIR / "media"</code>, <code>MEDIA_URL = "/media/"</code>. В <code>change_photo</code> — белый список MIME, ограничение размера, валидация через <code>PIL.Image.verify()</code>. Лучше — принимать <code>multipart/form-data</code> и <code>ImageField</code> вместо base64 в JSON.</p>
+          </div>
+        </article>
+
+        <article class="find s2">
+          <header>
+            <span class="id">C-06</span>
+            <h3>Тексты внутренних исключений уходят клиенту</h3>
+            <span class="chip s2">Средний</span><span class="chip area">Бэкенд</span>
+          </header>
+          <p class="paths"><b>users/views.py</b> (6 обработчиков) · <b>acquiring/views.py:383</b></p>
+          <p>Шаблон <code>except Exception as ex: return Response({"error": f"Something goes wrong: {ex}"}, 500)</code> повторяется во всех вьюхах <code>users</code>. Наружу уходят сообщения ORM, имена полей и таблиц, тексты ошибок драйвера БД. <code>lifepay_callback</code> отдаёт <code>str(e)</code> внешнему провайдеру. Это не даёт исполнения, но заметно облегчает разведку — фактически частичная замена <code>DEBUG=True</code>, который отсюда убрали 06.09.</p>
+          <p>Побочный эффект: доменные ошибки маскируются под 500. Например <code>get_user</code> бросает обычное <code>Exception</code> для заблокированного аккаунта, и клиент вместо 403 получает 500.</p>
+          <div class="fix">
+            <p>Ловить конкретные исключения, наружу отдавать текст без деталей, подробности — в <code>logger.exception</code>. Блокировку аккаунта вынести в отдельный тип исключения с 403.</p>
+          </div>
+        </article>
+
+        <article class="find s2">
+          <header>
+            <span class="id">C-07</span>
+            <h3>Внешние HTTP-вызовы без таймаутов</h3>
+            <span class="chip s2">Средний</span><span class="chip area">Бэкенд</span>
+          </header>
+          <p class="paths"><b>quickresto/views.py</b> (12 вызовов) · <b>acquiring/clients.py</b> (7) · <b>users/utils.py:151</b> · <b>menu_coffee_product/utils.py</b></p>
+          <p>Там, где таймауты появились в новом коде (<code>acquiring/providers.py</code>, <code>reviews/telegram_bot.py</code>, отправка SMS), всё в порядке. В старых модулях их нет: gunicorn запущен с тремя синхронными воркерами, и три зависших запроса к недоступному QuickResto кладут весь API.</p>
+          <div class="fix">
+            <p>Единый <code>requests.Session</code> с <code>timeout=(3.05, 10)</code> по умолчанию для всех исходящих вызовов.</p>
+          </div>
+        </article>
+
+        <article class="find s2">
+          <header>
+            <span class="id">C-08</span>
+            <h3>Опечатка глушит фильтрацию добавок</h3>
+            <span class="chip s2">Средний</span><span class="chip area">Бэкенд</span>
+          </header>
+          <p class="paths"><b>menu_coffee_product/views.py:158</b></p>
+          <p><code>ilter_backends = [DjangoFilterBackend, SearchFilter]</code> — потеряна первая буква. Python молча создаёт атрибут с этим именем, DRF его не видит и берёт глобальный дефолт, так что <code>AddonFilter</code> никогда не применяется: <code>/api/menu_coffee_product/addons/?…</code> возвращает все добавки всех кофеен, игнорируя параметры. Соседние вьюхи в этом же файле (строки 33, 148, 204) написаны правильно, что и делает опечатку незаметной при чтении.</p>
+          <div class="fix">
+            <p>Исправить имя. Заодно включить <code>DEFAULT_FILTER_BACKENDS</code> в <code>REST_FRAMEWORK</code>, чтобы такая опечатка меняла поведение, а не отключала фильтр целиком.</p>
+          </div>
+        </article>
+
+        <article class="find s2">
+          <header>
+            <span class="id">C-09</span>
+            <h3>Файл на одну строку без переводов строки</h3>
+            <span class="chip s2">Средний</span><span class="chip area">Бэкенд</span>
+          </header>
+          <p class="paths"><b>menu_coffee_product/utils.py</b> — 0 переводов строки, 1 логическая строка</p>
+          <p>Весь модуль <code>get_weather</code> — импорт, ключ API, определение функции и тело — записан в одну физическую строку. Файл не читается, не диффится и не линтится; ключ OpenWeather из C-02 живёт именно здесь и потому не бросается в глаза.</p>
+          <div class="fix">
+            <p>Переформатировать (<code>black</code>) и добавить проверку форматирования в CI — этого достаточно, чтобы такое не появлялось снова.</p>
+          </div>
+        </article>
+
+        <article class="find s2">
+          <header>
+            <span class="id">M-03</span>
+            <h3>Логгер приложения падает при обрыве сети</h3>
+            <span class="chip s2">Средний</span><span class="chip area">Мобильное</span>
+          </header>
+          <p class="paths"><b>lib/src/core/theme/http_log_interceptor.dart:13-16</b></p>
+          <p><code>onError</code> безусловно разыменовывает <code>err.response!</code>. У <code>DioException</code> при <code>connectionTimeout</code>, <code>connectionError</code> и <code>cancel</code> поле <code>response</code> равно <code>null</code> — то есть при пропаже сети интерцептор сам бросает <code>Null check operator used on a null value</code> и не доходит до <code>super.onError</code>. Исходная сетевая ошибка теряется, и пользователь вместо «нет соединения» получает невнятный сбой.</p>
+          <p>Интерцептор при этом почти ничего не делает: единственный полезный вызов — <code>developer.log</code>, тело <code>onResponse</code> закомментировано.</p>
+          <div class="fix">
+            <p>Либо <code>err.response?.realUri</code> и <code>?.statusCode</code>, либо удалить интерцептор — в зависимостях уже есть <code>pretty_dio_logger</code>, который это умеет и не роняет цепочку.</p>
+          </div>
+        </article>
+
+        <article class="find s2">
+          <header>
+            <span class="id">M-04</span>
+            <h3>JWT пользователя уходит на сторонний хост</h3>
+            <span class="chip s2">Средний</span><span class="chip area">Мобильное</span>
+          </header>
+          <p class="paths"><b>lib/src/feature/spb/data/spb_repository.dart:40-45</b></p>
+          <p><code>getSBPBanks()</code> запрашивает справочник банков СБП по абсолютному адресу <code>https://qr.nspk.ru/proxyapp/c2bmembers.json</code> — но через тот же экземпляр <code>Dio</code>, на который в <code>main.dart</code> навешен <code>TokenInterceptor</code>. Интерцептор не смотрит на хост и подставляет <code>Authorization: Bearer …</code> в любой запрос, включая этот. Токен пользователя уходит НСПК.</p>
+          <div class="fix">
+            <p>Для внешних адресов — отдельный чистый <code>Dio</code> без интерцепторов. Либо в <code>TokenInterceptor.onRequest</code> добавлять заголовок только когда <code>options.uri.host</code> совпадает с хостом <code>baseUrl</code> — так безопаснее, потому что защищает и от будущих таких вызовов.</p>
+          </div>
+        </article>
+
+        <article class="find s2">
+          <header>
+            <span class="id">M-05</span>
+            <h3>Дубли провайдеров и неотписанная подписка</h3>
+            <span class="chip s2">Средний</span><span class="chip area">Мобильное</span>
+          </header>
+          <p class="paths"><b>lib/main.dart</b> — <code>SBPRepository</code> и <code>StaffRepository</code> объявлены дважды · <b>lib/src/core/widget/staff_scope.dart:35-50</b> · <b>lib/src/core/util/redirect.dart:29</b></p>
+          <p>В <code>MultiRepositoryProvider</code> оба репозитория зарегистрированы по два раза — работает последний, первые два блока мёртвые. В <code>_StaffScopeState.initState</code> подписка на <code>authSessionSubj()</code> не сохраняется и не отменяется в <code>dispose</code>, то есть <code>setState</code> может прийти после размонтирования. В <code>redirect.dart</code> остался отладочный <code>print</code> с состоянием кубита.</p>
+          <div class="fix">
+            <p>Убрать дубли, сохранить <code>StreamSubscription</code> и отменить её в <code>dispose</code>, <code>print</code> удалить. Мелочи, но именно они накапливаются в шум.</p>
+          </div>
+        </article>
+
+        <article class="find s2">
+          <header>
+            <span class="id">I-01</span>
+            <h3>Постгрес и gunicorn открыты наружу, сборка тянет пакеты с чужого зеркала</h3>
+            <span class="chip s2">Средний</span><span class="chip area">Инфраструктура</span>
+          </header>
+          <p class="paths"><b>docker-compose.yaml:9, 58-60</b> · <b>Dockerfile:3-8</b> · <b>Island-Bali/systemd</b></p>
+          <p>В compose Postgres публикует <code>5432:5432</code>, а nginx — дополнительно <code>8000:8000</code> в обход себя же. На systemd-проде это не действует, но файл остаётся образцом для следующей развёртки.</p>
+          <p>В <code>Dockerfile</code> apt переключён на <code>mirror.yandex.ru</code>, а pip — на <code>pypi.tuna.tsinghua.edu.cn</code> с <code>trusted-host</code>, что снимает проверку TLS для этого зеркала. Все зависимости проекта приходят из стороннего источника по каналу без проверки подлинности — это классическая точка компрометации цепочки поставки. Контейнер собирается и работает от root, systemd-юниты тоже запускают gunicorn под root.</p>
+          <p>Сам файл <code>Island-Bali/systemd</code> — это заметки с путями <code>/root/bali_coffee/…</code>, которых на проде нет (реальный каталог — <code>/root/bali</code>).</p>
+          <div class="fix">
+            <p>Убрать публикацию портов БД и 8000. Вернуть pip на <code>pypi.org</code> и снять <code>trusted-host</code>; если зеркало нужно по скорости — оставить apt, но не pip. Завести системного пользователя для gunicorn/daphne. Заметки по systemd — либо привести к реальным путям, либо удалить в пользу <code>DEPLOYMENT.md</code>, который актуален.</p>
+          </div>
+        </article>
+
+        <article class="find s2">
+          <header>
+            <span class="id">I-02</span>
+            <h3>Служебный мусор и посторонние данные в репозитории</h3>
+            <span class="chip s2">Средний</span><span class="chip area">Инфраструктура</span>
+          </header>
+          <p class="paths"><b>dump.rdb</b> · <b>celerybeat-schedule.db</b> · <b>openssl.exe</b> · <b>request.csr</b> · <b>id64440/partners.xlsx</b> · <b>track_*.mp3</b> · <b>RSB FAQ … .docx</b></p>
+          <p>В индексе git лежат дамп Redis, база расписания celery-beat, виндовый бинарник openssl, CSR, таблица партнёров и четыре аудиотрека. Дамп Redis и база beat — это состояние среды выполнения: они конфликтуют при выкатке и могут содержать данные из рабочего контура. Бинарник в репозитории — отдельный риск цепочки поставки.</p>
+          <div class="fix">
+            <p>Удалить из индекса и внести в <code>.gitignore</code>: <code>*.rdb</code>, <code>celerybeat-schedule*</code>, <code>*.exe</code>, <code>*.session</code>, <code>*.csr</code>. Треки — в медиа-хранилище, не в git.</p>
+          </div>
+        </article>
+      </section>
+
+      <!-- ========== ПЛАН ========== -->
+      <section id="plan">
+        <div class="sec-head"><h2>Порядок работ</h2><span class="tally">9 шагов</span></div>
+        <p class="sec-intro">Первые три шага не требуют правок кода и снимают наибольший риск. Остальное отсортировано по отношению «эффект к трудозатратам».</p>
+        <div class="plan">
+          <div class="step"><span class="num">01</span><span class="what">Terminate all other sessions в Telegram, смена пароля root, отключение входа по паролю в sshd<small>S-02, S-01 — минуты, без деплоя</small></span><span class="when">Сегодня</span></div>
+          <div class="step"><span class="num">02</span><span class="what">Ротация SMS-кредов, app password почты, ключа OpenWeather; отзыв сертификата РСБ<small>S-01, S-03, C-02 — внешние сервисы, только вручную</small></span><span class="when">Сегодня</span></div>
+          <div class="step"><span class="num">03</span><span class="what">Белый список полей в <code>UsersSerializer</code> и аудит таблицы <code>users</code> на поднятые права<small>A-01 — одна правка, закрывает путь к суперюзеру</small></span><span class="when">Сегодня</span></div>
+          <div class="step"><span class="num">04</span><span class="what">Снять маршруты <code>quick-resto</code>, закрыть читающие staff-эндпоинты и <code>CheckOrderViewSet</code><small>A-02, H-01, H-04 — удаление и проверки прав</small></span><span class="when">На этой неделе</span></div>
+          <div class="step"><span class="num">05</span><span class="what">TLS: сертификат на провайдерское имя, <code>https</code> в приложении, снятие cleartext-исключений<small>M-01 — требует релиза в оба стора, начинать раньше остального</small></span><span class="when">На этой неделе</span></div>
+          <div class="step"><span class="num">06</span><span class="what">Убрать хранение номеров карт: эндпоинт, экран, существующие строки<small>D-01 — согласовать с продуктом, что заменяет функциональность</small></span><span class="when">На этой неделе</span></div>
+          <div class="step"><span class="num">07</span><span class="what">Удалить мёртвый платёжный код и маршрут активации, обновить зависимости<small>H-08, C-03, H-09</small></span><span class="when">Спринт</span></div>
+          <div class="step"><span class="num">08</span><span class="what">Шестизначный код, троттлинг по IP, ротация refresh-токенов, secure storage в приложении<small>H-06, M-02</small></span><span class="when">Спринт</span></div>
+          <div class="step"><span class="num">09</span><span class="what">Чистка репозитория, вынос хардкода в настройки, таймауты, форматирование<small>C-01…C-09, I-01, I-02</small></span><span class="when">Спринт</span></div>
+        </div>
+      </section>
+
+      <footer>
+        Разбор статический: код читался, на проде ничего не запускалось и не проверялось. Оценки эксплуатируемости следуют из кода — перед правками стоит подтвердить A-01 и A-02 на стенде. Что уже сделано хорошо и в отчёт не попало: state machine заказа и серверный расчёт цены, аутентификация WebSocket, доставка push, разграничение ролей в <code>admin_api</code>, проверка статуса LifePay вместо доверия телу webhook.
+      </footer>
+
+    </main>
+  </div>
+</div>

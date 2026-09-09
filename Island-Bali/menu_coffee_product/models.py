@@ -1,6 +1,46 @@
+from colorfield.fields import ColorField
 from django.db import models
 
 from coffee_shop.models import CoffeeShop
+
+
+class Season(models.TextChoices):
+    """Времена года для сезонного меню.
+
+    Раньше сезона как понятия не было вовсе: раздел отличался только текстом
+    в ``seasonal_section`` («Зима», «Весна»), а какие разделы показывать —
+    решалось тем, какие записи вообще заведены в базе.
+    """
+
+    WINTER = "winter", "Зима"
+    SPRING = "spring", "Весна"
+    SUMMER = "summer", "Лето"
+    AUTUMN = "autumn", "Осень"
+
+
+# Оформление плиток меню раньше жило в дартовом файле: одиннадцать градиентов
+# и три иконки раздавались по кругу через `index % длина списка`. Двенадцатая
+# категория получала оформление первой, а поменять цвет без пересборки
+# приложения было нельзя. Иконки остаются набором на клиенте — сервер хранит
+# ключ, а не картинку.
+MENU_ICON_CHOICES = (
+    ("palm_tree", "Пальма"),
+    ("beach_ball", "Мяч"),
+    ("cappuccino", "Капучино"),
+    ("latte_art", "Латте-арт"),
+    ("banana", "Банан"),
+    ("shaker", "Шейкер"),
+    ("coconut", "Кокос"),
+    ("matcha", "Матча"),
+    ("ice_cream", "Мороженое"),
+    ("tropical_leaf", "Лист"),
+    ("lemon_slice", "Лимон"),
+    ("flamingo", "Фламинго"),
+    ("sun", "Солнце"),
+    ("limonad", "Лимонад"),
+    ("smoothie", "Смузи"),
+    ("energy_drink", "Энергетик"),
+)
 
 
 class AdditiveFlavors(models.Model):
@@ -66,6 +106,21 @@ class Category(models.Model):
         choices=WHICH_MENYU_CHOICES,
         default='main_menu',
         verbose_name='В каком меню находится категория'
+    )
+    color = ColorField(
+        max_length=7,
+        blank=True,
+        default='',
+        verbose_name='Цвет плитки',
+        help_text='Пусто — приложение возьмёт цвет из своего набора',
+    )
+    icon = models.CharField(
+        max_length=32,
+        choices=MENU_ICON_CHOICES,
+        blank=True,
+        default='',
+        verbose_name='Иконка плитки',
+        help_text='Пусто — приложение возьмёт иконку из своего набора',
     )
 
     def __str__(self):
@@ -185,15 +240,55 @@ class Product(models.Model):
 
 class SeasonMenu(models.Model):
     coffee_shop = models.ForeignKey(CoffeeShop, on_delete=models.CASCADE,
-                                    verbose_name="Кофейня")
+                                    verbose_name="Кофейня",
+                                    related_name='season_menus')
+    season = models.CharField(
+        max_length=10,
+        choices=Season.choices,
+        default=Season.WINTER,
+        verbose_name="Время года",
+    )
     seasonal_section = models.CharField(max_length=255,
                                         verbose_name="Раздел сезонного меню")
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name="Показывать в приложении",
+        help_text='Каждая кофейня держит наборы на все четыре сезона и '
+                  'включает нужный. Раньше для этого перезапускали seed_menu.',
+    )
+    color = ColorField(
+        max_length=7,
+        blank=True,
+        default='',
+        verbose_name='Цвет плитки',
+        help_text='Пусто — приложение возьмёт цвет из своего набора',
+    )
+    icon = models.CharField(
+        max_length=32,
+        choices=MENU_ICON_CHOICES,
+        blank=True,
+        default='',
+        verbose_name='Иконка плитки',
+        help_text='Пусто — приложение возьмёт иконку из своего набора',
+    )
     products = models.ManyToManyField(Product,
                                       verbose_name="Продукты")
 
     def __str__(self):
-        return f"{self.seasonal_section} в {self.coffee_shop.city}"
+        return (
+            f"{self.get_season_display()}: {self.seasonal_section} "
+            f"в {self.coffee_shop.city}"
+        )
 
     class Meta:
         verbose_name = "Сезонное меню"
         verbose_name_plural = "Сезонное меню"
+        ordering = ('coffee_shop_id', 'season', 'id')
+        constraints = (
+            # Раздел уникален внутри пары «кофейня + сезон»: повторный
+            # get_or_create в seed_menu иначе плодит одинаковые разделы.
+            models.UniqueConstraint(
+                fields=('coffee_shop', 'season', 'seasonal_section'),
+                name='unique_season_section_per_shop',
+            ),
+        )

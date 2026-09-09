@@ -5,18 +5,13 @@ import re
 import phonenumbers
 import requests
 from django.core.mail import send_mail
-from loguru import logger
 from requests.auth import HTTPBasicAuth
 
-from island_bali.settings import (
-    EMAIL_HOST_USER,
-    SMS_API_URL,
-    SMS_ENABLED,
-    SMS_LOGIN,
-    SMS_PASSWORD,
-    SMS_SENDER,
-    SMS_TIMEOUT,
-)
+from island_bali.settings import EMAIL_HOST_USER
+
+# Клиент провайдера переехал в users/sms.py. Реэкспорт — потому что
+# вызывающие обращаются к нему как utils.send_sms / utils.SmsSendError.
+from .sms import SmsSendError, send_sms  # noqa: F401
 
 
 def is_email(string: str):
@@ -38,90 +33,34 @@ def is_phone_number(string: str):
         return False
 
 
-class SmsSendError(Exception):
-    """Не удалось отправить SMS через провайдера."""
-
-
 def normalize_phone(phone: str) -> str:
-    """Приводит номер к формату 7XXXXXXXXXX, который ждёт iqsms."""
+    """Номер в виде ``7XXXXXXXXXX`` — так он сравнивается и хранится.
+
+    Провайдеру нужен тот же номер с ведущим плюсом; за это отвечает
+    ``users.sms.format_phone``.
+    """
     digits = re.sub(r"\D", "", str(phone or ""))
     if len(digits) == 11 and digits.startswith("8"):
         digits = "7" + digits[1:]
     return digits
 
 
-def send_sms(phone: str, text: str) -> dict:
-    """
-    Отправляет SMS через iqsms.ru (Rocket SMS).
-
-    Возвращает разобранный ответ провайдера, при неуспехе бросает SmsSendError.
-    Если отправка выключена (SMS_ENABLED=False) или не заданы учётные данные —
-    сообщение только пишется в лог.
-    """
-    recipient = normalize_phone(phone)
-    if not recipient:
-        raise SmsSendError("Не указан номер телефона")
-
-    if not (SMS_ENABLED and SMS_LOGIN and SMS_PASSWORD):
-        logger.warning(
-            "SMS отправка отключена, сообщение не доставлено. "
-            "Телефон: {}, текст: {}", recipient, text
-        )
-        return {"status": "disabled"}
-
-    body = {
-        "messages": [
-            {
-                "phone": recipient,
-                "sender": SMS_SENDER,
-                "clientId": recipient,
-                "text": text,
-            }
-        ],
-        "login": SMS_LOGIN,
-        "password": SMS_PASSWORD,
-    }
-
-    try:
-        response = requests.post(
-            SMS_API_URL,
-            data=json.dumps(body),
-            headers={"Content-Type": "application/json"},
-            timeout=SMS_TIMEOUT,
-        )
-        response.raise_for_status()
-        payload = response.json()
-    except (requests.exceptions.RequestException, ValueError) as ex:
-        logger.error("Ошибка обращения к SMS-шлюзу: {}", ex)
-        raise SmsSendError(
-            "Сервер отправки СМС в данный момент не работает. "
-            "Попробуйте позже"
-        ) from ex
-
-    messages = payload.get("messages") or []
-    status_ = messages[0].get("status") if messages else payload.get("status")
-    if status_ not in ("accepted", "queued"):
-        logger.error("SMS-шлюз отклонил сообщение: {}", payload)
-        raise SmsSendError(
-            "Сервер отправки СМС в данный момент не работает. "
-            "Попробуйте позже"
-        )
-
-    logger.info("SMS отправлено на {}, статус {}", recipient, status_)
-    return payload
-
-
 def send_phone_reset(phone, code=None):
-    """Отправляет код подтверждения на телефон. Возвращает отправленный код."""
-    if code is None:
-        code = str(random.randint(1000, 9999))
+    """Отправляет код подтверждения на телефон.
 
-    send_sms(
+    Возвращает пару ``(код, SentMessage)``: ``smscId`` из второго элемента
+    сохраняется в ``PhoneVerification``, чтобы позже спросить у провайдера,
+    дошло ли сообщение.
+    """
+    if code is None:
+        code = generate_code()
+
+    sent = send_sms(
         phone,
         f"Ваш код подтверждения приложения Islandbali: {code}. "
         f"Не говорите код!",
     )
-    return code
+    return code, sent
 
 
 def send_mail_reset(email):

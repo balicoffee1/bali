@@ -2,7 +2,7 @@ import {
   User, City, CoffeeShop, Category, Product, Addon, AdditiveFlavor,
   Order, StaffMember, Shift, Review, FranchiseRequest, DiscountCard,
   AdminActivityLog, DashboardKPI, DashboardChartPoint, TopProductItem,
-  OrderStatus, UserRole
+  OrderStatus, UserRole, SeasonMenu
 } from '../types';
 import {
   mockCities, mockCoffeeShops, mockCategories, mockProducts, mockAddons, mockFlavors,
@@ -107,6 +107,11 @@ function saveToStorage<T>(key: string, value: T): void {
     localStorage.setItem(`hi_admin_${key}`, JSON.stringify(value));
   } catch {}
 }
+
+// Пагинация товаров: StandardResultsSetPagination разрешает page_size до 200,
+// PRODUCT_PAGE_LIMIT — предохранитель от бесконечного цикла на битом `next`.
+const PRODUCT_PAGE_SIZE = 200;
+const PRODUCT_PAGE_LIMIT = 25;
 
 class ApiClient {
   private baseUrl = '/api/admin';
@@ -494,11 +499,26 @@ class ApiClient {
 
   async getProducts(coffeeShopId?: number, categoryId?: number): Promise<Product[]> {
     try {
-      const params = new URLSearchParams();
-      if (coffeeShopId) params.append('coffee_shop', String(coffeeShopId));
-      if (categoryId) params.append('category', String(categoryId));
-      const res: any = await this.request(`/products/?${params}`);
-      return Array.isArray(res) ? res : res.results || [];
+      // AdminProductsViewSet отдаёт страницами (page_size 20, максимум 200).
+      // Раньше здесь бралась только первая страница: в панели пропадали все
+      // позиции начиная с двадцать первой, их заводили повторно и ловили 400
+      // на unique_product_per_coffee_shop. Собираем все страницы.
+      const collected: Product[] = [];
+      for (let page = 1; page <= PRODUCT_PAGE_LIMIT; page += 1) {
+        const params = new URLSearchParams();
+        if (coffeeShopId) params.append('coffee_shop', String(coffeeShopId));
+        if (categoryId) params.append('category', String(categoryId));
+        params.append('page', String(page));
+        params.append('page_size', String(PRODUCT_PAGE_SIZE));
+
+        const res: any = await this.request(`/products/?${params}`);
+        // Пагинацию могли выключить на бэкенде — тогда приходит голый массив.
+        if (Array.isArray(res)) return res;
+
+        collected.push(...(res.results || []));
+        if (!res.next) break;
+      }
+      return collected;
     } catch (error) {
       this.ensureMockFallback(error);
       let products: Product[] = loadFromStorage('products', mockProducts);
@@ -578,13 +598,64 @@ class ApiClient {
   }
 
   // --- Addons & Flavors ---
+  // --- Сезонное меню ---
+
+  async getSeasonMenus(coffeeShopId?: number): Promise<SeasonMenu[]> {
+    try {
+      const params = new URLSearchParams();
+      if (coffeeShopId) params.append('coffee_shop', String(coffeeShopId));
+      const res: any = await this.request(`/season-menus/?${params}`);
+      return Array.isArray(res) ? res : res.results || [];
+    } catch (error) {
+      this.ensureMockFallback(error);
+      return loadFromStorage('season_menus', [] as SeasonMenu[]);
+    }
+  }
+
+  async saveSeasonMenu(data: Partial<SeasonMenu>): Promise<SeasonMenu> {
+    try {
+      if (data.id) {
+        return await this.request(`/season-menus/${data.id}/`, {
+          method: 'PATCH',
+          body: JSON.stringify(data),
+        });
+      }
+      return await this.request('/season-menus/', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    } catch (error) {
+      this.ensureMockFallback(error);
+      const menus: SeasonMenu[] = loadFromStorage('season_menus', [] as SeasonMenu[]);
+      const saved = { ...data, id: data.id || Date.now() } as SeasonMenu;
+      const idx = menus.findIndex(m => m.id === saved.id);
+      if (idx === -1) menus.push(saved);
+      else menus[idx] = saved;
+      saveToStorage('season_menus', menus);
+      return saved;
+    }
+  }
+
+  async deleteSeasonMenu(id: number): Promise<void> {
+    try {
+      await this.request(`/season-menus/${id}/`, { method: 'DELETE' });
+    } catch (error) {
+      this.ensureMockFallback(error);
+      const menus: SeasonMenu[] = loadFromStorage('season_menus', [] as SeasonMenu[]);
+      saveToStorage('season_menus', menus.filter(m => m.id !== id));
+    }
+  }
+
   async getAddons(coffeeShopId?: number): Promise<Addon[]> {
     try {
       const params = new URLSearchParams();
       if (coffeeShopId) params.append('coffee_shop', String(coffeeShopId));
       const res: any = await this.request(`/addons/?${params}`);
       return Array.isArray(res) ? res : res.results || [];
-    } catch {
+    } catch (error) {
+      // Раньше здесь был голый catch: 403 или упавший сервер подменялись
+      // моковым списком, и админ привязывал к товару несуществующие id.
+      this.ensureMockFallback(error);
       return loadFromStorage('addons', mockAddons);
     }
   }
@@ -639,7 +710,8 @@ class ApiClient {
       if (coffeeShopId) params.append('coffee_shop', String(coffeeShopId));
       const res: any = await this.request(`/flavors/?${params}`);
       return Array.isArray(res) ? res : res.results || [];
-    } catch {
+    } catch (error) {
+      this.ensureMockFallback(error);
       return loadFromStorage('flavors', mockFlavors);
     }
   }

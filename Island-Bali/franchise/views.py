@@ -2,7 +2,7 @@ from drf_yasg.utils import swagger_auto_schema
 from rest_framework import generics
 from rest_framework.permissions import AllowAny
 
-from .utils import send_reset_password
+from .utils import send_franchise_notification
 from .models import FranchiseInfo, FranchiseRequest
 from .serializers import FranchiseInfoSerializer, FranchiseRequestSerializer
 
@@ -16,20 +16,19 @@ class FranchiseRequestViewSet(generics.CreateAPIView):
     serializer_class = FranchiseRequestSerializer
     permission_classes = [AllowAny]
 
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        send_franchise_notification(instance)
+
     @swagger_auto_schema(
         operation_description="Создание новой заявки на франшизу",
-        responses={201: "Created", 400: "Bad Request"},
+        responses={201: FranchiseRequestSerializer, 400: "Bad Request"},
         tags=["Франшиза"],
         operation_id="Создание заявки на франшизу"
     )
     def post(self, request, *args, **kwargs):
-        text = f"""
-        ФИО - {request.data.get("name")}
-        Номер телефона - {request.data.get("number_phone")}
-        Текст: {request.data.get("text")}
-        """
-        send_reset_password(text)
         return super().post(request, *args, **kwargs)
+
 
 
 class FranchiseRequestDetailView(generics.ListAPIView):

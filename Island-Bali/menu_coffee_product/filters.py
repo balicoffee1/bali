@@ -1,5 +1,5 @@
 import django_filters
-from .models import SeasonMenu, CoffeeShop
+from .models import Season, SeasonMenu, CoffeeShop
 from .models import Addon
 
 class SeasonMenuFilter(django_filters.FilterSet):
@@ -17,9 +17,14 @@ class SeasonMenuFilter(django_filters.FilterSet):
         label="ID кофейни",
     )
 
+    season = django_filters.ChoiceFilter(
+        choices=Season.choices,
+        label="Время года",
+    )
+
     class Meta:
         model = SeasonMenu
-        fields = ['city_id', 'coffee_shop', 'coffee_shop_id']
+        fields = ['city_id', 'coffee_shop', 'coffee_shop_id', 'season']
 
 
 

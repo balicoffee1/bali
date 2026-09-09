@@ -1,0 +1,1357 @@
+<title>Наряд по девяти задачам</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+  :root {
+    --paper:      #e9edf0;
+    --surface:    #ffffff;
+    --surface-2:  #f4f6f8;
+    --ink:        #131c24;
+    --ink-2:      #33454f;
+    --muted:      #5c6b78;
+    --line:       #cdd6dd;
+    --line-soft:  #dee5ea;
+    --accent:     #1f4d63;
+    --accent-ink: #ffffff;
+    --crit:       #a3231c;
+    --crit-bg:    #f7e5e3;
+    --high:       #a2620d;
+    --high-bg:    #faeedb;
+    --med:        #3a6a8f;
+    --med-bg:     #e2ecf4;
+    --ok:         #2f6b4f;
+
+    --f-disp: "IBM Plex Sans Condensed", "Helvetica Neue", Arial, sans-serif;
+    --f-body: "IBM Plex Sans", "Segoe UI", Roboto, sans-serif;
+    --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #0e1418;
+      --surface:    #161e24;
+      --surface-2:  #1c262d;
+      --ink:        #e4ebef;
+      --ink-2:      #b7c5ce;
+      --muted:      #8595a1;
+      --line:       #2b3841;
+      --line-soft:  #222d35;
+      --accent:     #6fb3c9;
+      --accent-ink: #0e1418;
+      --crit:       #f08e85;
+      --crit-bg:    #2e1b1a;
+      --high:       #e0ab5c;
+      --high-bg:    #2c2418;
+      --med:        #8ab6d8;
+      --med-bg:     #1a252e;
+      --ok:         #74b997;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:      #0e1418;
+    --surface:    #161e24;
+    --surface-2:  #1c262d;
+    --ink:        #e4ebef;
+    --ink-2:      #b7c5ce;
+    --muted:      #8595a1;
+    --line:       #2b3841;
+    --line-soft:  #222d35;
+    --accent:     #6fb3c9;
+    --accent-ink: #0e1418;
+    --crit:       #f08e85;
+    --crit-bg:    #2e1b1a;
+    --high:       #e0ab5c;
+    --high-bg:    #2c2418;
+    --med:        #8ab6d8;
+    --med-bg:     #1a252e;
+    --ok:         #74b997;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sheet {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 24px 96px;
+  }
+
+  /* ---------- Шапка ---------- */
+
+  .masthead {
+    border-bottom: 2px solid var(--ink);
+    padding: 40px 0 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 28px;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+  .masthead h1 {
+    font-family: var(--f-disp);
+    font-weight: 700;
+    font-size: clamp(34px, 5.2vw, 56px);
+    line-height: 1.02;
+    letter-spacing: -0.015em;
+    margin: 6px 0 10px;
+    text-wrap: balance;
+  }
+  .eyebrow {
+    font-family: var(--f-disp);
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .masthead p {
+    margin: 0;
+    max-width: 54ch;
+    color: var(--ink-2);
+  }
+  .stamp {
+    font-family: var(--f-mono);
+    font-size: 12px;
+    line-height: 1.9;
+    color: var(--muted);
+    border-left: 2px solid var(--line);
+    padding-left: 14px;
+    white-space: nowrap;
+  }
+  .stamp b { color: var(--ink-2); font-weight: 500; }
+
+  /* ---------- Шкала серьёзности ---------- */
+
+  .ledger {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    border: 1px solid var(--line);
+    border-top: none;
+    background: var(--surface);
+  }
+  .ledger div {
+    padding: 16px 18px 14px;
+    border-left: 1px solid var(--line-soft);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .ledger div:first-child { border-left: none; }
+  .ledger .n {
+    font-family: var(--f-disp);
+    font-weight: 700;
+    font-size: 34px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .ledger .k {
+    font-family: var(--f-disp);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .ledger .c0 .n { color: var(--crit); }
+  .ledger .c1 .n { color: var(--high); }
+  .ledger .c2 .n { color: var(--med); }
+
+  .bar {
+    display: flex;
+    height: 6px;
+    border: 1px solid var(--line);
+    border-top: none;
+    overflow: hidden;
+  }
+  .bar span { display: block; }
+
+  /* ---------- Каркас ---------- */
+
+  .body-grid {
+    display: grid;
+    grid-template-columns: 232px minmax(0, 1fr);
+    gap: 48px;
+    margin-top: 44px;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .body-grid { grid-template-columns: 1fr; gap: 32px; }
+    .rail { position: static !important; }
+  }
+
+  .rail { position: sticky; top: 24px; }
+  .rail h2 {
+    font-family: var(--f-disp);
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 10px;
+    font-weight: 600;
+  }
+  .rail nav { display: flex; flex-direction: column; }
+  .rail nav a {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--line-soft);
+    color: var(--ink-2);
+    text-decoration: none;
+    font-size: 14px;
+  }
+  .rail nav a:hover { color: var(--accent); }
+  .rail nav a .ct {
+    font-family: var(--f-mono);
+    font-size: 12px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .rail .note {
+    margin-top: 22px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--muted);
+    border-left: 2px solid var(--line);
+    padding-left: 12px;
+  }
+
+  /* ---------- Разделы ---------- */
+
+  section { scroll-margin-top: 20px; }
+  section + section { margin-top: 56px; }
+
+  .sec-head {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 8px;
+    margin-bottom: 4px;
+  }
+  .sec-head h2 {
+    font-family: var(--f-disp);
+    font-weight: 700;
+    font-size: 26px;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+  .sec-head .tally {
+    font-family: var(--f-mono);
+    font-size: 12px;
+    color: var(--muted);
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+  }
+  .sec-intro {
+    color: var(--ink-2);
+    max-width: 68ch;
+    margin: 14px 0 26px;
+  }
+
+  /* ---------- Находка ---------- */
+
+  .find {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--med);
+    padding: 18px 22px 20px;
+    margin-top: 14px;
+  }
+  .find.s0 { border-left-color: var(--crit); }
+  .find.s1 { border-left-color: var(--high); }
+  .find.s2 { border-left-color: var(--med); }
+
+  .find > header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 10px 12px;
+    margin-bottom: 8px;
+  }
+  .id {
+    font-family: var(--f-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+  }
+  .find h3 {
+    font-family: var(--f-disp);
+    font-weight: 600;
+    font-size: 20px;
+    line-height: 1.25;
+    margin: 0;
+    flex: 1 1 320px;
+    text-wrap: balance;
+  }
+  .chip {
+    font-family: var(--f-disp);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+  .chip.s0 { background: var(--crit-bg); color: var(--crit); }
+  .chip.s1 { background: var(--high-bg); color: var(--high); }
+  .chip.s2 { background: var(--med-bg);  color: var(--med); }
+  .chip.area {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--line);
+  }
+
+  .paths {
+    font-family: var(--f-mono);
+    font-size: 12.5px;
+    line-height: 1.85;
+    color: var(--muted);
+    margin: 0 0 12px;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding-bottom: 2px;
+  }
+  .paths b { color: var(--ink-2); font-weight: 500; }
+
+  .find p { margin: 0 0 10px; color: var(--ink-2); max-width: 74ch; }
+  .find p:last-child { margin-bottom: 0; }
+  .find code {
+    font-family: var(--f-mono);
+    font-size: 0.88em;
+    background: var(--surface-2);
+    padding: 1px 5px;
+    border-radius: 2px;
+    color: var(--ink);
+  }
+  .fix {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line-soft);
+  }
+  .fix::before {
+    content: "Что делать";
+    display: block;
+    font-family: var(--f-disp);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+
+  pre {
+    font-family: var(--f-mono);
+    font-size: 12.5px;
+    line-height: 1.7;
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+    padding: 12px 14px;
+    overflow-x: auto;
+    margin: 12px 0 0;
+    color: var(--ink);
+  }
+
+  /* ---------- План ---------- */
+
+  .plan { border-top: 1px solid var(--line); }
+  .step {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    gap: 18px;
+    align-items: baseline;
+    padding: 15px 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .step .num {
+    font-family: var(--f-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .step .what { color: var(--ink); }
+  .step .what small { display: block; color: var(--muted); font-size: 13.5px; }
+  .step .when {
+    font-family: var(--f-disp);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  @media (max-width: 620px) {
+    .step { grid-template-columns: 30px minmax(0, 1fr); }
+    .step .when { grid-column: 2; }
+  }
+
+  footer {
+    margin-top: 64px;
+    padding-top: 18px;
+    border-top: 2px solid var(--ink);
+    font-size: 13px;
+    color: var(--muted);
+    max-width: 74ch;
+  }
+
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<style>
+  /* Дополнения к стилю ревизии 08.09: карточка задачи и таблица доступов. */
+  .task-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 10px 14px;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 8px;
+    margin-bottom: 4px;
+  }
+  .task-head .tn {
+    font-family: var(--f-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .task-head h2 {
+    font-family: var(--f-disp);
+    font-weight: 700;
+    font-size: 24px;
+    letter-spacing: -0.01em;
+    margin: 0;
+    flex: 1 1 300px;
+    text-wrap: balance;
+  }
+  .quote {
+    font-family: var(--f-body);
+    font-style: italic;
+    color: var(--muted);
+    border-left: 2px solid var(--line);
+    padding-left: 12px;
+    margin: 16px 0 20px;
+    max-width: 68ch;
+  }
+  .verdict {
+    display: grid;
+    grid-template-columns: 132px minmax(0, 1fr);
+    gap: 4px 16px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    padding: 14px 18px;
+    margin: 0 0 16px;
+  }
+  .verdict dt {
+    font-family: var(--f-disp);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding-top: 3px;
+  }
+  .verdict dd { margin: 0; color: var(--ink-2); }
+  @media (max-width: 560px) {
+    .verdict { grid-template-columns: 1fr; gap: 2px; }
+    .verdict dd { margin-bottom: 8px; }
+  }
+  table.grid {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+    margin-top: 14px;
+  }
+  table.grid th, table.grid td {
+    text-align: left;
+    vertical-align: top;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  table.grid th {
+    font-family: var(--f-disp);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  table.grid td:first-child { font-weight: 600; color: var(--ink); white-space: nowrap; }
+  .scroll-x { overflow-x: auto; }
+  ul.tight { margin: 0 0 10px; padding-left: 20px; color: var(--ink-2); max-width: 74ch; }
+  ul.tight li { margin-bottom: 5px; }
+  ul.tight code { font-family: var(--f-mono); font-size: 0.88em; background: var(--surface-2); padding: 1px 5px; border-radius: 2px; color: var(--ink); }
+  .sec-intro code { font-family: var(--f-mono); font-size: 0.88em; background: var(--surface-2); padding: 1px 5px; border-radius: 2px; color: var(--ink); }
+  .verdict code, .quote code, table.grid code { font-family: var(--f-mono); font-size: 0.88em; background: var(--surface-2); padding: 1px 5px; border-radius: 2px; color: var(--ink); }
+</style>
+
+<div class="sheet">
+
+  <header class="masthead">
+    <div>
+      <div class="eyebrow">Разбор задач и план правок · правки внесены 09.09</div>
+      <h1>Наряд по девяти задачам</h1>
+      <p>Бэкенд <code>Island-Bali</code>, админ-панель <code>admin-panel</code>, клиент <code>happy_island</code>. Ветка <code>main</code>, коммит <code>419c037</code>; клиент — <code>06d081d</code>.</p>
+    </div>
+    <div class="stamp">
+      Дата &nbsp;&nbsp;&nbsp;<b>09.09.2026</b><br>
+      Метод &nbsp;&nbsp;<b>чтение кода</b><br>
+      Ввод &nbsp;&nbsp;&nbsp;<b>9 задач, 2 скриншота</b><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b>Happy Island .xlsx</b>
+    </div>
+  </header>
+
+  <div class="ledger">
+    <div class="c0"><span class="n">3</span><span class="k">Ломает сценарий</span></div>
+    <div class="c1"><span class="n">4</span><span class="k">Врёт пользователю</span></div>
+    <div class="c2"><span class="n">2</span><span class="k">Доработка UX</span></div>
+    <div><span class="n">6</span><span class="k">Попутных находок</span></div>
+  </div>
+  <div class="bar" aria-hidden="true">
+    <span style="flex:3;background:var(--crit)"></span>
+    <span style="flex:4;background:var(--high)"></span>
+    <span style="flex:2;background:var(--med)"></span>
+  </div>
+
+  <div class="body-grid">
+
+    <aside class="rail">
+      <h2>Задачи</h2>
+      <nav>
+        <a href="#summary">Главное<span class="ct">—</span></a>
+        <a href="#t1">1 · СМС в xlsx<span class="ct">✓</span></a>
+        <a href="#t2">2 · Сезонное меню<span class="ct">выс</span></a>
+        <a href="#t3">3 · Холодный напиток<span class="ct">крит</span></a>
+        <a href="#t4">4 · Время работы<span class="ct">выс</span></a>
+        <a href="#t5">5 · Защита от дурака<span class="ct">крит</span></a>
+        <a href="#t6">6 · Раскрывашки<span class="ct">сред</span></a>
+        <a href="#t7">7 · Размеры без цены<span class="ct">крит</span></a>
+        <a href="#t8">8 · Диалог «Сохранить»<span class="ct">сред</span></a>
+        <a href="#t9">9 · Выбор времени<span class="ct">выс</span></a>
+        <a href="#extra">Попутно<span class="ct">6</span></a>
+        <a href="#status">Что сделано<span class="ct">8/9</span></a>
+        <a href="#addons">Цена добавок<span class="ct">поздн.</span></a>
+        <a href="#plan">Порядок работ<span class="ct">9</span></a>
+      </nav>
+      <p class="note">Разбор писался до правок; ссылки вида <code>файл:строка</code> указывают на исходное состояние (коммиты в шапке). Что уже сделано — в разделе <a href="#status">«Что сделано»</a>.</p>
+    </aside>
+
+    <main>
+
+      <!-- ========== СВОДКА ========== -->
+      <section id="summary">
+        <div class="sec-head"><h2>Главное</h2></div>
+        <p class="sec-intro">
+          Девять задач распадаются на три группы, и группы эти чинятся в разных местах.
+        </p>
+        <p class="sec-intro">
+          <b>Данные, которые сервер не хранит.</b> Задачи 3 и 7 — один и тот же дефект модели: <code>CartItem</code> не имеет поля температуры, а размер в корзине можно поставить любой, независимо от того, есть ли у товара цена этого размера. Строка <code>cart_item.temperature_type = temperature_type</code> в <code>cart/views.py</code> присваивает атрибут объекту в памяти — Django о таком поле не знает, <code>save()</code> его не пишет. Выбор «холодный» исчезает между запросом и ответом. Ни миграцией, ни фронтом это не лечится: нужно поле в модели.
+        </p>
+        <p class="sec-intro">
+          <b>Состояние, которое клиент не обновляет.</b> Задачи 4 и 9 — устаревшие снимки в памяти приложения. Кофейня (вместе с часами работы) пишется в <code>SharedPreferences</code> в момент выбора и больше никогда не перечитывается; выбранное время приготовления живёт в <code>ValueNotifier</code>, который переживает опустошение корзины. В обоих случаях сервер отдаёт верные данные, а показывает клиент старые.
+        </p>
+        <p class="sec-intro">
+          <b>Понятия, которых нет на бэкенде.</b> Задачи 2 и 6 упираются в модель: сезонное меню — это строка <code>seasonal_section</code> без понятия сезона, а цвет плитки в приложении берётся из захардкоженного списка градиентов по индексу. Задача 5 — прямое следствие: админка подставляет <code>coffee_shop: selectedShopId || 1</code>, кофейни с id&nbsp;1 в базе нет, отсюда и ошибка со скриншота.
+        </p>
+        <p class="sec-intro">
+          Отдельно: присланный <code>xlsx</code> — не инструкция по интеграции, а реестр паролей в открытом виде (задача&nbsp;1). Он требует реакции безопасника, а не разработчика.
+        </p>
+      </section>
+
+      <!-- ========== 1 ========== -->
+      <section id="t1">
+        <div class="task-head">
+          <span class="tn">01</span>
+          <h2>Инструкций по интеграции СМС в файле нет</h2>
+          <span class="chip s0">Утечка</span>
+        </div>
+        <p class="quote">«Проанализировать xlsx и расписать, есть ли там инструкции по интеграции смс сервиса»</p>
+
+        <dl class="verdict">
+          <dt>Что в файле</dt>
+          <dd>Один лист, таблица «Название сервиса / Ссылка / Доступы / Стоимость / Дата платежа / Комментарии» на 9 строк. Это реестр учёток и платежей, а не техдокументация.</dd>
+          <dt>Про СМС</dt>
+          <dd>Две строки: «СМС рассылка СМС Дисконт» (<code>web.iqsms.ru</code>) и «Кабинет просмотра статистики по СМС» (<code>st.iqsms.ru</code>). Логин, пароль, минимальный платёж 3000&nbsp;₽, «платить, когда деньги заканчиваются», «отслеживать баланс 1 раз/мес».</dd>
+          <dt>Инструкций</dt>
+          <dd>Нет: ни адреса API, ни формата запроса, ни имени отправителя, ни описания статусов. Только вход в личный кабинет.</dd>
+        </dl>
+
+        <p class="sec-intro">Хорошая новость: интеграция уже написана и именно с этим провайдером.</p>
+
+        <div class="find s2">
+          <header>
+            <span class="id">СМС-01</span>
+            <h3>Код готов, документация — в репозитории, а не в таблице</h3>
+            <span class="chip area">users</span>
+          </header>
+          <p class="paths"><b>Island-Bali/users/utils.py:53</b> · <b>island_bali/settings.py:187–210</b> · <b>docs/sms-auth-contract.md</b></p>
+          <p><code>send_sms()</code> шлёт <code>POST</code> на <code>https://api.iqsms.ru/messages/v2/send.json</code> с телом <code>{messages: [{phone, sender, clientId, text}], login, password}</code>, нормализует номер к виду <code>7XXXXXXXXXX</code>, считает успехом статусы <code>accepted</code> и <code>queued</code>, иначе бросает <code>SmsSendError</code>. Порядок «запросил код → подтвердил» описан в <code>docs/sms-auth-contract.md</code>: TTL 300&nbsp;с, повторная отправка не чаще <code>SMS_RESEND_INTERVAL</code>, код не покидает сервер.</p>
+          <p>Из таблицы в конфигурацию переносятся ровно два значения: <code>SMS_LOGIN</code> и <code>SMS_PASSWORD</code>. Остальное уже в <code>settings.py</code> со значениями по умолчанию.</p>
+        </div>
+
+        <div class="find s1">
+          <header>
+            <span class="id">СМС-02</span>
+            <h3>Имя отправителя по умолчанию — от чужого проекта</h3>
+            <span class="chip s1">Высокий</span>
+            <span class="chip area">settings</span>
+            <span class="chip s2">Закрыто 09.09</span>
+          </header>
+          <p class="paths"><b>island_bali/settings.py:191</b></p>
+          <p><code>SMS_SENDER = env.str("SMS_SENDER", default="BiBipTrip")</code>. Если переменная на проде не выставлена, письма уходят с альфа-именем, которое к аккаунту <code>fivcoffe0711</code> отношения не имеет — iqsms такие сообщения отклоняет, и пользователь видит 503 «Сервер отправки СМС не работает». Проверить <code>SMS_SENDER</code> в <code>.env</code> на сервере и сверить с именем, зарегистрированным в кабинете СМС&nbsp;Дисконт.</p>
+          <div class="fix">
+            <b>Сделано 09.09.</b> Подписи аккаунта запрошены у провайдера через <code>senders.json</code>: активны <code>Island_Baly</code>, <code>HappyIsland</code>, <code>CONTENTLINE</code>. Прежнего значения среди них нет — то есть отправка под ним отклонялась, и это подтверждено, а не предположено. Дефолт в <code>settings.py</code> и в локальном <code>.env</code> заменён на <code>HappyIsland</code>, упоминания чужого проекта из настроек и контракта убраны. Проверка подписи вынесена в <code>manage.py sms_senders</code>: команда сверяет текущий <code>SMS_SENDER</code> со списком и ругается, если его там нет.
+            <br><br>Осталось за владельцем: прописать <code>SMS_SENDER=HappyIsland</code> в <code>.env</code> на проде — локальный файл на сервер не едет.
+          </div>
+        </div>
+
+        <div class="find s0">
+          <header>
+            <span class="id">СМС-03</span>
+            <h3>Файл — открытый список паролей, включая продовые</h3>
+            <span class="chip s0">Критично</span>
+            <span class="chip area">безопасность</span>
+          </header>
+          <p class="paths"><b>~/Downloads/Happy Island .xlsx</b></p>
+          <p>В том же листе, в колонке «Доступы», лежат в открытом виде пароли от: GitHub-аккаунта организации, панели <code>reg.ru</code> (там же оплата сервера), почты Gmail, аккаунта Apple Developer, кабинета LifePay (СБП) и подписи Android-сборки (<code>storePassword</code>, <code>keyPassword</code>, путь к <code>upload-keystore.jks</code>). Отдельной строкой — админ-панель <code>http://79.174.81.151/admin/</code> с парой <b>admin / 1</b>.</p>
+          <p>Пароль «1» на Django-админке продового сервера подбирается первой же попыткой. Файл, судя по всему, ходит по почте и мессенджерам — считайте все перечисленные учётки скомпрометированными. Это продолжение истории с ротацией секретов от 06.09, а не новый инцидент.</p>
+          <div class="fix">Сменить пароль суперпользователя админки сегодня же, затем — остальные учётки из списка. Ключ подписи Android переехать не может: если <code>upload-keystore.jks</code> утёк вместе с паролем, нужен <a href="https://developer.android.com/studio/publish/app-signing">upload key reset</a> через Google Play. Сам файл — в менеджер паролей (1Password / Bitwarden), из почты и переписок удалить.</div>
+        </div>
+      </section>
+
+      <!-- ========== 2 ========== -->
+      <section id="t2">
+        <div class="task-head">
+          <span class="tn">02</span>
+          <h2>Сезонное меню: цвета зашиты в клиент, сезонов на бэкенде нет</h2>
+          <span class="chip s1">Высокий</span>
+        </div>
+        <p class="quote">«Меню отображается с захардкоженными цветами. Задача — добавить понятие на бекенд: тип сезонного меню → все времена года, у каждой кофейни своё сезонное меню»</p>
+
+        <dl class="verdict">
+          <dt>Сейчас</dt>
+          <dd>Сезонное меню — модель <code>SeasonMenu</code> с текстовым полем <code>seasonal_section</code> («Зима», «Весна») и <code>ManyToMany</code> на товары. Понятия сезона нет; какой раздел показывать — решается тем, какие записи вообще созданы.</dd>
+          <dt>Цвета</dt>
+          <dd>Плитки основного меню красятся из списка <code>_baseMenuDecorations</code> в дартовом файле — 11 градиентов, выбор по <code>index % 11</code>. Плитки сезонного меню берут цвет из <code>/api/seo/color/</code>, но тоже по индексу: связи «раздел → цвет» нет.</dd>
+          <dt>Кофейни</dt>
+          <dd><code>SeasonMenu.coffee_shop</code> уже есть — по модели каждая точка настраивает своё. Но клиент фильтр не передаёт (см. СМ-02), поэтому видно всё подряд.</dd>
+        </dl>
+
+        <div class="find s2">
+          <header>
+            <span class="id">СМ-01</span>
+            <h3>Градиенты и иконки категорий живут в дартовом файле</h3>
+            <span class="chip area">клиент</span>
+          </header>
+          <p class="paths"><b>lib/src/feature/menu/widget/menu_screen.dart:672–782</b> · <b>:40–51</b></p>
+          <p>Одиннадцать <code>MenuItemDecoration</code> с парами вроде <code>Color(0xffF1D05F) → Color(0xffFFB800)</code> и иконками <code>palmTree</code>, <code>cappuccino</code>, <code>latteArt</code>. Список раздаётся по кругу: <code>_baseMenuDecorations[index % _baseMenuDecorations.length]</code>. Двенадцатая категория получает оформление первой; поменять цвет категории без пересборки приложения нельзя. Иконки сезонных разделов — та же схема на трёх SVG (<code>_baseSeasonMenuIcons</code>).</p>
+        </div>
+
+        <div class="find s1">
+          <header>
+            <span class="id">СМ-02</span>
+            <h3>Фильтры сезонного меню уходят в теле GET-запроса и молча теряются</h3>
+            <span class="chip s1">Высокий</span>
+            <span class="chip area">клиент</span>
+          </header>
+          <p class="paths"><b>lib/src/feature/menu/data/repository/season_menu_repository.dart:26–33</b></p>
+<pre>final response = await _dio.get(
+  '/api/menu_coffee_product/season-menus/',
+  data: seasonMenuDto.toJson(),   // ← тело, а не query
+);</pre>
+          <p><code>SeasonMenuFilter</code> на сервере читает <code>city_id</code>, <code>coffee_shop_id</code> и <code>coffee_shop</code> из query-параметров. В теле GET-запроса DRF их не ищет, фильтр не применяется — клиент получает сезонные меню <em>всех</em> кофеен сети и показывает их вперемешку. Соседний метод, <code>loadMenuCategory</code>, тот же <code>Dio</code> вызывает правильно, через <code>queryParameters</code>.</p>
+          <div class="fix">Заменить <code>data:</code> на <code>queryParameters:</code>. Правка на одну строку, но без неё вся настройка «у каждой кофейни своё сезонное меню» не видна пользователю.</div>
+        </div>
+
+        <div class="find s1">
+          <header>
+            <span class="id">СМ-03</span>
+            <h3>Сезонные товары приходят с добавками — клиент их выбрасывает</h3>
+            <span class="chip s1">Высокий</span>
+            <span class="chip area">клиент</span>
+          </header>
+          <p class="paths"><b>lib/src/feature/menu/model/season_menu.dart:65–83</b> · <b>menu_screen.dart:517–535</b></p>
+          <p><code>SeasonMenuSerializer</code> вкладывает товары через тот же <code>ProductSerializer</code>, что и основное меню, — с полем <code>addons</code>. Но <code>Product.fromJson</code> в <code>season_menu.dart</code> это поле не читает, а карточка заказа собирается без <code>addons</code>. Итог: у сезонного напитка нельзя выбрать сироп или молоко, хотя в админке они к нему привязаны.</p>
+        </div>
+
+        <div class="find s2">
+          <header>
+            <span class="id">СМ-04</span>
+            <h3><code>SeasonMenuViewSet</code> — полный ModelViewSet без ограничений</h3>
+            <span class="chip s2">Средний</span>
+            <span class="chip area">бэкенд</span>
+          </header>
+          <p class="paths"><b>menu_coffee_product/views.py:145–149</b></p>
+          <p>У класса не выставлен <code>permission_classes</code>, значит действует глобальный <code>IsAuthenticated</code>. Два следствия. Первое: основное меню открыто анониму (<code>AllowAny</code> проставлен явно), а сезонное требует входа — неавторизованный пользователь видит половину меню. Второе: любой вошедший клиент приложения может <code>POST</code>/<code>PATCH</code>/<code>DELETE</code> сезонные разделы любой кофейни. Это ровно тот класс дыр, что описан в предыдущей ревизии.</p>
+        </div>
+
+        <div class="find s2">
+          <header>
+            <span class="id">СМ-05</span>
+            <h3>Что добавить на бэкенд</h3>
+            <span class="chip area">проектирование</span>
+          </header>
+          <p class="paths"><b>menu_coffee_product/models.py:186–199</b> · <b>seed_menu.py:31</b> · <b>seo/models.py</b></p>
+          <p>Понятие сезона отсутствует и в модели, и в наполнении: <code>SEASON_TITLES</code> знает только <code>winter</code> и <code>spring</code>. Предлагаемая форма:</p>
+          <ul class="tight">
+            <li><code>SeasonMenu.season</code> — <code>CharField</code> с choices <code>winter / spring / summer / autumn</code>, вместо угадывания по тексту раздела.</li>
+            <li><code>SeasonMenu.is_active</code> — какой сезон показывать сейчас у этой точки. Каждая кофейня держит четыре набора и включает нужный; переключение — галочка в админке, а не перезапуск <code>seed_menu</code>.</li>
+            <li><code>SeasonMenu.color</code> и <code>SeasonMenu.icon</code> — <code>ColorField</code> (пакет <code>django-colorfield</code> уже стоит, см. <code>seo.ColorModel</code>) и ключ иконки из фиксированного набора. Тогда <code>seasonal_section</code>, цвет и иконка едут одним объектом, и раскраска по <code>index % N</code> уходит.</li>
+            <li>То же самое для <code>Category</code> основного меню: <code>color</code> + <code>icon</code>, чтобы убрать <code>_baseMenuDecorations</code>. Клиент оставляет локальный список только как запасной вариант, когда сервер цвет не прислал.</li>
+            <li><code>unique_together = (coffee_shop, season, seasonal_section)</code> — иначе повторный <code>get_or_create</code> плодит разделы.</li>
+          </ul>
+          <div class="fix">Миграция + расширение <code>SeasonMenuSerializer</code> и <code>CategorySerializer</code> полями <code>season</code>, <code>color</code>, <code>icon</code>; фильтр <code>?season=</code> и отдача только активного сезона по умолчанию; на клиенте — читать цвет из ответа, локальный список оставить фолбэком; в админ-панели — вкладка «Сезонное меню» с выбором сезона и цвета. Задачу 6 (раскрывашки) делать в этом же заходе, чтобы не трогать <code>MenuPage.tsx</code> дважды.</div>
+        </div>
+      </section>
+
+      <!-- ========== 3 ========== -->
+      <section id="t3">
+        <div class="task-head">
+          <span class="tn">03</span>
+          <h2>«Холодный» не сохраняется: поля для него нет в модели</h2>
+          <span class="chip s0">Критично</span>
+        </div>
+        <p class="quote">«Холодный напиток не сохраняется. Произвести аудит, каким образом на серверной части товар может быть холодным и горячим, и на мобильной, и выяснить расхождения в логике»</p>
+
+        <dl class="verdict">
+          <dt>Сервер, каталог</dt>
+          <dd><code>Product.temperature_type</code> — <code>Hot</code> / <code>Cold</code> / <code>All</code>. Это <em>свойство товара</em>: в каком виде он вообще бывает.</dd>
+          <dt>Сервер, корзина</dt>
+          <dd>Поля температуры у <code>CartItem</code> <b>нет</b>. Ни в модели, ни в миграциях. Выбор пользователя сохранять некуда.</dd>
+          <dt>Клиент</dt>
+          <dd>Тумблер «Холодный напиток» показывается всегда, шлёт <code>Cold</code> или <code>Hot</code>, а при открытии позиции читает температуру из <em>каталога</em>, а не из своего прошлого выбора.</dd>
+          <dt>Итог</dt>
+          <dd>Выбор уходит на сервер, проходит валидацию, не записывается и не возвращается. Пользователь видит «Горячий».</dd>
+        </dl>
+
+        <div class="find s0">
+          <header>
+            <span class="id">ХОЛ-01</span>
+            <h3>Присваивание несуществующего поля — тихая потеря данных</h3>
+            <span class="chip s0">Критично</span>
+            <span class="chip area">cart</span>
+          </header>
+          <p class="paths"><b>cart/views.py:124</b> · <b>cart/views.py:348</b> · <b>cart/models.py:77–105</b></p>
+<pre>cart_item = CartItem.objects.create(
+    cart=cart, product=product, size=size, amount=quantity
+)
+cart_item.temperature_type = temperature_type   # ← атрибут в памяти
+cart_item.save()                                # ← пишет только поля модели</pre>
+          <p>Python разрешает завести на экземпляре произвольный атрибут. Django о нём не знает: <code>save()</code> формирует <code>UPDATE</code> по полям модели, температура в базу не попадает и живёт ровно до конца запроса. Ошибки нет, лога нет — ответ <code>200</code>. То же самое во втором месте, в <code>UpdateCartView</code> (строка 348), поэтому и правка позиции в корзине температуру не меняет.</p>
+          <p>Ответ формирует <code>CartItemSerializer</code>, у которого <code>product = ProductSerializer()</code>. Клиент читает <code>json['temperature_type']</code> из <em>вложенного товара</em> — то есть каталожное <code>All</code> или <code>Hot</code>, а не то, что выбрал пользователь. Круг замкнулся.</p>
+          <div class="fix">Добавить <code>CartItem.temperature_type</code> (<code>CharField</code>, choices <code>Hot/Cold</code>, <code>null=True</code>) + миграцию; отдавать его в <code>CartItemSerializer</code> отдельным полем; в клиенте читать температуру позиции из <code>CartItem</code>, а не из <code>product</code>. Заодно проверить чек баристы и выгрузку в QuickResto: если температура туда не едет, бариста готовит наугад.</div>
+        </div>
+
+        <div class="find s1">
+          <header>
+            <span class="id">ХОЛ-02</span>
+            <h3>Горячий и холодный склеиваются в одну позицию</h3>
+            <span class="chip s1">Высокий</span>
+            <span class="chip area">cart</span>
+          </header>
+          <p class="paths"><b>cart/views.py:100–113</b></p>
+          <p>Существующая позиция ищется по совпадению <code>(product, size, addons, flavors)</code>. Температуры в ключе нет, и появиться она там не может — поля нет. Латте горячий и латте холодный сложатся в одну строку «Латте × 2», даже когда поле появится, если не дописать его в условие.</p>
+        </div>
+
+        <div class="find s1">
+          <header>
+            <span class="id">ХОЛ-03</span>
+            <h3>Сервер не проверяет, бывает ли товар холодным</h3>
+            <span class="chip s1">Высокий</span>
+            <span class="chip area">cart</span>
+          </header>
+          <p class="paths"><b>cart/views.py:62–68</b></p>
+<pre>if temperature_type and temperature_type not in dict(Product.TEMPERATURE_TYPE_CHOICES):
+    return Response({"error": "Выбранная температура недопустима для этого продукта"}, ...)</pre>
+          <p>Проверка сравнивает значение со <em>списком всех допустимых значений</em>, а не со свойством конкретного товара. Поле уже описано как <code>ChoiceField</code> с теми же choices, так что до этой строки невалидное значение не доходит никогда — условие мёртвое, а текст ошибки обещает проверку, которой нет. Товар с <code>temperature_type="Hot"</code> спокойно кладётся в корзину как <code>Cold</code>.</p>
+          <div class="fix">Заменить на честное сравнение: <code>if product.temperature_type != "All" and temperature_type and temperature_type != product.temperature_type</code>. И потребовать явную температуру для <code>All</code> — эта часть уже есть строкой выше.</div>
+        </div>
+
+        <div class="find s1">
+          <header>
+            <span class="id">ХОЛ-04</span>
+            <h3>Клиент шлёт «Hot» для товара, который бывает только холодным</h3>
+            <span class="chip s1">Высокий</span>
+            <span class="chip area">клиент</span>
+          </header>
+          <p class="paths"><b>lib/src/feature/cart/widget/create_order.dart:907</b> · <b>:222</b> · <b>:341–344</b></p>
+          <p><code>temperatureType: _isCold.value ? 'Cold' : "Hot"</code>, где <code>_isCold</code> инициализируется в <code>false</code> и не смотрит на <code>temperatureType</code> товара. Лимонад с каталожным <code>Cold</code> уезжает на сервер как <code>Hot</code>, и сервер это принимает (см. ХОЛ-03). Сам тумблер тоже показывается всегда — даже там, где выбора быть не должно.</p>
+          <p>При открытии уже лежащей в корзине позиции начальное значение берётся так: <code>_basktetItem.product.temperatureType.toLowerCase() == 'cold'</code> — снова из каталога товара. Даже после добавления поля в модель эту строку придётся переписать, иначе выбор так и не будет виден.</p>
+          <div class="fix">Прятать тумблер при <code>temperature_type != "All"</code> и фиксировать значение по каталогу; при <code>All</code> — не подставлять <code>Hot</code> по умолчанию, а требовать выбор (сервер этого и ждёт).</div>
+        </div>
+
+        <div class="find s2">
+          <header>
+            <span class="id">ХОЛ-05</span>
+            <h3>Два мёртвых механизма температуры</h3>
+            <span class="chip s2">Средний</span>
+            <span class="chip area">чистка</span>
+          </header>
+          <p class="paths"><b>orders/utils.py</b> · <b>menu_coffee_product/models.py:127</b></p>
+          <p>В <code>orders/utils.py</code> лежит <code>check_temperature_requirements()</code> — готовый свод правил: коктейли только холодные, мороженое и фреш только холодные, для кофе и чая температура обязательна. Функция не импортируется нигде. Файл, к слову, записан в одну строку без переносов — его никто не открывал.</p>
+          <p><code>Product.can_be_hot_and_cold</code> — булево поле, дублирующее <code>temperature_type == "All"</code>. Оно отдаётся в админ-панель, заполняется сидерами, но ни одна ветка логики его не читает. Два поля об одном и том же, оба редактируемые, рассинхронизируются молча.</p>
+          <div class="fix">Решить, что источник истины — <code>temperature_type</code>; <code>can_be_hot_and_cold</code> убрать из формы админки и депрекейтить. Правила из <code>check_temperature_requirements</code> — либо подключить в <code>AddToCartView</code>, либо удалить файл, чтобы не создавал видимости работающей валидации.</div>
+        </div>
+      </section>
+
+      <!-- ========== 4 ========== -->
+      <section id="t4">
+        <div class="task-head">
+          <span class="tn">04</span>
+          <h2>Время работы не меняется: клиент читает снимок из памяти телефона</h2>
+          <span class="chip s1">Высокий</span>
+        </div>
+        <p class="quote">«Время работы кофейни не меняется. В админке поставила с 06:00 до 19:00» — тестировщик</p>
+
+        <div class="find s1">
+          <header>
+            <span class="id">ЧАС-01</span>
+            <h3>Кофейня кэшируется в SharedPreferences целиком и навсегда</h3>
+            <span class="chip s1">Высокий</span>
+            <span class="chip area">клиент</span>
+          </header>
+          <p class="paths"><b>lib/src/feature/city/bloc/select_coffee_shop/coffee_shop_cubit.dart:12–19</b> · <b>lib/src/core/util/storage.dart:16–24</b> · <b>lib/main.dart:227–229</b> · <b>cart_screen.dart:966</b></p>
+          <p>Цепочка такая. При выборе точки <code>CoffeeShopCubit.selectCoffeeShop</code> сериализует <em>весь</em> объект <code>CoffeeShop</code> — вместе с <code>time_open</code> и <code>time_close</code> — в <code>SharedPreferences</code>. При запуске <code>main.dart</code> поднимает кубит из этого снимка: <code>coffeeShop: Storage(prefs: prefs).selectCoffeeShop()</code>. Строка «Открыто с 08:00 до 22:00» в корзине читает <code>context.watch&lt;CoffeeShopCubit&gt;().state</code>, то есть снимок.</p>
+          <p>Сервер тут ни при чём: <code>/api/coffee_shop/list_shop/</code> отдаёт свежие часы, и <code>CityBloc</code> их даже загружает — но использует только для того, чтобы сверить <code>id</code> и достать <code>street</code> (<code>_resolveCoffeeShopName</code>). Часы работы берутся из старого JSON. Обновятся они, только если пользователь переоткроет выбор точки или переустановит приложение — что тестировщик, разумеется, не делал.</p>
+          <div class="fix">После загрузки списка кофеен города переписывать состояние кубита свежим объектом с тем же <code>id</code> (и обновлять запись в prefs). Кэш оставить только как стартовое значение до первого ответа сети. Отдельно проверить формат: Django отдаёт <code>TimeField</code> как <code>"06:00:00"</code>, клиент режет <code>substring(0, 5)</code> — если сервер когда-нибудь пришлёт <code>"06:00"</code>, будет исключение на пустой корзине.</div>
+        </div>
+
+        <div class="find s2">
+          <header>
+            <span class="id">ЧАС-02</span>
+            <h3>Часы работы ни на что не влияют, кроме надписи</h3>
+            <span class="chip s2">Средний</span>
+            <span class="chip area">бэкенд</span>
+          </header>
+          <p class="paths"><b>coffee_shop/models.py:104–108</b></p>
+          <p><code>time_open</code> / <code>time_close</code> нигде не участвуют в проверках: заказ можно оформить в 04:00, время приготовления можно выбрать после закрытия. Если по задумке они должны ограничивать приём заказов — это отдельная задача, и её стоит завести явно, потому что сейчас поле выглядит рабочим, а работает как подпись.</p>
+        </div>
+      </section>
+
+      <!-- ========== 5 ========== -->
+      <section id="t5">
+        <div class="task-head">
+          <span class="tn">05</span>
+          <h2>Защита от дурака в форме товара — и источник ошибки со скриншота</h2>
+          <span class="chip s0">Критично</span>
+        </div>
+        <p class="quote">«Нужно сделать защиту от дурака на стороне фронта (если требуется, затронь серверную часть). 2 скриншот»</p>
+
+        <div class="find s0">
+          <header>
+            <span class="id">ДУР-01</span>
+            <h3><code>coffee_shop: selectedShopId || 1</code> — прямая причина «Недопустимый первичный ключ "1"»</h3>
+            <span class="chip s0">Критично</span>
+            <span class="chip area">админ-панель</span>
+          </header>
+          <p class="paths"><b>admin-panel/src/pages/MenuPage.tsx:96, 142, 159, 191</b></p>
+<pre>const payload: Partial&lt;Product&gt; = {
+  ...editingProduct,
+  coffee_shop: selectedShopId || 1,
+  category: editingProduct.category || categories[0]?.id || 1,
+};</pre>
+          <p>Когда точка в шапке не выбрана, <code>selectedShopId</code> равен <code>null</code>, и в тело запроса подставляется <code>1</code>. Кофейни с <code>id=1</code> в базе нет — DRF отвечает <code>«Недопустимый первичный ключ "1" — объект не существует»</code>, ровно как на первом скриншоте. Тот же фолбэк стоит в сохранении категории, добавки и вкуса, так что ошибка воспроизводится на всех четырёх формах.</p>
+          <p>Заодно объясняется и <code>category: … || 1</code>: если категорий нет, товар пытается уехать в несуществующую категорию; если есть — молча берётся <em>первая</em>. На втором скриншоте в поле «Категория» подставлена «Яна Сз» — случайный мусорный раздел, оказавшийся первым. Плейсхолдера «— выберите —» в селекте нет, и пользователь не понимает, что за него уже выбрали.</p>
+          <div class="fix">Убрать фолбэк <code>|| 1</code> целиком. Пока точка не выбрана — блокировать кнопки «Добавить товар / категорию / добавку / вкус» и показывать в шапке подсказку «Выберите кофейню». В селекте категории — пустой первый пункт и запрет сохранения без выбора.</div>
+        </div>
+
+        <div class="find s1">
+          <header>
+            <span class="id">ДУР-02</span>
+            <h3>Цены: предзаполнены, принимают ноль и минус, пустое поле превращается в 0</h3>
+            <span class="chip s1">Высокий</span>
+            <span class="chip area">админ-панель</span>
+          </header>
+          <p class="paths"><b>MenuPage.tsx:346–348</b> · <b>:643–658</b> · <b>:379</b></p>
+          <p>Новый товар открывается с <code>price_s: 160, price_m: 190, price_l: 230</code>. Пользователь, продающий напиток в одном объёме, обязан вручную стирать две цены — и вот тут ловушка: <code>onChange</code> делает <code>Number(e.target.value)</code>, а <code>Number("")</code> это <code>0</code>, не <code>null</code>. Стёртая цена уезжает на сервер нулём. Для задачи&nbsp;7 это принципиально: <code>0</code> — валидная цена, размер остаётся доступным и становится бесплатным.</p>
+          <p>У полей нет <code>min</code>, отрицательная цена проходит и на фронте, и на бэкенде: <code>DecimalField</code> без <code>MinValueValidator</code>. Та же история у цены добавки (дефолт <code>40</code>).</p>
+          <div class="fix">Пустая строка → <code>null</code>, а не <code>0</code>; <code>min={0}</code> и <code>step</code> на всех ценовых полях; не предзаполнять цены у нового товара; на бэкенде — <code>MinValueValidator(0)</code> на <code>price_s/m/l</code> и <code>Addon.price</code>. Запретить сохранение товара, у которого не заполнена ни одна цена.</div>
+        </div>
+
+        <div class="find s1">
+          <header>
+            <span class="id">ДУР-03</span>
+            <h3>Сервер не проверяет, что категория и добавки — из той же кофейни</h3>
+            <span class="chip s1">Высокий</span>
+            <span class="chip area">бэкенд</span>
+          </header>
+          <p class="paths"><b>admin_api/serializers.py:180–192</b> · <b>admin_api/views.py:306–332</b></p>
+          <p><code>AdminProductSerializer</code> принимает <code>coffee_shop</code>, <code>category</code> и <code>addons</code> как независимые ключи. Ничто не мешает создать товар в кофейне A с категорией кофейни B и добавками кофейни C. В приложении такой товар окажется в чужом меню или не окажется нигде. Это тот случай, когда защиту нельзя оставлять только на фронте: панель — не единственный клиент этого API.</p>
+          <div class="fix">В <code>validate()</code> сериализатора сверять <code>category.coffee_shop_id</code> и <code>coffee_shop</code> каждой добавки с <code>coffee_shop</code> товара. То же для <code>Addon.flavors</code>.</div>
+        </div>
+
+        <div class="find s1">
+          <header>
+            <span class="id">ДУР-04</span>
+            <h3>Список товаров обрывается на двадцатой позиции</h3>
+            <span class="chip s1">Высокий</span>
+            <span class="chip area">админ-панель</span>
+          </header>
+          <p class="paths"><b>admin_api/views.py:306–310</b> · <b>admin-panel/src/api/client.ts:495–508</b></p>
+          <p>У <code>AdminProductsViewSet</code> включена пагинация (<code>page_size = 20</code>), а клиент читает <code>res.results</code> и на этом останавливается — ни параметра страницы, ни листалки в интерфейсе. В меню Happy Island позиций заметно больше двадцати: остальные из панели просто не видны, и их легко завести повторно. Уникальность имени внутри точки (<code>unique_product_per_coffee_shop</code>) при этом вернёт 400 с невнятным текстом.</p>
+          <div class="fix">Либо тянуть все страницы в <code>getProducts</code>, либо добавить пагинацию в таблицу. Ошибку уникальности перевести в понятное «Товар с таким названием в этой кофейне уже есть».</div>
+        </div>
+
+        <div class="find s2">
+          <header>
+            <span class="id">ДУР-05</span>
+            <h3>Ошибки загрузки добавок и вкусов проглатываются</h3>
+            <span class="chip s2">Средний</span>
+            <span class="chip area">админ-панель</span>
+          </header>
+          <p class="paths"><b>admin-panel/src/api/client.ts:581–590, 636–645</b></p>
+          <p><code>getAddons</code> и <code>getFlavors</code> написаны с голым <code>catch {}</code> и возвращают моковые данные — в отличие от остальных методов, где стоит <code>ensureMockFallback(error)</code>, пробрасывающий настоящие ошибки. Если API недоступен или вернул 403, пользователь увидит выдуманный список добавок и будет привязывать к товару несуществующие id.</p>
+          <div class="fix">Привести к общему виду: <code>catch (error) { this.ensureMockFallback(error); … }</code>.</div>
+        </div>
+
+        <div class="find s2">
+          <header>
+            <span class="id">ДУР-06</span>
+            <h3>Мелочи формы</h3>
+            <span class="chip s2">Средний</span>
+            <span class="chip area">админ-панель</span>
+          </header>
+          <ul class="tight">
+            <li>Название товара не обрезается по пробелам и не ограничено 100 символами (<code>max_length</code> модели) — 400 прилетит уже от сервера.</li>
+            <li>Одинаковые названия категорий, добавок и вкусов внутри точки ничем не запрещены — отсюда дубли в списке добавок на первом скриншоте.</li>
+            <li>После создания категории <code>newCategoryMenu</code> не сбрасывается: следующая категория по умолчанию унаследует тип меню от предыдущей.</li>
+            <li>Закрытие ящика во время сохранения не блокируется; при <code>Escape</code> черновик теряется без предупреждения.</li>
+            <li>Удаление товара и добавки подтверждается системным <code>confirm()</code> — в остальном интерфейсе диалоги свои.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ========== 6 ========== -->
+      <section id="t6">
+        <div class="task-head">
+          <span class="tn">06</span>
+          <h2>Подсказки существующих названий при создании</h2>
+          <span class="chip s2">Средний</span>
+        </div>
+        <p class="quote">«Когда добавляем товар, вкус, добавку, категорию — нужно сделать раскрывашку с уже существующими названиями»</p>
+
+        <div class="find s2">
+          <header>
+            <span class="id">СПИС-01</span>
+            <h3>Четыре одинаковых поля ввода без подсказок</h3>
+            <span class="chip s2">Средний</span>
+            <span class="chip area">админ-панель</span>
+          </header>
+          <p class="paths"><b>MenuPage.tsx:627</b> (товар) · <b>:746</b> (категория) · <b>:785</b> (добавка) · <b>:864</b> (вкус)</p>
+          <p>Все четыре — обычный <code>&lt;Input&gt;</code>. Пользователь не видит, что «Сироп» в этой точке уже есть, и заводит второй; отсюда повторяющиеся чипы добавок на первом скриншоте. Для товара это ещё и упирается в <code>unique_product_per_coffee_shop</code> — сохранение падает с 400 после того, как форма уже заполнена.</p>
+          <p>Данные для подсказок уже загружены на страницу: <code>products</code>, <code>categories</code>, <code>addons</code>, <code>flavors</code> лежат в состоянии <code>MenuPage</code> (кроме товаров за пределами первой страницы — см. ДУР-04). Сеть для этого не нужна.</p>
+          <div class="fix">Комбо-поле: свободный ввод + выпадающий список совпадений по мере набора. Самый дешёвый вариант — нативный <code>&lt;datalist&gt;</code>; аккуратнее — небольшой <code>Combobox</code> в <code>components/ui</code>, потому что тот же контрол пригодится в других формах панели. Точное совпадение подсвечивать предупреждением «Такое название уже есть» и предлагать открыть существующую запись вместо создания новой. На бэкенде <code>search_fields</code> у всех четырёх вьюсетов уже настроены — если понадобится серверный поиск, отдельная работа не нужна.</div>
+        </div>
+      </section>
+
+      <!-- ========== 7 ========== -->
+      <section id="t7">
+        <div class="task-head">
+          <span class="tn">07</span>
+          <h2>Размер без цены не должен продаваться — на сервере он бесплатный</h2>
+          <span class="chip s0">Критично</span>
+        </div>
+        <p class="quote">«Если в админке не стоит стоимость на каком-то размере, то этот размер недоступен. Не нужно делать его доступным и бесплатным»</p>
+
+        <dl class="verdict">
+          <dt>В интерфейсе</dt>
+          <dd>Уже почти сделано: стакан без цены не рисуется — <code>_sizePriceList[index] == null ? SizedBox.shrink() : …</code>.</dd>
+          <dt>Под интерфейсом</dt>
+          <dd>Выбранным всё равно может оказаться размер без цены, и тогда он считается по нулю. На сервере — то же самое, и без всяких условий.</dd>
+        </dl>
+
+        <div class="find s0">
+          <header>
+            <span class="id">РАЗМ-01</span>
+            <h3>Сервер принимает любой размер и считает отсутствующую цену нулём</h3>
+            <span class="chip s0">Критично</span>
+            <span class="chip area">cart</span>
+          </header>
+          <p class="paths"><b>cart/views.py:95–96</b> · <b>cart/models.py:116–124</b></p>
+<pre># AddToCartView
+if not size:
+    size = CartItem.SizeChoices.S      # ← S даже если price_s пуст
+
+# CartItem.item_total_price
+product_price = size_prices.get(self.size) or Decimal('0.00')   # ← None → 0.00</pre>
+          <p>Проверки «есть ли у товара цена этого размера» нет ни в <code>AddToCartView</code>, ни в <code>UpdateCartView</code>. Товар, у которого заполнена только цена L, добавляется в размере S и стоит ноль рублей. Это доступно любому клиенту API напрямую, без приложения, — поэтому чинить надо на сервере, а UI-фильтр оставить как удобство.</p>
+          <div class="fix">В обеих вьюхах: если у товара нет цены для запрошенного размера — <code>400</code> с внятным текстом. Дефолт выбирать как первый размер с ценой, а не жёстко <code>S</code>. В <code>item_total_price</code> убрать <code>or Decimal('0.00')</code> — пусть отсутствие цены будет ошибкой, а не скидкой 100%.</div>
+        </div>
+
+        <div class="find s1">
+          <header>
+            <span class="id">РАЗМ-02</span>
+            <h3>Клиент подставляет S, даже когда все цены пусты</h3>
+            <span class="chip s1">Высокий</span>
+            <span class="chip area">клиент</span>
+          </header>
+          <p class="paths"><b>create_order.dart:236–246</b> · <b>:249–255</b> · <b>lib/src/core/util/get_price.dart</b></p>
+          <p><code>_getDefaultSize</code> перебирает S → M → L и, если цен нет вовсе, возвращает <code>'S'</code>. <code>_selectedSizePrice</code> для пустой цены даёт <code>0.0</code>, <code>getPrice(…)</code> при всех <code>null</code> — тоже <code>0</code>. Товар без цен показывается как «0 ₽» и добавляется в корзину. Это же и есть тот бесплатный размер, о котором пишет тестировщик.</p>
+          <p>Мелочь по соседству: сигнатура <code>getPrice(double? priceS, double? priceL, double? priceM)</code> заявляет порядок S, L, M, а все вызовы передают S, M, L. Результат случайно верный, но следующий, кто станет читать эту функцию, ошибётся.</p>
+          <div class="fix">Товар, у которого не заполнена ни одна цена, не показывать в меню (лучше — не отдавать с сервера); карточку заказа для такого товара не открывать. Переименовать параметры <code>getPrice</code> по факту.</div>
+        </div>
+
+        <div class="find s2">
+          <header>
+            <span class="id">РАЗМ-03</span>
+            <h3>Отладочный <code>print</code> и мёртвая ветка в выборе размера</h3>
+            <span class="chip s2">Средний</span>
+            <span class="chip area">клиент</span>
+          </header>
+          <p class="paths"><b>create_order.dart:517–536</b></p>
+          <p>Внутри обработчика нажатия остались <code>print(_sizePriceList)</code> и проверка <code>if (price == null) showOverlayNotification('Размер $productSize недоступен')</code> — недостижимая, потому что кнопка для пустой цены вообще не создаётся. Логику стоит оставить одну: либо прятать размер, либо показывать заблокированным с подсказкой. Сейчас в коде и то и другое.</p>
+        </div>
+      </section>
+
+      <!-- ========== 8 ========== -->
+      <section id="t8">
+        <div class="task-head">
+          <span class="tn">08</span>
+          <h2>Диалог сохранения профиля — заготовка, а не экран</h2>
+          <span class="chip s2">Средний</span>
+        </div>
+        <p class="quote">«Сделай редизайн диалога "Сохранить" после того, как пользователь вносит изменения в свой профиль — в стиле приложения»</p>
+
+        <div class="find s2">
+          <header>
+            <span class="id">ДИАЛ-01</span>
+            <h3>Кнопка в заголовке пустого <code>AlertDialog</code></h3>
+            <span class="chip s2">Средний</span>
+            <span class="chip area">клиент</span>
+          </header>
+          <p class="paths"><b>lib/src/core/router/app_router.dart:107–158</b></p>
+          <p>Диалог живёт в <code>onExit</code> маршрута профиля и открывается, когда <code>profileHasBeenChanges == true</code>. Внутри — материаловский <code>AlertDialog</code>, у которого в <code>title</code> лежит <code>Row</code> с единственным <code>ElevatedButton «Сохранить изменения»</code>. Ни текста вопроса, ни второй кнопки, ни <code>actions</code>. Стандартная синяя кнопка Material рядом с фирменными градиентами приложения выглядит чужой.</p>
+          <p>Функционально не хватает трёх вещей. <b>Выйти без сохранения нельзя</b> — кнопки «Не сохранять» нет. <b>Закрытие тапом по фону</b> возвращает из <code>showDialog</code> значение <code>null</code>, которое уезжает в <code>onExit</code>, ожидающий <code>bool</code>; в лучшем случае переход просто не происходит, в худшем — падение на приведении типа. <b>Ошибка сохранения не показывается</b>: слушатель реагирует только на <code>updateCompleted</code>, при неудаче диалог замирает, и кнопку можно жать сколько угодно.</p>
+          <div class="fix">Собрать нижнюю шторку в стиле приложения (как <code>SbpBottomSheet</code> и диалоги в <code>order_notification_scope.dart</code>): заголовок «Сохранить изменения?», пояснение, <code>GradientButton</code> «Сохранить» и текстовая «Не сохранять», крестик закрытия. Возвращать явный <code>bool</code> во всех трёх исходах, включая закрытие по фону и системную кнопку «назад». На время запроса — индикатор на кнопке, при ошибке — текст с возможностью повторить.</div>
+        </div>
+      </section>
+
+      <!-- ========== 9 ========== -->
+      <section id="t9">
+        <div class="task-head">
+          <span class="tn">09</span>
+          <h2>Новый заказ предлагает «Изменить время» вместо выбора</h2>
+          <span class="chip s1">Высокий</span>
+        </div>
+        <p class="quote">«Очистила корзину, закинула новый товар, а время не предлагает выбрать, а предлагает его изменить. Хотя это новый заказ» — тестировщик</p>
+
+        <div class="find s1">
+          <header>
+            <span class="id">ВРЕМ-01</span>
+            <h3>Пустая корзина не размонтирует экран — и не сбрасывает выбранное время</h3>
+            <span class="chip s1">Высокий</span>
+            <span class="chip area">клиент</span>
+          </header>
+          <p class="paths"><b>lib/src/feature/cart/widget/cart_screen.dart:136</b> · <b>:161</b> · <b>select_time_widget.dart:64–68</b></p>
+<pre>// _CartViewWidgetState
+final ValueNotifier&lt;DateTime?&gt; _selectedTime = ValueNotifier&lt;DateTime?&gt;(null);
+...
+if (basket.isEmpty) return _EmptyCart();     // ← ранний выход из build()</pre>
+          <p><code>SelectTimeWidget</code> выбирает вид по одному условию: <code>_selectedTime.value != null ? «Изменить время» : «Выбрать время»</code>. Значение хранится в <code>_CartViewWidgetState</code>.</p>
+          <p>Когда корзина пустеет, <code>build</code> просто возвращает другой поддерево — <code>_EmptyCart()</code>. Виджет тот же, состояние живо, <code>dispose</code> не вызывается, <code>_selectedTime</code> хранит время из прошлого заказа. Добавили товар — корзина снова не пуста, и виджет показывает «Заказ приготовим к 14:30 · Изменить время» для заказа, которого ещё нет.</p>
+          <p>Та же причина у второго, менее заметного случая: после успешного оформления заказа время тоже не обнуляется — следующий заказ в этой же сессии начнётся с чужого времени.</p>
+          <div class="fix">Сбрасывать <code>_selectedTime</code> в <code>null</code>, когда корзина стала пустой и когда меняется <code>cartId</code> (<code>didUpdateWidget</code>), а также после подтверждения заказа. Более надёжный вариант — держать выбранное время в блоке корзины рядом с её содержимым, чтобы одна очистка гасила и то и другое.</div>
+        </div>
+      </section>
+
+      <!-- ========== ПОПУТНО ========== -->
+      <section id="extra">
+        <div class="sec-head"><h2>Попутные находки</h2><span class="tally">6</span></div>
+        <p class="sec-intro">Не входит в девять задач, но встретилось при разборе тех же файлов и дёшево чинится заодно.</p>
+        <div class="scroll-x">
+        <table class="grid">
+          <thead>
+            <tr><th>Где</th><th>Что</th><th>Почему важно</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>menu_coffee_product/<wbr>views.py:42, 81, 107</td>
+              <td>Все три публичные вьюхи меню жёстко фильтруют <code>which_menu__in=['main_menu','both']</code></td>
+              <td>Товар с <code>season_menu</code> не отдаётся ни в категориях, ни в меню, ни в списке по категории — он виден только через <code>SeasonMenu</code>. Настройка «Размещение в меню» в панели работает не так, как читается.</td>
+            </tr>
+            <tr>
+              <td>menu_coffee_product/<wbr>serializers.py:25–45</td>
+              <td><code>ProductSerializer</code> не отдаёт <code>product_type</code>, <code>which_menu</code> и <code>price</code></td>
+              <td>Клиент не может отличить кофе от мороженого, хотя правила температуры это различие используют.</td>
+            </tr>
+            <tr>
+              <td>cart/views.py:73–86</td>
+              <td>Вкусы проверяются на принадлежность добавке в <code>AddToCartView</code>, но не в <code>UpdateCartView</code></td>
+              <td>Через правку корзины можно привязать любой вкус к любой добавке и получить неверную цену.</td>
+            </tr>
+            <tr>
+              <td>coffee_shop/views.py:26–37</td>
+              <td>Список кофеен без пагинации и без <code>select_related('city')</code></td>
+              <td>Запрос на каждый объект; при росте сети заметно.</td>
+            </tr>
+            <tr>
+              <td>menu_coffee_product/<wbr>views.py:130–143</td>
+              <td><code>WeatherView</code> — <code>POST</code> с <code>AllowAny</code>, ходит во внешний API по названию города из тела</td>
+              <td>Бесплатный прокси наружу без ограничения частоты.</td>
+            </tr>
+            <tr>
+              <td>menu_screen.dart:529</td>
+              <td><code>print(_sizePriceList)</code> и закомментированные блоки в <code>select_time_widget.dart</code></td>
+              <td>Отладка в релизной сборке; в логах видно содержимое цен.</td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+      </section>
+
+      <!-- ========== СТАТУС ========== -->
+      <section id="status">
+        <div class="sec-head"><h2>Что сделано</h2><span class="tally">8 из 9 шагов</span></div>
+        <p class="sec-intro">
+          Шаги 01–08 внесены в рабочие копии <code>bali</code> и <code>happy_island</code>; коммитов нет.
+          Шаг&nbsp;00 — смена паролей — за пределами кода.
+        </p>
+
+        <div class="scroll-x">
+        <table class="grid">
+          <thead>
+            <tr><th>Шаг</th><th>Что изменилось</th><th>Где</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>00</td>
+              <td><b>Не сделано:</b> смена паролей из xlsx, начиная с <code>admin / 1</code></td>
+              <td>вне кода — за владельцем</td>
+            </tr>
+            <tr>
+              <td>01</td>
+              <td>Фолбэк <code>|| 1</code> убран во всех четырёх формах; без выбранной кофейни кнопки создания заблокированы и висит предупреждение; в селекте категории появился пустой первый пункт</td>
+              <td>MenuPage.tsx</td>
+            </tr>
+            <tr>
+              <td>02</td>
+              <td><code>CartItem.temperature_type</code> + миграция; температура пишется, отдаётся клиенту и баристе, участвует в склейке позиций; проверка совместимости с каталогом товара вместо мёртвого условия</td>
+              <td>cart/models.py, cart/views.py, cart/serializers.py, migrations/0004</td>
+            </tr>
+            <tr>
+              <td>03</td>
+              <td><code>resolve_size</code>: размер без цены отклоняется, по умолчанию берётся первый размер с ценой; товар без единой цены не отдаётся в меню; <code>item_total_price</code> больше не считает такую позицию бесплатной</td>
+              <td>cart/views.py, cart/models.py, menu_coffee_product/views.py</td>
+            </tr>
+            <tr>
+              <td>04</td>
+              <td>Тумблер температуры показывается только при каталожном <code>All</code>, иначе — надпись «Только холодный/горячий»; выбор читается из позиции корзины, а не из каталога; товар без цен нельзя заказать; убраны <code>print</code> и мёртвая ветка</td>
+              <td>create_order.dart, cart.dart, get_price.dart, staff/*</td>
+            </tr>
+            <tr>
+              <td>05</td>
+              <td>Выбранная кофейня обновляется из ответа сервера (часы работы больше не застревают в prefs); выбранное время сбрасывается, когда корзина пустеет и когда меняется <code>cartId</code></td>
+              <td>coffee_shop_cubit.dart, main.dart, cart_screen.dart</td>
+            </tr>
+            <tr>
+              <td>06</td>
+              <td>Валидация цен и названий с подсказками ошибок; пустая цена больше не превращается в ноль; кросс-проверки «категория, добавки и вкусы своей кофейни» на сервере; все страницы товаров тянутся в панель; ошибки загрузки добавок и вкусов не глотаются; раскрывашки существующих названий во всех четырёх формах</td>
+              <td>MenuPage.tsx, Combobox.tsx, client.ts, admin_api/serializers.py</td>
+            </tr>
+            <tr>
+              <td>07</td>
+              <td>Диалог сохранения профиля переписан в стиле приложения: вопрос, «Сохранить» с индикатором, «Не сохранять», крестик, текст ошибки; во всех исходах возвращается <code>bool</code></td>
+              <td>save_profile_dialog.dart, app_router.dart, app_ru.arb</td>
+            </tr>
+            <tr>
+              <td>08</td>
+              <td><code>season</code>, <code>is_active</code>, <code>color</code>, <code>icon</code> у <code>SeasonMenu</code> и оформление у <code>Category</code> + миграция; фильтры уходят в query, а не в тело GET; сезонные товары приезжают с добавками; вьюсет открыт на чтение и закрыт на запись; вкладка «Сезонное меню» в панели; клиент берёт цвет и иконку с сервера, локальный набор остался запасным</td>
+              <td>menu_coffee_product/*, admin_api/*, MenuPage.tsx, menu_screen.dart</td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+
+        <div class="find s1">
+          <header>
+            <span class="id">ВНИМ-01</span>
+            <h3>Миграции написаны руками — прогнать проверку перед выкладкой</h3>
+            <span class="chip s1">Высокий</span>
+            <span class="chip area">выкладка</span>
+          </header>
+          <p class="paths"><b>cart/migrations/0004_cartitem_temperature_type.py</b> · <b>menu_coffee_product/migrations/0003_season_menu_seasons_and_tile_style.py</b></p>
+          <p>В окружении, где велась работа, Django не установлен (<code>Island-Bali/venv</code> содержит только pandas и numpy), поэтому <code>makemigrations</code> не запускался, а тесты не прогонялись. Обе миграции написаны вручную и разобраны только синтаксически.</p>
+          <div class="fix">На машине с окружением: <code>python manage.py makemigrations --check --dry-run</code> — расхождений быть не должно, — затем <code>migrate</code> и прогон тестов <code>cart</code> и <code>admin_api</code>. Миграция сезонного меню проставляет <code>season</code> существующим записям по префиксу раздела («Зима&nbsp;·&nbsp;…» → winter).</div>
+        </div>
+
+        <div class="find s2">
+          <header>
+            <span class="id">ВНИМ-02</span>
+            <h3>Два отступления от плана</h3>
+            <span class="chip s2">Средний</span>
+            <span class="chip area">решения</span>
+          </header>
+          <p><b>Позиция без цены не роняет корзину.</b> В плане было «убрать <code>or Decimal('0.00')</code>, пусть отсутствие цены будет ошибкой». Исключение из <code>item_total_price</code> ушло бы в просмотр корзины и в WebSocket баристы, то есть превратило бы правку цены администратором в 500 на весь заказ. Сделано иначе: ноль убран, вместо него берётся минимальная заведённая цена товара с записью в лог, а позиция помечается <code>is_available: false</code> — клиент и бариста видят, что с ней надо разобраться. Создать такую позицию больше нельзя: вход закрыт в <code>resolve_size</code>.</p>
+          <p><b>Тумблер температуры остался бинарным.</b> В плане было «при <code>All</code> не подставлять <code>Hot</code> по умолчанию, а требовать выбор». Переключатель — двухпозиционный, и требование явного выбора заставило бы включать и выключать его ради «горячего». Значение по умолчанию видно на экране, поэтому оставлено «выключено = горячий»; исправлено главное — для товаров с фиксированной температурой тумблер убран, а выбор клиента теперь сохраняется.</p>
+        </div>
+
+        <div class="find s2">
+          <header>
+            <span class="id">ВНИМ-03</span>
+            <h3>Хвосты</h3>
+            <span class="chip s2">Средний</span>
+            <span class="chip area">хвосты</span>
+          </header>
+          <ul class="tight">
+            <li><code>orders/utils.py</code> удалить не удалось (запрет на удаление файлов в сессии) — содержимое заменено пояснением, что код был мёртвым и где искать актуальные проверки. Файл можно удалить одной командой.</li>
+            <li>Печатное меню в <code>menu_happy_island.SEASON_MENU</code> по-прежнему описывает только зиму и весну. Модель и админка знают все четыре сезона; лето и осень появятся, когда будет что заводить.</li>
+            <li><code>can_be_hot_and_cold</code> больше не редактируется из панели — значение выводится из <code>temperature_type</code>. Само поле осталось в модели: его удаление — отдельная миграция.</li>
+            <li>Проверено сборкой и анализатором: <code>npm run build</code> в панели и <code>flutter analyze lib/</code> без ошибок. Бэкенд проверен только разбором синтаксиса.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ========== ДОБАВКИ ========== -->
+      <section id="addons">
+        <div class="sec-head"><h2>Цена добавок и вкусов</h2><span class="tally">найдено позже</span></div>
+        <p class="sec-intro">
+          Задача пришла после первого разбора: за добавку и за её вкус деньги брались дважды. Правило теперь одно, и живёт оно на сервере.
+        </p>
+
+        <dl class="verdict">
+          <dt>Правило</dt>
+          <dd>Деньги лежат на добавке и берутся ровно один раз. Вкус денег не добавляет — он говорит, <em>какой именно</em> сироп налить.</dd>
+          <dt>Добавка с вкусами</dt>
+          <dd>Работает как категория: «Сироп» нельзя заказать, не сказав какой. Пока вкус не выбран, добавка в заказ не идёт и не стоит ничего.</dd>
+          <dt>Добавка без вкусов</dt>
+          <dd>Сливки, альтернативное молоко — выбираются сами по себе и оплачиваются сразу.</dd>
+        </dl>
+
+        <div class="find s0">
+          <header>
+            <span class="id">ДОБ-01</span>
+            <h3>Цена добавки прибавлялась второй раз за каждый выбранный вкус</h3>
+            <span class="chip s0">Критично</span>
+            <span class="chip area">деньги</span>
+          </header>
+          <p class="paths"><b>cart/models.py:141–160</b> · <b>create_order.dart:283–286</b> · <b>menu_product.dart:105</b></p>
+<pre># cart/models.py, было
+addons_price = sum(addon.price for addon in self.addons.all() ...)
+
+flavors_price = Decimal('0.00')
+for flavor in self.flavors.all():
+    for addon in selected_addons:
+        if flavor in addon.flavors.all():
+            flavors_price += addon.price   # ← та же самая цена, второй раз
+            break
+
+return (product_price + addons_price + flavors_price) * self.amount</pre>
+          <p>Клиент считал так же: <code>Flavor.fromJson(x, price: addonPrice)</code> копировал цену родительской добавки во вкус, а <code>_recalculatePrice</code> складывал <code>addonsPrice + flavorsPrice</code>. Обе стороны сходились в одном и том же завышенном числе, поэтому расхождения между приложением и чеком не было — было просто дорого.</p>
+          <p>На латте за 180 ₽ с сиропом за 50 ₽ выходило <b>280 ₽</b> вместо 230. Два вкуса одной добавки давали <b>330 ₽</b>: цена добавки прибавлялась за каждый выбранный вкус.</p>
+          <div class="fix">Цена считается по «укомплектованным» добавкам: <code>CartItem.effective_addons()</code> пропускает добавку, у которой есть вкусы, но ни один не выбран. Слагаемое <code>flavors_price</code> убрано целиком, поле <code>price</code> у клиентского <code>Flavor</code> удалено — чтобы двойной счёт нельзя было вернуть по невнимательности.</div>
+        </div>
+
+        <div class="find s1">
+          <header>
+            <span class="id">ДОБ-02</span>
+            <h3>Добавку с вкусами можно было заказать, не выбрав вкус</h3>
+            <span class="chip s1">Высокий</span>
+            <span class="chip area">cart</span>
+          </header>
+          <p class="paths"><b>cart/views.py</b> · <b>create_order.dart</b></p>
+          <p>Сервер проверял обратное — что выбранный вкус принадлежит выбранной добавке, — но не требовал вкус для добавки, у которой он есть. Бариста получал заказ «с сиропом» без указания, с каким.</p>
+          <div class="fix"><code>check_addon_flavors</code> в <code>AddToCartView</code> и <code>UpdateCartView</code> отвечает 400 со списком добавок, ждущих вкуса. В приложении кнопка подтверждения заблокирована, пока такие добавки есть, и под ней написано, для каких именно нужен вкус.</div>
+        </div>
+
+        <div class="find s2">
+          <header>
+            <span class="id">ДОБ-03</span>
+            <h3>Проверено на сценариях</h3>
+            <span class="chip area">проверка</span>
+          </header>
+          <div class="scroll-x">
+          <table class="grid">
+            <thead><tr><th>Выбор</th><th>Было</th><th>Стало</th></tr></thead>
+            <tbody>
+              <tr><td>Латте, без добавок</td><td>180 ₽</td><td>180 ₽</td></tr>
+              <tr><td>+ сливки (без вкусов, 55 ₽)</td><td>235 ₽</td><td>235 ₽</td></tr>
+              <tr><td>+ сироп (50 ₽), вкус не выбран</td><td>230 ₽</td><td>180 ₽ — добавка не идёт в заказ</td></tr>
+              <tr><td>+ сироп и ваниль</td><td>280 ₽</td><td>230 ₽</td></tr>
+              <tr><td>+ сироп и два вкуса</td><td>330 ₽</td><td>230 ₽</td></tr>
+              <tr><td>+ сироп с ванилью и сливки</td><td>335 ₽</td><td>285 ₽</td></tr>
+            </tbody>
+          </table>
+          </div>
+          <p>Считает это одно место — <code>CartItem.item_total_price</code>. Через него идут и сумма корзины, и скидка лояльности, и чек баристы, и админ-панель, так что правка расходится по всем экранам сразу.</p>
+        </div>
+      </section>
+
+      <!-- ========== ПЛАН ========== -->
+      <section id="plan">
+        <div class="sec-head"><h2>Порядок работ</h2><span class="tally">9 шагов</span></div>
+        <p class="sec-intro">
+          Порядок выбран так, чтобы миграции шли одним заходом, а <code>MenuPage.tsx</code> и <code>create_order.dart</code> открывались по одному разу. Шаг&nbsp;0 к разработке не относится и не ждёт очереди.
+        </p>
+
+        <div class="plan">
+          <div class="step">
+            <span class="num">00</span>
+            <span class="what">Сменить пароли из xlsx, начиная с <code>admin / 1</code><small>Задача 1 · СМС-03 · вне очереди разработки</small></span>
+            <span class="when">сегодня</span>
+          </div>
+          <div class="step">
+            <span class="num">01</span>
+            <span class="what">Убрать <code>|| 1</code> в четырёх формах панели, заблокировать создание без выбранной кофейни<small>Задача 5 · ДУР-01 · чинит ошибку со скриншота</small></span>
+            <span class="when">полдня</span>
+          </div>
+          <div class="step">
+            <span class="num">02</span>
+            <span class="what">Миграция: <code>CartItem.temperature_type</code>; запись, отдача, учёт в склейке позиций; честная проверка совместимости с товаром<small>Задача 3 · ХОЛ-01…03</small></span>
+            <span class="when">1–2 дня</span>
+          </div>
+          <div class="step">
+            <span class="num">03</span>
+            <span class="what">Серверная проверка размера: нет цены — нет размера; убрать нулевую цену по умолчанию<small>Задача 7 · РАЗМ-01</small></span>
+            <span class="when">полдня</span>
+          </div>
+          <div class="step">
+            <span class="num">04</span>
+            <span class="what">Клиент: тумблер температуры по каталогу товара, размеры и дефолт по наличию цены, чистка отладки<small>Задачи 3 и 7 · ХОЛ-04, РАЗМ-02…03 · один заход в <code>create_order.dart</code></small></span>
+            <span class="when">1 день</span>
+          </div>
+          <div class="step">
+            <span class="num">05</span>
+            <span class="what">Обновлять кофейню из сети после загрузки списка; сбрасывать время при опустошении корзины и после заказа<small>Задачи 4 и 9 · ЧАС-01, ВРЕМ-01</small></span>
+            <span class="when">1 день</span>
+          </div>
+          <div class="step">
+            <span class="num">06</span>
+            <span class="what">Панель: валидация цен и названий, кросс-проверки на бэкенде, пагинация товаров, комбо-поля с подсказками<small>Задачи 5 и 6 · ДУР-02…06, СПИС-01 · один заход в <code>MenuPage.tsx</code></small></span>
+            <span class="when">2 дня</span>
+          </div>
+          <div class="step">
+            <span class="num">07</span>
+            <span class="what">Диалог сохранения профиля в стиле приложения, с тремя честными исходами<small>Задача 8 · ДИАЛ-01</small></span>
+            <span class="when">полдня</span>
+          </div>
+          <div class="step">
+            <span class="num">08</span>
+            <span class="what">Сезонное меню: <code>season</code>, <code>is_active</code>, <code>color</code>, <code>icon</code> в модели; фильтр по кофейне из query; цвета с сервера<small>Задача 2 · СМ-01…05 · самый большой кусок, зависит от согласования модели</small></span>
+            <span class="when">3–4 дня</span>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <footer>
+    Разбор статический: код читался, не запускался. Строки указаны по коммитам <code>419c037</code> (бэкенд и панель) и <code>06d081d</code> (клиент); в рабочей копии есть незакоммиченные правки в <code>franchise/</code> и в <code>lib/src/feature/city/</code>, они разбор не затрагивают. Оценки трудозатрат — для одного разработчика, без учёта ревью и выкладки. Значения паролей в отчёте не приводятся; см. СМС-03.
+  </footer>
+
+</div>

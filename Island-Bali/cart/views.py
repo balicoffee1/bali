@@ -18,6 +18,86 @@ from .serializers import (
     UpdateCartItemSerializer
 )
 
+def resolve_temperature(product, requested):
+    """Сверяет выбор клиента с каталогом. Возвращает (значение, ошибка).
+
+    ``Product.temperature_type`` описывает, каким товар бывает вообще:
+    ``Hot``, ``Cold`` или ``All``. Выбор клиента — это всегда ``Hot`` или
+    ``Cold``. Раньше здесь стояла проверка `requested not in dict(CHOICES)`,
+    которая ничего не проверяла: ChoiceField сериализатора уже отсекал чужие
+    значения, и лимонад с каталожным ``Cold`` спокойно уезжал как ``Hot``.
+    """
+    catalog = product.temperature_type
+    titles = dict(Product.TEMPERATURE_TYPE_CHOICES)
+
+    if catalog == "All":
+        if not requested or requested == "All":
+            return None, "Выберите температуру напитка: холодный или горячий"
+        return requested, None
+
+    if requested and requested != catalog:
+        return None, (
+            f"«{product.product}» подаётся только в одном виде: "
+            f"{titles.get(catalog, catalog).lower()}"
+        )
+
+    # Клиент мог не прислать ничего — тогда берём единственный возможный вид.
+    return catalog, None
+
+
+def check_addon_flavors(selected_addons, selected_flavors):
+    """Проверяет, что у каждой добавки с вкусами вкус выбран.
+
+    Добавка с вкусами работает как категория: «Сироп» нельзя заказать, не
+    сказав какой. Пока вкус не выбран, добавка не считается выбранной — и,
+    соответственно, не оплачивается (см. CartItem.effective_addons).
+
+    Возвращает текст ошибки или None.
+    """
+    chosen = {flavor.id for flavor in selected_flavors}
+
+    missing = [
+        addon.name
+        for addon in selected_addons
+        if {f.id for f in addon.flavors.all()}
+        and not ({f.id for f in addon.flavors.all()} & chosen)
+    ]
+
+    if missing:
+        return "Выберите вкус для добавок: " + ", ".join(missing)
+    return None
+
+
+def resolve_size(product, requested):
+    """Размер, у которого есть цена. Возвращает (значение, ошибка).
+
+    Пустая цена размера в админке означает «такого объёма нет». Раньше
+    отсутствующий размер молча подменялся на ``S``, а ``item_total_price``
+    считал его по нулю — товар продавался бесплатно.
+    """
+    prices = {
+        CartItem.SizeChoices.S: product.price_s,
+        CartItem.SizeChoices.M: product.price_m,
+        CartItem.SizeChoices.L: product.price_l,
+    }
+    available = [size for size, price in prices.items() if price is not None]
+
+    if not available:
+        return None, (
+            f"У товара «{product.product}» не заполнена ни одна цена — "
+            "его нельзя заказать"
+        )
+
+    if not requested:
+        # Самый маленький из заведённых, а не жёстко S.
+        return available[0], None
+
+    if prices.get(requested) is None:
+        return None, f"Размер {requested} у этого товара недоступен"
+
+    return requested, None
+
+
 class AddToCartView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -59,13 +139,9 @@ class AddToCartView(APIView):
             if not product.availability:
                 return Response({"error": "К сожалению продукт закончился"}, status=status.HTTP_400_BAD_REQUEST)
 
-            if product.temperature_type == "All" and not temperature_type:
-                return Response({"error": "Выберите конкретную температуру напитка: холодный или горячий"},
-                                status=status.HTTP_400_BAD_REQUEST)
-
-            if temperature_type and temperature_type not in dict(Product.TEMPERATURE_TYPE_CHOICES):
-                return Response({"error": "Выбранная температура недопустима для этого продукта"},
-                                status=status.HTTP_400_BAD_REQUEST)
+            temperature_type, temperature_error = resolve_temperature(product, temperature_type)
+            if temperature_error:
+                return Response({"error": temperature_error}, status=status.HTTP_400_BAD_REQUEST)
 
             selected_addons = []
             selected_flavors = []
@@ -90,15 +166,23 @@ class AddToCartView(APIView):
                         return Response({"error": f"Вкус добавки с ID {flavor_id} не найден"},
                                         status=status.HTTP_400_BAD_REQUEST)
 
-            cart = get_active_cart(user)
-            
-            if not size:
-                size = CartItem.SizeChoices.S
+            flavor_error = check_addon_flavors(selected_addons, selected_flavors)
+            if flavor_error:
+                return Response({"error": flavor_error}, status=status.HTTP_400_BAD_REQUEST)
 
+            size, size_error = resolve_size(product, size)
+            if size_error:
+                return Response({"error": size_error}, status=status.HTTP_400_BAD_REQUEST)
+
+            cart = get_active_cart(user)
+
+            # Температура — часть позиции, а не свойство товара: горячий и
+            # холодный латте не должны склеиваться в одну строку корзины.
             existing_items = CartItem.objects.filter(
                 cart=cart,
                 product=product,
                 size=size,
+                temperature_type=temperature_type,
             )
             
             target_addons_set = set(selected_addons)
@@ -119,10 +203,9 @@ class AddToCartView(APIView):
                     cart=cart,
                     product=product,
                     size=size,
-                    amount=quantity
+                    amount=quantity,
+                    temperature_type=temperature_type,
                 )
-                cart_item.temperature_type = temperature_type
-                cart_item.save()
                 cart_item.addons.set(selected_addons)
                 cart_item.flavors.set(selected_flavors)
 
@@ -339,19 +422,19 @@ class UpdateCartView(APIView):
 
             product = cart_item.product  # Обновлённый или текущий
 
-            # Проверка температуры
-            if product.temperature_type == "All" and not temperature_type:
-                return Response({"error": "Укажите температуру: горячий или холодный"}, status=status.HTTP_400_BAD_REQUEST)
-            if temperature_type and temperature_type not in dict(Product.TEMPERATURE_TYPE_CHOICES):
-                return Response({"error": "Недопустимая температура"}, status=status.HTTP_400_BAD_REQUEST)
-
+            # Не прислали температуру или размер — оставляем то, что уже
+            # выбрано в позиции, а не сбрасываем в None и не подменяем на S.
+            temperature_type, temperature_error = resolve_temperature(
+                product, temperature_type or cart_item.temperature_type
+            )
+            if temperature_error:
+                return Response({"error": temperature_error}, status=status.HTTP_400_BAD_REQUEST)
             cart_item.temperature_type = temperature_type
 
-            # Проверка и установка размера
-            if size:
-                if size not in dict(CartItem.SizeChoices.choices):
-                    return Response({"error": f"Неверный размер: {size}"}, status=status.HTTP_400_BAD_REQUEST)
-                cart_item.size = size
+            size, size_error = resolve_size(product, size or cart_item.size)
+            if size_error:
+                return Response({"error": size_error}, status=status.HTTP_400_BAD_REQUEST)
+            cart_item.size = size
 
             # Обработка добавок
             selected_addons = []
@@ -369,9 +452,22 @@ class UpdateCartView(APIView):
                 for flavor_id in flavors:
                     try:
                         flavor = AdditiveFlavors.objects.get(id=flavor_id)
-                        selected_flavors.append(flavor)
                     except AdditiveFlavors.DoesNotExist:
                         return Response({"error": f"Вкус с ID {flavor_id} не найден"}, status=status.HTTP_400_BAD_REQUEST)
+
+                    # Та же проверка, что и в AddToCartView: вкус принадлежит
+                    # выбранной добавке. Без неё через правку корзины можно было
+                    # привязать любой вкус к любой добавке и получить свою цену.
+                    if not any(flavor in addon.flavors.all() for addon in selected_addons):
+                        return Response(
+                            {"error": f"Вкус с ID {flavor_id} не доступен для выбранных добавок"},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                    selected_flavors.append(flavor)
+
+            flavor_error = check_addon_flavors(selected_addons, selected_flavors)
+            if flavor_error:
+                return Response({"error": flavor_error}, status=status.HTTP_400_BAD_REQUEST)
 
             # Обновление количества
             if quantity == 0:

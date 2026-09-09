@@ -57,6 +57,56 @@ export interface Category {
   coffee_shop_street?: string;
   name: string;
   which_menu: 'main_menu' | 'season_menu' | 'both';
+  /** Цвет плитки `#RRGGBB`. Пусто — приложение берёт цвет из своего набора. */
+  color?: string;
+  /** Ключ иконки плитки. Пусто — приложение берёт иконку из своего набора. */
+  icon?: string;
+  products_count?: number;
+}
+
+export type Season = 'winter' | 'spring' | 'summer' | 'autumn';
+
+export const SEASON_LABELS: Record<Season, string> = {
+  winter: 'Зима',
+  spring: 'Весна',
+  summer: 'Лето',
+  autumn: 'Осень',
+};
+
+/** Ключи иконок плитки — те же, что в MENU_ICON_CHOICES на сервере. */
+export const MENU_ICONS: { value: string; label: string }[] = [
+  { value: '', label: 'Из набора приложения' },
+  { value: 'palm_tree', label: 'Пальма' },
+  { value: 'beach_ball', label: 'Мяч' },
+  { value: 'cappuccino', label: 'Капучино' },
+  { value: 'latte_art', label: 'Латте-арт' },
+  { value: 'banana', label: 'Банан' },
+  { value: 'shaker', label: 'Шейкер' },
+  { value: 'coconut', label: 'Кокос' },
+  { value: 'matcha', label: 'Матча' },
+  { value: 'ice_cream', label: 'Мороженое' },
+  { value: 'tropical_leaf', label: 'Лист' },
+  { value: 'lemon_slice', label: 'Лимон' },
+  { value: 'flamingo', label: 'Фламинго' },
+  { value: 'sun', label: 'Солнце' },
+  { value: 'limonad', label: 'Лимонад' },
+  { value: 'smoothie', label: 'Смузи' },
+  { value: 'energy_drink', label: 'Энергетик' },
+];
+
+/** Сезонный раздел меню одной кофейни. */
+export interface SeasonMenu {
+  id: number;
+  coffee_shop: number;
+  coffee_shop_name?: string;
+  season: Season;
+  season_display?: string;
+  seasonal_section: string;
+  /** Показывать ли раздел в приложении. Наборы всех сезонов лежат в базе. */
+  is_active: boolean;
+  color?: string;
+  icon?: string;
+  products?: number[];
   products_count?: number;
 }
 

@@ -65,7 +65,7 @@ class ProductAdmin(admin.ModelAdmin):
 
 @admin.register(Category)
 class CategoryAdmin(CustomModelAdmin):
-    list_display = ("name", "coffee_shop", "which_menu")
+    list_display = ("name", "coffee_shop", "which_menu", "color", "icon")
     list_filter = ("coffee_shop",)
     search_fields = ("name", "coffee_shop__city__name")
 
@@ -114,7 +114,20 @@ class AdditiveFlavorsAdmin(CustomModelAdmin):
 
 
 
-admin.site.register(SeasonMenu)
+@admin.register(SeasonMenu)
+class SeasonMenuAdmin(admin.ModelAdmin):
+    """Сезонные наборы точки: по одному на каждое время года.
+
+    Раньше модель регистрировалась без класса, и в списке было видно только
+    строковое представление. Сезон, флаг показа и оформление плитки теперь
+    правятся прямо отсюда — без перезапуска seed_menu.
+    """
+
+    list_display = ("seasonal_section", "coffee_shop", "season", "is_active")
+    list_filter = ("coffee_shop", "season", "is_active")
+    list_editable = ("is_active",)
+    search_fields = ("seasonal_section", "coffee_shop__city__name")
+    filter_horizontal = ("products",)
 
 
 # users/admin.py или любой другой admin.py

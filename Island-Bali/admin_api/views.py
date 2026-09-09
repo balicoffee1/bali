@@ -15,7 +15,9 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from users.models import CustomUser
 from coffee_shop.models import City, CoffeeShop, CrmSystem, Acquiring
-from menu_coffee_product.models import Category, Product, Addon, AdditiveFlavors
+from menu_coffee_product.models import (
+    Category, Product, Addon, AdditiveFlavors, SeasonMenu,
+)
 from orders.models import Orders, CheckOrder
 from staff.models import Staff, Shift
 from reviews.models import ReviewsCoffeeShop
@@ -33,6 +35,7 @@ from .serializers import (
     AdminUserSerializer, AdminUserDetailSerializer,
     AdminCitySerializer, AdminCoffeeShopSerializer, AdminCrmSystemSerializer, AdminAcquiringSerializer,
     AdminCategorySerializer, AdminProductSerializer, AdminAddonSerializer, AdminAdditiveFlavorsSerializer,
+    AdminSeasonMenuSerializer,
     AdminOrderSerializer, AdminStaffSerializer, AdminShiftSerializer,
     AdminReviewSerializer, AdminFranchiseRequestSerializer, AdminDiscountCardSerializer,
     AdminActivityLogSerializer, AdminNotificationBroadcastSerializer
@@ -347,6 +350,33 @@ class AdminAdditiveFlavorsViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['coffee_shop']
     search_fields = ['name']
+
+
+class AdminSeasonMenuViewSet(viewsets.ModelViewSet):
+    """Сезонные наборы точки: сезон, показ в приложении, оформление плитки."""
+
+    queryset = SeasonMenu.objects.prefetch_related('products').order_by(
+        'coffee_shop_id', 'season', 'id'
+    )
+    serializer_class = AdminSeasonMenuSerializer
+    permission_classes = [IsModeratorOrReadOnly]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['coffee_shop', 'season', 'is_active']
+    search_fields = ['seasonal_section']
+
+    def perform_create(self, serializer):
+        menu = serializer.save()
+        log_admin_activity(
+            self.request, 'CREATE', 'SeasonMenu', menu.id,
+            f"Создан сезонный раздел {menu.seasonal_section}"
+        )
+
+    def perform_update(self, serializer):
+        menu = serializer.save()
+        log_admin_activity(
+            self.request, 'UPDATE', 'SeasonMenu', menu.id,
+            f"Обновлён сезонный раздел {menu.seasonal_section}"
+        )
 
 
 # -------------------------------------------------------------

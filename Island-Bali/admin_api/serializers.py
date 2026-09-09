@@ -155,7 +155,10 @@ class AdminCategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Category
-        fields = ['id', 'coffee_shop', 'coffee_shop_street', 'name', 'which_menu', 'products_count']
+        fields = [
+            'id', 'coffee_shop', 'coffee_shop_street', 'name', 'which_menu',
+            'color', 'icon', 'products_count',
+        ]
 
     def get_products_count(self, obj):
         return obj.products.count()
@@ -174,11 +177,32 @@ class AdminAddonSerializer(serializers.ModelSerializer):
         model = Addon
         fields = ['id', 'coffee_shop', 'name', 'description', 'price', 'flavors', 'flavors_details']
 
+    def validate_price(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Стоимость не может быть отрицательной.")
+        return value
+
+    def validate(self, attrs):
+        instance = self.instance
+        shop = attrs.get('coffee_shop') or getattr(instance, 'coffee_shop', None)
+        flavors = attrs.get('flavors')
+
+        if shop and flavors:
+            alien = [f.name for f in flavors if f.coffee_shop_id != shop.id]
+            if alien:
+                raise serializers.ValidationError(
+                    {'flavors': "Вкусы другой кофейни: " + ", ".join(alien)}
+                )
+
+        return attrs
+
 
 class AdminProductSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
     coffee_shop_name = serializers.CharField(source='coffee_shop.__str__', read_only=True)
     addons_details = AdminAddonSerializer(source='addons', many=True, read_only=True)
+
+    PRICE_FIELDS = ('price', 'price_s', 'price_m', 'price_l')
 
     class Meta:
         model = Product
@@ -189,6 +213,83 @@ class AdminProductSerializer(serializers.ModelSerializer):
             'temperature_type', 'which_menu', 'addons', 'addons_details'
         ]
 
+    def validate_product(self, value):
+        return value.strip()
+
+    def validate(self, attrs):
+        # Панель — не единственный клиент этого API, поэтому связность
+        # проверяется здесь, а не только в форме. Раньше ничто не мешало
+        # завести товар в кофейне A с категорией кофейни B и добавками
+        # кофейни C: в приложении он оказывался в чужом меню или нигде.
+        instance = self.instance
+        shop = attrs.get('coffee_shop') or getattr(instance, 'coffee_shop', None)
+
+        for field in self.PRICE_FIELDS:
+            price = attrs.get(field)
+            if price is not None and price < 0:
+                raise serializers.ValidationError(
+                    {field: "Цена не может быть отрицательной."}
+                )
+
+        prices = [
+            attrs.get(field, getattr(instance, field, None))
+            for field in ('price_s', 'price_m', 'price_l')
+        ]
+        if not any(price is not None and price > 0 for price in prices):
+            raise serializers.ValidationError(
+                "Заполните цену хотя бы одного размера: размер без цены "
+                "в приложении недоступен."
+            )
+
+        category = attrs.get('category') or getattr(instance, 'category', None)
+        if shop and category and category.coffee_shop_id != shop.id:
+            raise serializers.ValidationError(
+                {'category': f"Категория «{category.name}» принадлежит другой кофейне."}
+            )
+
+        addons = attrs.get('addons')
+        if shop and addons:
+            alien = [a.name for a in addons if a.coffee_shop_id != shop.id]
+            if alien:
+                raise serializers.ValidationError(
+                    {'addons': "Добавки другой кофейни: " + ", ".join(alien)}
+                )
+
+        return attrs
+
+
+class AdminSeasonMenuSerializer(serializers.ModelSerializer):
+    coffee_shop_name = serializers.CharField(source='coffee_shop.__str__', read_only=True)
+    season_display = serializers.CharField(source='get_season_display', read_only=True)
+    products_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SeasonMenu
+        fields = [
+            'id', 'coffee_shop', 'coffee_shop_name', 'season', 'season_display',
+            'seasonal_section', 'is_active', 'color', 'icon',
+            'products', 'products_count',
+        ]
+
+    def get_products_count(self, obj):
+        return obj.products.count()
+
+    def validate(self, attrs):
+        # Та же связность, что и у товара: раздел кофейни A не может состоять
+        # из товаров кофейни B.
+        instance = self.instance
+        shop = attrs.get('coffee_shop') or getattr(instance, 'coffee_shop', None)
+        products = attrs.get('products')
+
+        if shop and products:
+            alien = [p.product for p in products if p.coffee_shop_id != shop.id]
+            if alien:
+                raise serializers.ValidationError(
+                    {'products': "Товары другой кофейни: " + ", ".join(alien)}
+                )
+
+        return attrs
+
 
 class AdminCartItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.product', read_only=True)
@@ -198,7 +299,10 @@ class AdminCartItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CartItem
-        fields = ['id', 'product', 'product_name', 'size', 'amount', 'addons_names', 'flavors_names', 'item_total']
+        fields = [
+            'id', 'product', 'product_name', 'size', 'temperature_type',
+            'amount', 'addons_names', 'flavors_names', 'item_total',
+        ]
 
     def get_addons_names(self, obj):
         return [addon.name for addon in obj.addons.all()]

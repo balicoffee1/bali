@@ -10,13 +10,19 @@ import requests
 import urllib.parse
 
 token: str = 'y0_AgAAAABJVJRMAAG8XgAAAADzGIKC_pMkmWp_QiCWTtjQeHiothhUDxE'
-client: Client = Client(token).init()
-chart: List[Dict] = client.chart('russia').chart
+try:
+    client: Client = Client(token).init()
+    chart = client.chart('russia').chart
+except Exception as e:
+    client = None
+    chart = None
 
 
 def get_chart() -> List[Dict]:
     """Получает список песен из русского чарта"""
     chart_data: List[Dict] = []
+    if not chart or not hasattr(chart, 'tracks'):
+        return chart_data
     for track_info in chart.tracks:
         track_data: Dict = {
             "song_title": track_info["track"]["title"],
@@ -69,6 +75,9 @@ def del_last_download_track():
 
 def download_track():
     """Скачивает песню по ID"""
+    if not client:
+        print("Клиент Yandex Music не инициализирован")
+        return
     try:
         del_last_download_track()
         track_id: int = get_track_id()

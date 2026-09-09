@@ -93,14 +93,16 @@ def registration_get_code(request):
 
         code = utils.generate_code()
         try:
-            utils.send_phone_reset(phone, code)
+            code, sent = utils.send_phone_reset(phone, code)
         except utils.SmsSendError as ex:
             return Response(
                 {"error": str(ex)},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
-        PhoneVerification.issue(phone, code)
+        # smscId сохраняется вместе с кодом: по нему потом видно, дошло ли
+        # сообщение до абонента (manage.py sms_status, задача check_sms_delivery).
+        PhoneVerification.issue(phone, code, sent=sent)
 
         return Response(
             {

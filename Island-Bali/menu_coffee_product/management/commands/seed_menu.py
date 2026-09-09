@@ -25,10 +25,13 @@ from menu_coffee_product.models import (
     Addon,
     Category,
     Product,
+    Season,
     SeasonMenu,
 )
 
-SEASON_TITLES = {"winter": "Зима", "spring": "Весна"}
+# Все четыре времени года; печатное меню пока описывает только зиму и весну,
+# остальные наборы появятся в menu_happy_island.SEASON_MENU по мере готовности.
+SEASON_TITLES = {season.value: season.label for season in Season}
 
 
 class Command(BaseCommand):
@@ -48,8 +51,9 @@ class Command(BaseCommand):
             "--season",
             choices=sorted(SEASON_MENU) + ["all", "none"],
             default="all",
-            help="Какие сезонные наборы доступны: winter, spring, all или none. "
-                 "Скрытые позиции остаются в базе с availability=False.",
+            help="Какие сезонные наборы включить. Доступны те сезоны, для "
+                 "которых заведено печатное меню в SEASON_MENU, плюс all и "
+                 "none. Остальные наборы остаются в базе с is_active=False.",
         )
         parser.add_argument("--dry-run", action="store_true")
 
@@ -153,7 +157,12 @@ class Command(BaseCommand):
         return loaded
 
     def _apply_season(self, shop, seasonal, active):
-        """Активный сезон доступен, остальные — скрыты, но остаются в базе."""
+        """Активный сезон доступен, остальные — скрыты, но остаются в базе.
+
+        Наборы всех сезонов лежат в базе постоянно; какой показывать —
+        решает флаг ``SeasonMenu.is_active``, а не наличие записей. Раньше
+        сезон переключали перезапуском этой команды.
+        """
         for name, sections in seasonal.items():
             on = active == "all" or name == active
             ids = [p.id for products in sections.values() for p in products]
@@ -161,8 +170,14 @@ class Command(BaseCommand):
 
             for title, products in sections.items():
                 menu, _ = SeasonMenu.objects.get_or_create(
-                    coffee_shop=shop, seasonal_section=title
+                    coffee_shop=shop,
+                    season=name,
+                    seasonal_section=title,
+                    defaults={"is_active": on},
                 )
+                if menu.is_active != on:
+                    menu.is_active = on
+                    menu.save(update_fields=["is_active"])
                 menu.products.set(products)
 
             mark = self.style.SUCCESS("активен") if on else self.style.WARNING("скрыт")

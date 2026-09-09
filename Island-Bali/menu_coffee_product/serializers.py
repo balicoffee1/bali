@@ -20,7 +20,10 @@ class AddonSerializer(serializers.ModelSerializer):
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
-        fields = ['id', 'name']
+        # color и icon могут прийти пустыми — тогда клиент берёт оформление
+        # из своего локального набора. Раньше набор был единственным
+        # источником: цвет плитки нельзя было поменять без пересборки.
+        fields = ['id', 'name', 'color', 'icon']
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -48,9 +51,15 @@ class SeasonMenuSerializer(serializers.ModelSerializer):
     coffee_shop_id = serializers.PrimaryKeyRelatedField(source='coffee_shop', read_only=True)
     coffee_shop_name = serializers.StringRelatedField(source='coffee_shop')
     seasonal_section = serializers.CharField()
-    products = ProductSerializer(
-        many=True)
+    season_display = serializers.CharField(source='get_season_display', read_only=True)
+    # Вложенные товары только на чтение: писать состав раздела нужно через
+    # список id, а не через развёрнутые объекты.
+    products = ProductSerializer(many=True, read_only=True)
 
     class Meta:
         model = SeasonMenu
-        fields = '__all__'
+        fields = [
+            'id', 'coffee_shop', 'coffee_shop_id', 'coffee_shop_name',
+            'season', 'season_display', 'seasonal_section', 'is_active',
+            'color', 'icon', 'products',
+        ]

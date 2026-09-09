@@ -136,15 +136,30 @@ push-токен. Теперь:
 | Переменная | По умолчанию | Назначение |
 | --- | --- | --- |
 | `SMS_LOGIN` / `SMS_PASSWORD` | — | Учётные данные iqsms.ru |
-| `SMS_SENDER` | `BiBipTrip` | Имя отправителя, зарегистрированное у провайдера |
-| `SMS_API_URL` | `https://api.iqsms.ru/messages/v2/send.json` | Эндпоинт шлюза |
+| `SMS_SENDER` | `HappyIsland` | Подпись отправителя. Обязана быть в списке утверждённых у провайдера — проверка: `manage.py sms_senders` |
+| `SMS_API_BASE_URL` | `https://api.iqsms.ru/messages/v2/` | Базовый URL JSON API; эндпоинты собираются из него |
 | `SMS_TIMEOUT` | `10` | Таймаут запроса к шлюзу, сек |
 | `SMS_ENABLED` | `True` | `False` — код только пишется в лог, SMS не уходит |
 | `SMS_CODE_TTL` | `300` | Время жизни кода, сек |
 | `SMS_RESEND_INTERVAL` | `60` | Антифлуд повторной отправки, сек |
+| `SMS_BALANCE_MIN` | `500` | Порог баланса в рублях для предупреждения |
+| `SMS_BALANCE_ALERT_CHAT_ID` | — | Telegram-чат для предупреждения о балансе |
+| `SMS_STATUS_MAX_AGE_HOURS` | `24` | Сколько держать сообщение в опросе статуса доставки |
 | `SMS_TEST_LOGIN_ENABLED` | `True` | Тестовый вход без SMS |
 | `SMS_TEST_PHONE` | `+77777777777` | Номер тестового входа |
 | `SMS_TEST_CODE` | `0000` | Код тестового входа |
+
+Провайдер один — СМС Дисконт (iqsms.ru), документация API:
+<https://iqsms.ru/api/api_about/>. Клиент живёт в `users/sms.py`, эндпоинты
+`send.json`, `status.json`, `balance.json`, `senders.json`.
+
+### Служебные команды
+
+| Команда | Зачем |
+| --- | --- |
+| `manage.py sms_senders` | Утверждённые подписи и проверка, годится ли текущий `SMS_SENDER` |
+| `manage.py sms_balance` | Остаток на счёте провайдера |
+| `manage.py sms_status --phone +7…` | Дошла ли SMS с кодом до абонента |
 
 ## Совместимость
 
