@@ -415,7 +415,7 @@ class AdminOrdersViewSet(viewsets.ModelViewSet):
         if new_status == Orders.CANCELED and not cancellation_reason.strip():
             return Response({"error": "Для отмены укажите причину."}, status=status.HTTP_400_BAD_REQUEST)
         if not reason or not reason.strip():
-            return Response({"error": "Для admin override обязательна причина (reason)."}, status=status.HTTP_400_BAD_REQUEST)
+            reason = f"Смена статуса на {new_status or new_payment_status} через админ-панель"
 
         from orders.services import OrderStateService
         from orders.state_machine import OrderTransitionError

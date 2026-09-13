@@ -311,7 +311,11 @@ class ApiClient {
     try {
       const res: any = await this.request(`/orders/${orderId}/update_status/`, {
         method: 'PATCH',
-        body: JSON.stringify({ status_orders: newStatus, cancellation_reason: cancellationReason }),
+        body: JSON.stringify({
+          status_orders: newStatus,
+          cancellation_reason: cancellationReason,
+          reason: cancellationReason || `Смена статуса на ${newStatus} через админ-панель`,
+        }),
       });
       return res.order;
     } catch (error) {
