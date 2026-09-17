@@ -8,6 +8,7 @@ from django.core.mail import send_mail
 from requests.auth import HTTPBasicAuth
 
 from island_bali.settings import EMAIL_HOST_USER
+from loguru import logger
 
 # Клиент провайдера переехал в users/sms.py. Реэкспорт — потому что
 # вызывающие обращаются к нему как utils.send_sms / utils.SmsSendError.
@@ -117,9 +118,22 @@ def is_test_phone(phone) -> bool:
     """Тестовый номер для ревью в сторах: SMS не шлём, код фиксированный."""
     from django.conf import settings
 
-    if not settings.SMS_TEST_LOGIN_ENABLED:
+    if not getattr(settings, "SMS_TEST_LOGIN_ENABLED", False):
         return False
-    return normalize_phone(phone) == normalize_phone(settings.SMS_TEST_PHONE)
+
+    raw_test_phones = getattr(settings, "SMS_TEST_PHONE", "")
+    if isinstance(raw_test_phones, str):
+        test_phones = [
+            normalize_phone(p.strip())
+            for p in raw_test_phones.split(",")
+            if p.strip()
+        ]
+    elif isinstance(raw_test_phones, (list, tuple, set)):
+        test_phones = [normalize_phone(p) for p in raw_test_phones]
+    else:
+        test_phones = [normalize_phone(str(raw_test_phones))]
+
+    return normalize_phone(phone) in test_phones
 
 
 def verify_phone_code(phone: str, code) -> tuple:

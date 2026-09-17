@@ -268,6 +268,15 @@ def create_invoice(request):
         return Response({"error": "Forbidden"}, status=403)
 
     coffee_shop = order.coffee_shop
+    apikey = (coffee_shop.lifepay_api_key or getattr(settings, 'LIFEPAY_API_KEY', '') or '').strip()
+    login = (coffee_shop.lifepay_login or getattr(settings, 'LIFEPAY_LOGIN', '') or '').strip()
+
+    if not apikey or not login:
+        logger.error("create_invoice: coffee shop %s (%s) has no LifePay credentials configured", coffee_shop.id, coffee_shop.street)
+        return Response(
+            {"error": "Для кофейни не настроены платежные реквизиты LifePay. Обратитесь к администратору."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     from orders.services import OrderStateService
 
@@ -276,13 +285,20 @@ def create_invoice(request):
     except OrderTransitionError as exc:
         return _transition_error_response(exc)
 
+    customer_phone = None
+    if order.user:
+        raw_phone = str(getattr(order.user, 'phone_number', None) or getattr(order.user, 'login', '') or '')
+        digits = "".join(filter(str.isdigit, raw_phone))
+        if len(digits) >= 10:
+            customer_phone = digits
+
     data = {
-        "apikey": coffee_shop.lifepay_api_key,
-        "login": coffee_shop.lifepay_login,
+        "apikey": apikey,
+        "login": login,
         "amount": str(order.full_price),
         "description": f"Оплата заказа #{order.id}",
-        "customer_phone": str(order.user.login).replace("+", "") if order.user else None,
-        "customer_email": order.user.email if order.user else None,
+        "customer_phone": customer_phone,
+        "customer_email": order.user.email if (order.user and order.user.email) else None,
         "method": "sbp",
         "callback_url": "http://79.174.81.151/api/lifepay/callback/"
     }
@@ -308,6 +324,7 @@ def create_invoice(request):
         )
         return Response({"payment_url": invoice_data["paymentUrlWeb"]})
     else:
+        logger.warning("create_invoice: lifepay returned error order=%s code=%s message=%s", order.id, result.get("code"), result.get("message"))
         return Response({"error": result.get("message")}, status=400)
 
 

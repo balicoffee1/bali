@@ -110,6 +110,7 @@ class AdminAcquiringSerializer(serializers.ModelSerializer):
 
 class AdminCoffeeShopSerializer(serializers.ModelSerializer):
     city_name = serializers.CharField(source='city.name', read_only=True)
+    has_lifepay_api_key = serializers.SerializerMethodField()
 
     class Meta:
         model = CoffeeShop
@@ -117,7 +118,7 @@ class AdminCoffeeShopSerializer(serializers.ModelSerializer):
             'id', 'city', 'city_name', 'street', 'building_number', 'email',
             'telegram_username', 'telegram_id', 'crm_system', 'acquiring',
             'time_open', 'time_close', 'crm_email', 'crm_password', 'crm_layer_name',
-            'lifepay_api_key', 'lifepay_login', 'inn', 'phone_number'
+            'lifepay_api_key', 'has_lifepay_api_key', 'lifepay_login', 'inn', 'phone_number'
         ]
         extra_kwargs = {
             'building_number': {'required': False, 'allow_blank': True},
@@ -132,10 +133,19 @@ class AdminCoffeeShopSerializer(serializers.ModelSerializer):
             'crm_password': {'write_only': True, 'required': False, 'allow_blank': True},
             'crm_layer_name': {'required': False, 'allow_blank': True, 'allow_null': True},
             'lifepay_api_key': {'write_only': True, 'required': False, 'allow_blank': True, 'allow_null': True},
+            'has_lifepay_api_key': {'read_only': True},
             'lifepay_login': {'required': False, 'allow_blank': True, 'allow_null': True},
             'inn': {'required': False, 'allow_blank': True, 'allow_null': True},
             'phone_number': {'required': False, 'allow_blank': True, 'allow_null': True},
         }
+
+    def get_has_lifepay_api_key(self, obj):
+        return bool(obj.lifepay_api_key)
+
+    def update(self, instance, validated_data):
+        if 'lifepay_api_key' in validated_data and not validated_data['lifepay_api_key']:
+            validated_data.pop('lifepay_api_key')
+        return super().update(instance, validated_data)
 
     def create(self, validated_data):
         # crm_system и acquiring едины для всей сети — подставляем сетевой
@@ -270,6 +280,21 @@ class AdminSeasonMenuSerializer(serializers.ModelSerializer):
             'seasonal_section', 'is_active', 'color', 'icon',
             'products', 'products_count',
         ]
+        extra_kwargs = {
+            'products': {
+                'error_messages': {
+                    'empty': 'Выберите хотя бы один товар для раздела.',
+                    'required': 'Выберите хотя бы один товар для раздела.',
+                }
+            },
+            'seasonal_section': {
+                'error_messages': {
+                    'blank': 'Укажите название раздела.',
+                    'required': 'Укажите название раздела.',
+                    'max_length': 'Название раздела не должно превышать 100 символов.',
+                }
+            },
+        }
 
     def get_products_count(self, obj):
         return obj.products.count()
@@ -281,11 +306,15 @@ class AdminSeasonMenuSerializer(serializers.ModelSerializer):
         shop = attrs.get('coffee_shop') or getattr(instance, 'coffee_shop', None)
         products = attrs.get('products')
 
-        if shop and products:
-            alien = [p.product for p in products if p.coffee_shop_id != shop.id]
-            if alien:
+        if shop and products is not None:
+            # Исключаем позиции других кофеен, если они попали в запрос (например,
+            # старые некорректные связи из базы), чтобы не блокировать сохранение.
+            valid_products = [p for p in products if p.coffee_shop_id == shop.id]
+            attrs['products'] = valid_products
+
+            if not valid_products:
                 raise serializers.ValidationError(
-                    {'products': "Товары другой кофейни: " + ", ".join(alien)}
+                    {'products': 'Выберите хотя бы один товар для раздела.'}
                 )
 
         return attrs

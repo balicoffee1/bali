@@ -34,6 +34,14 @@ export const SettingsPage: React.FC = () => {
   const [editingCity, setEditingCity] = useState<Partial<City> | null>(null);
   const [isCityModalOpen, setIsCityModalOpen] = useState(false);
 
+  // LifePay Modal state
+  const [isLifePayModalOpen, setIsLifePayModalOpen] = useState(false);
+  const [targetLifePayShopId, setTargetLifePayShopId] = useState<number | 'all'>('all');
+  const [lifePayLogin, setLifePayLogin] = useState('');
+  const [lifePayApiKey, setLifePayApiKey] = useState('');
+  const [isSavingLifePay, setIsSavingLifePay] = useState(false);
+  const [isTestingLifePay, setIsTestingLifePay] = useState(false);
+
   useEffect(() => {
     loadSettingsData();
   }, []);
@@ -126,6 +134,75 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
+  // --- LifePay Modal Handlers ---
+  const openLifePayModal = (shopId: number | 'all') => {
+    setTargetLifePayShopId(shopId);
+    if (shopId !== 'all') {
+      const shop = shops.find(s => s.id === shopId);
+      setLifePayLogin(shop?.lifepay_login || '');
+      setLifePayApiKey('');
+    } else {
+      setLifePayLogin('');
+      setLifePayApiKey('');
+    }
+    setIsLifePayModalOpen(true);
+  };
+
+  const handleTestLifePay = async () => {
+    if (!lifePayLogin.trim() || !lifePayApiKey.trim()) {
+      addToast({ type: 'error', title: 'Ошибка', message: 'Введите логин и API ключ для проверки' });
+      return;
+    }
+    setIsTestingLifePay(true);
+    try {
+      const res = await api.testLifePayConnection(lifePayApiKey, lifePayLogin);
+      if (res.valid) {
+        addToast({ type: 'success', title: 'LifePay подключен', message: res.message || 'Реквизиты успешно проверены' });
+      } else {
+        addToast({ type: 'error', title: 'Ошибка LifePay', message: res.error || 'Проверка не пройдена' });
+      }
+    } catch (err: any) {
+      addToast({ type: 'error', title: 'Ошибка', message: err?.message || 'Не удалось проверить реквизиты' });
+    } finally {
+      setIsTestingLifePay(false);
+    }
+  };
+
+  const handleSaveLifePay = async () => {
+    if (!lifePayLogin.trim() || !lifePayApiKey.trim()) {
+      addToast({ type: 'error', title: 'Ошибка', message: 'Укажите логин и API ключ LifePay' });
+      return;
+    }
+    setIsSavingLifePay(true);
+    try {
+      if (targetLifePayShopId === 'all') {
+        const res = await api.bulkSaveLifePay(lifePayApiKey, lifePayLogin);
+        addToast({
+          type: 'success',
+          title: 'Успешно',
+          message: `Реквизиты LifePay обновлены для ${res.updated_count} кофеен сети`,
+        });
+      } else {
+        await api.saveCoffeeShop({
+          id: targetLifePayShopId,
+          lifepay_login: lifePayLogin,
+          lifepay_api_key: lifePayApiKey,
+        });
+        addToast({
+          type: 'success',
+          title: 'Успешно',
+          message: 'Реквизиты LifePay обновлены для выбранной точки',
+        });
+      }
+      await loadSettingsData();
+      setIsLifePayModalOpen(false);
+    } catch (err: any) {
+      addToast({ type: 'error', title: 'Ошибка', message: err?.message || 'Не удалось сохранить реквизиты' });
+    } finally {
+      setIsSavingLifePay(false);
+    }
+  };
+
   const shopColumns: Column<CoffeeShop>[] = [
     {
       header: 'Адрес кофейни',
@@ -169,8 +246,14 @@ export const SettingsPage: React.FC = () => {
       ),
     },
     {
-      header: 'Эквайринг',
-      accessor: row => <Badge variant="success" size="sm">Русский Стандарт / LifePay</Badge>,
+      header: 'LifePay / СБП',
+      accessor: row => (
+        row.has_lifepay_api_key ? (
+          <Badge variant="success" size="sm">СБП: настроен</Badge>
+        ) : (
+          <Badge variant="warning" size="sm">СБП: не настроен</Badge>
+        )
+      ),
     },
     {
       header: 'Действия',
@@ -232,6 +315,8 @@ export const SettingsPage: React.FC = () => {
                   crm_layer_name: '',
                   inn: '',
                   phone_number: '',
+                  lifepay_login: '',
+                  lifepay_api_key: '',
                 });
                 setIsShopDrawerOpen(true);
               }}
@@ -376,13 +461,20 @@ export const SettingsPage: React.FC = () => {
             {/* LifePay */}
             <Card className="space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="text-sm font-bold text-brand-dark">LifePay</h4>
-                <Badge variant="success">Активен</Badge>
+                <h4 className="text-sm font-bold text-brand-dark">LifePay & СБП</h4>
+                <Badge variant={shops.some(s => s.has_lifepay_api_key) ? "success" : "warning"}>
+                  {shops.some(s => s.has_lifepay_api_key) ? "Активен" : "Требует настройки"}
+                </Badge>
               </div>
-              <p className="text-xs text-brand-gray-blue">Формирование фискальных чеков и онлайн-касса</p>
+              <p className="text-xs text-brand-gray-blue">Оплата через СБП (QR-код и ссылка), фискализация и онлайн-касса</p>
               <div className="pt-2 text-xs space-y-1 text-brand-dark-blue">
                 <p><span className="font-bold">Callback URL:</span> /api/lifepay/callback/</p>
-                <p><span className="font-bold">Авто-фискализация:</span> Включена</p>
+                <p><span className="font-bold">Точек с ключом:</span> {shops.filter(s => s.has_lifepay_api_key).length} из {shops.length}</p>
+              </div>
+              <div className="pt-2 flex flex-wrap gap-2">
+                <Button size="sm" variant="dark" onClick={() => openLifePayModal('all')}>
+                  Массовая настройка сети
+                </Button>
               </div>
             </Card>
 
@@ -390,7 +482,7 @@ export const SettingsPage: React.FC = () => {
             <Card className="space-y-3">
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-bold text-brand-dark">СБП (Быстрые платежи)</h4>
-                <Badge variant="success">Активен</Badge>
+                <Badge variant="success">Включено</Badge>
               </div>
               <p className="text-xs text-brand-gray-blue">Оплата по динамическому QR-коду и ссылке</p>
               <div className="pt-2 text-xs space-y-1 text-brand-dark-blue">
@@ -399,8 +491,66 @@ export const SettingsPage: React.FC = () => {
               </div>
             </Card>
 
-
           </div>
+
+          {/* Coffee shops LifePay table */}
+          <Card className="space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-bold text-brand-dark">Реквизиты LifePay по точкам кофейни</h4>
+                <p className="text-xs text-brand-gray-blue">Статус интеграции и ключи СБП для каждой отдельной точки</p>
+              </div>
+              <Button size="sm" variant="dark" onClick={() => openLifePayModal('all')}>
+                Применить ключ ко всем точкам
+              </Button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-100 text-brand-gray-blue font-semibold uppercase text-[10px] tracking-wider">
+                    <th className="py-2.5 px-3">Кофейня</th>
+                    <th className="py-2.5 px-3">Город</th>
+                    <th className="py-2.5 px-3">Статус СБП</th>
+                    <th className="py-2.5 px-3">LifePay Логин</th>
+                    <th className="py-2.5 px-3 text-right">Действие</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {shops.map(s => (
+                    <tr key={s.id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="py-3 px-3 font-semibold text-brand-dark">
+                        {s.street}, {s.building_number}
+                      </td>
+                      <td className="py-3 px-3 text-brand-gray-blue">{s.city_name || '—'}</td>
+                      <td className="py-3 px-3">
+                        {s.has_lifepay_api_key ? (
+                          <Badge variant="success" size="sm">Ключ настроен</Badge>
+                        ) : (
+                          <Badge variant="warning" size="sm">Не настроен</Badge>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 font-mono text-brand-dark-blue">
+                        {s.lifepay_login || <span className="text-slate-400 font-sans">Не указан</span>}
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        <Button size="sm" variant="outline" onClick={() => openLifePayModal(s.id)}>
+                          Настроить
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                  {shops.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-6 text-center text-brand-gray-blue">
+                        Кофейни не найдены
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         </div>
       )}
 
@@ -522,6 +672,30 @@ export const SettingsPage: React.FC = () => {
                 value={editingShop.inn || ''}
                 onChange={e => setEditingShop({ ...editingShop, inn: e.target.value })}
               />
+
+              <div className="pt-3 border-t border-slate-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-brand-dark">LifePay (СБП и эквайринг)</span>
+                  {editingShop.has_lifepay_api_key ? (
+                    <Badge variant="success" size="sm">Ключ настроен</Badge>
+                  ) : (
+                    <Badge variant="warning" size="sm">Ключ не задан</Badge>
+                  )}
+                </div>
+                <Input
+                  label="LifePay Логин (телефон администратора)"
+                  placeholder="79991234567"
+                  value={editingShop.lifepay_login || ''}
+                  onChange={e => setEditingShop({ ...editingShop, lifepay_login: e.target.value })}
+                />
+                <Input
+                  label={editingShop.has_lifepay_api_key ? "Новый LifePay API Ключ (оставьте пустым, чтобы не менять)" : "LifePay API Ключ"}
+                  placeholder={editingShop.has_lifepay_api_key ? "••••••••••••••••••••••••" : "Введите API ключ LifePay"}
+                  type="password"
+                  value={editingShop.lifepay_api_key || ''}
+                  onChange={e => setEditingShop({ ...editingShop, lifepay_api_key: e.target.value })}
+                />
+              </div>
             </div>
           </div>
         </Drawer>
@@ -565,6 +739,89 @@ export const SettingsPage: React.FC = () => {
               >
                 {editingCity?.id ? 'Сохранить изменения' : 'Создать город'}
               </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* LIFEPAY MODAL */}
+      {isLifePayModalOpen && (
+        <Modal
+          isOpen={isLifePayModalOpen}
+          onClose={() => setIsLifePayModalOpen(false)}
+          title="Настройка эквайринга LifePay (СБП)"
+        >
+          <div className="space-y-4 font-montserrat">
+            <Select
+              label="Точка кофейни"
+              value={targetLifePayShopId}
+              onChange={e => {
+                const val = e.target.value === 'all' ? 'all' : Number(e.target.value);
+                setTargetLifePayShopId(val);
+                if (val !== 'all') {
+                  const s = shops.find(shop => shop.id === val);
+                  setLifePayLogin(s?.lifepay_login || '');
+                  setLifePayApiKey('');
+                }
+              }}
+              options={[
+                { value: 'all', label: '⭐ Все кофейни сети (массово)' },
+                ...shops.map(s => ({ value: s.id, label: `${s.street}, ${s.building_number} (${s.city_name || 'Казань'})` }))
+              ]}
+            />
+
+            <Input
+              label="LifePay Логин (номер телефона администратора)"
+              placeholder="79991234567"
+              value={lifePayLogin}
+              onChange={e => setLifePayLogin(e.target.value)}
+              requiredAsterisk
+            />
+
+            <Input
+              label="LifePay API Ключ"
+              placeholder="Введите секретный ключ API"
+              type="password"
+              value={lifePayApiKey}
+              onChange={e => setLifePayApiKey(e.target.value)}
+              requiredAsterisk
+            />
+
+            <div className="p-3 bg-slate-50 rounded-r12 border border-slate-200 text-xs space-y-1.5 text-brand-dark-blue">
+              <p className="font-bold text-brand-dark">ℹ️ Где взять реквизиты:</p>
+              <p>В личном кабинете <a href="https://home.life-pay.ru" target="_blank" rel="noreferrer" className="text-brand-dark underline font-semibold">home.life-pay.ru</a> в разделе <strong>Настройки → Разработчикам / API</strong>.</p>
+              <p>Callback URL: <code className="bg-white px-1 py-0.5 rounded border border-slate-200 select-all font-mono text-[11px]">http://79.174.81.151/api/lifepay/callback/</code></p>
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleTestLifePay}
+                isLoading={isTestingLifePay}
+                disabled={isTestingLifePay || isSavingLifePay || !lifePayLogin.trim() || !lifePayApiKey.trim()}
+              >
+                Проверить подключение
+              </Button>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsLifePayModalOpen(false)}
+                  disabled={isSavingLifePay}
+                >
+                  Отмена
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleSaveLifePay}
+                  isLoading={isSavingLifePay}
+                  disabled={isSavingLifePay || !lifePayLogin.trim() || !lifePayApiKey.trim()}
+                >
+                  {targetLifePayShopId === 'all' ? 'Применить ко всем' : 'Сохранить'}
+                </Button>
+              </div>
             </div>
           </div>
         </Modal>

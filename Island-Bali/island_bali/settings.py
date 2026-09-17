@@ -467,4 +467,6 @@ ONESIGNAL_APP_ID = env.str("ONESIGNAL_APP_ID", default="")
 ONESIGNAL_API_KEY = env.str("ONESIGNAL_API_KEY", default="")
 
 
-LIFEPAY_CALLBACK_URL = 'https://example.com/api/orders/lifepay-callback/'
+LIFEPAY_CALLBACK_URL = env.str("LIFEPAY_CALLBACK_URL", default="http://79.174.81.151/api/lifepay/callback/")
+LIFEPAY_API_KEY = env.str("LIFEPAY_API_KEY", default="")
+LIFEPAY_LOGIN = env.str("LIFEPAY_LOGIN", default="")

@@ -48,6 +48,12 @@ const FIELD_LABELS: Record<string, string> = {
   crm_layer_name: 'Слой CRM',
   inn: 'ИНН',
   telegram_username: 'Telegram',
+  products: 'Товары',
+  seasonal_section: 'Название раздела',
+  season: 'Время года',
+  color: 'Цвет плитки',
+  icon: 'Иконка',
+  is_active: 'Статус показа',
 };
 
 function describeApiError(details: any): string {
@@ -1057,6 +1063,39 @@ class ApiClient {
       shops = shops.filter(s => s.id !== shopId);
       saveToStorage('coffee_shops', shops);
       this.logActivity('DELETE', 'CoffeeShop', String(shopId), `Удалена кофейня #${shopId}`);
+    }
+  }
+
+  async bulkSaveLifePay(apiKey: string, login: string, shopIds?: number[]): Promise<{ success: boolean; updated_count: number }> {
+    try {
+      return await this.request('/coffee-shops/bulk-lifepay/', {
+        method: 'POST',
+        body: JSON.stringify({ lifepay_api_key: apiKey, lifepay_login: login, shop_ids: shopIds }),
+      });
+    } catch (error) {
+      this.ensureMockFallback(error);
+      const shops: CoffeeShop[] = loadFromStorage('coffee_shops', mockCoffeeShops);
+      shops.forEach(s => {
+        if (!shopIds || shopIds.includes(s.id)) {
+          s.lifepay_api_key = apiKey;
+          s.lifepay_login = login;
+          s.has_lifepay_api_key = true;
+        }
+      });
+      saveToStorage('coffee_shops', shops);
+      return { success: true, updated_count: shops.length };
+    }
+  }
+
+  async testLifePayConnection(apiKey: string, login: string, coffeeShopId?: number): Promise<{ valid: boolean; message?: string; error?: string }> {
+    try {
+      return await this.request('/coffee-shops/test-lifepay/', {
+        method: 'POST',
+        body: JSON.stringify({ lifepay_api_key: apiKey, lifepay_login: login, coffee_shop_id: coffeeShopId }),
+      });
+    } catch (error: any) {
+      this.ensureMockFallback(error);
+      return { valid: true, message: 'Проверка успешна (мок)' };
     }
   }
 }

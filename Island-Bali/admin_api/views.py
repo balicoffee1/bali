@@ -285,6 +285,52 @@ class AdminCoffeeShopsViewSet(viewsets.ModelViewSet):
         log_admin_activity(self.request, 'DELETE', 'CoffeeShop', instance.id, f"Удалена кофейня {instance}")
         instance.delete()
 
+    @action(detail=False, methods=['post'], url_path='bulk-lifepay', permission_classes=[IsAdminRole])
+    def bulk_lifepay(self, request):
+        api_key = (request.data.get('lifepay_api_key') or '').strip()
+        login = (request.data.get('lifepay_login') or '').strip()
+        shop_ids = request.data.get('shop_ids')
+
+        if not api_key or not login:
+            return Response({'error': 'Укажите API ключ и логин LifePay'}, status=status.HTTP_400_BAD_REQUEST)
+
+        qs = CoffeeShop.objects.all()
+        if shop_ids and isinstance(shop_ids, list):
+            qs = qs.filter(id__in=shop_ids)
+
+        count = qs.update(lifepay_api_key=api_key, lifepay_login=login)
+        log_admin_activity(request, 'UPDATE', 'CoffeeShop', None, f"Массово обновлены реквизиты LifePay для {count} кофеен")
+        return Response({'success': True, 'updated_count': count})
+
+    @action(detail=False, methods=['post'], url_path='test-lifepay', permission_classes=[IsAdminRole])
+    def test_lifepay(self, request):
+        import requests
+        api_key = (request.data.get('lifepay_api_key') or '').strip()
+        login = (request.data.get('lifepay_login') or '').strip()
+        coffee_shop_id = request.data.get('coffee_shop_id')
+
+        if coffee_shop_id and (not api_key or not login):
+            shop = get_object_or_404(CoffeeShop, id=coffee_shop_id)
+            api_key = api_key or (shop.lifepay_api_key or '').strip()
+            login = login or (shop.lifepay_login or '').strip()
+
+        if not api_key or not login:
+            return Response({'valid': False, 'error': 'API ключ и логин LifePay не указаны'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            resp = requests.get(
+                "https://api.life-pay.ru/v1/bill/status",
+                params={"apikey": api_key, "login": login, "number": "test_verification"},
+                timeout=8
+            )
+            data = resp.json()
+            # If bad credentials, LifePay returns code 4001, 401, 1001, 1002
+            if data.get("code") in [4001, 401, 1001, 1002] or "auth" in str(data.get("message", "")).lower() or "ключ" in str(data.get("message", "")).lower():
+                return Response({'valid': False, 'error': data.get('message', 'Неверный API ключ или логин LifePay')}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'valid': True, 'message': 'Подключение к LifePay успешно проверено'})
+        except Exception as exc:
+            return Response({'valid': False, 'error': f'Ошибка подключения к LifePay: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
+
 
 # -------------------------------------------------------------
 # 5. MENU, CATEGORIES, PRODUCTS, ADDONS

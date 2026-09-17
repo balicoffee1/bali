@@ -770,7 +770,7 @@ class OrderStateService:
             if order.payment_started_at is None:
                 # Case A: оплата не была начата вовсе.
                 return OrderStateService.cancel(
-                    order_id, actor_type="system", reason="Автоматическая отмена: оплата не была начата за 90 секунд."
+                    order_id, actor_type="system", reason="Оплата не была произведена за 1,5 минуты"
                 )
 
             # Была активная попытка оплаты — проверяем провайдера прямо сейчас.

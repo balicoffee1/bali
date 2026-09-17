@@ -46,6 +46,7 @@ export interface CoffeeShop {
   crm_email?: string;
   crm_layer_name?: string;
   lifepay_api_key?: string;
+  has_lifepay_api_key?: boolean;
   lifepay_login?: string;
   inn?: string;
   phone_number?: string;

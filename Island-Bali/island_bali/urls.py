@@ -73,8 +73,11 @@ urlpatterns = [
     
     path('api/payment/sbp/<int:order_id>/', SBPPaymentCreateView.as_view(), name='sbp-create-payment'),
     path('create-invoice/', create_invoice, name='create-invoice'),
+    path('api/create-invoice/', create_invoice, name='api-create-invoice'),
     path('lifepay-callback/', lifepay_callback, name='lifepay-callback'),
+    path('api/lifepay-callback/', lifepay_callback, name='api-lifepay-callback'),
     path('lifepay-invoice/', get_lifepay_invoice_view, name='lifepay-invoice'),
+    path('api/lifepay-invoice/', get_lifepay_invoice_view, name='api-lifepay-invoice'),
     path("api/lifepay/callback/", LifePayCallbackView.as_view(), name="lifepay-callback-api"),
     # PaymentChangeStatus / "api/payment/change-status/" удалены (M0 P0) —
     # см. acquiring/views.py, комментарий на месте удалённого класса.

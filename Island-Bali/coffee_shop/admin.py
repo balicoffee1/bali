@@ -23,21 +23,34 @@ class SeasonMenuInline(admin.TabularInline):
 
 class CoffeeShopAdmin(admin.ModelAdmin):
     list_display = (
-        "__str__", "city", "street", "building_number", "email", "crm_system",
-        "acquiring", "time_open", "time_close",)
+        "__str__", "city", "street", "building_number", "has_lifepay", "email", "crm_system",
+        "acquiring", "time_open", "time_close",
+    )
     list_filter = ("city",)
     search_fields = ("city__name", "street", "building_number")
     inlines = [ProductInline, SeasonMenuInline]
     fieldsets = (
-        (None, {"fields": (
-            "city", "street", "telegram_id", "building_number", "email",
-            "telegram_username", "crm_layer_name", "crm_password", 
-            "lifepay_api_key", "lifepay_login",)}),
-        ("Дополнительная информация",
-         {"fields": ("crm_system", "acquiring", "time_open", "time_close"),
-          "classes": ("collapse",),
-          "description": "Это дополнительная информация для кофейни."}),
+        ("Основная информация", {"fields": (
+            "city", "street", "building_number", "phone_number", "email",
+            "telegram_id", "telegram_username",
+        )}),
+        ("Эквайринг LifePay (СБП)", {
+            "fields": ("lifepay_login", "lifepay_api_key"),
+            "description": "Логин (телефон) и API ключ из кабинета LifePay (home.life-pay.ru).",
+        }),
+        ("CRM интеграция", {
+            "fields": ("crm_system", "crm_layer_name", "crm_email", "crm_password", "inn"),
+            "classes": ("collapse",),
+        }),
+        ("Дополнительная информация", {
+            "fields": ("acquiring", "time_open", "time_close"),
+            "classes": ("collapse",),
+        }),
     )
+
+    @admin.display(description="LifePay / СБП", boolean=True)
+    def has_lifepay(self, obj):
+        return bool(obj.lifepay_api_key and obj.lifepay_login)
 
     def get_queryset(self, request):
         user_role = request.user.role

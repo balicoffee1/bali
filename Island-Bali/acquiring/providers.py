@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 import requests
+from django.conf import settings
 from django.utils import timezone
 
 LIFEPAY_STATUS_URL = "https://api.life-pay.ru/v1/bill/status"
@@ -57,9 +58,12 @@ def get_lifepay_transaction_status(coffee_shop, transaction_number: str) -> Prov
     Не пишет ничего в БД — чистая функция запроса, решение принимает вызывающий код
     (orders.services.OrderStateService).
     """
+    apikey = (coffee_shop.lifepay_api_key or getattr(settings, 'LIFEPAY_API_KEY', '') or '').strip()
+    login = (coffee_shop.lifepay_login or getattr(settings, 'LIFEPAY_LOGIN', '') or '').strip()
+
     params = {
-        "apikey": coffee_shop.lifepay_api_key,
-        "login": coffee_shop.lifepay_login,
+        "apikey": apikey,
+        "login": login,
         "number": transaction_number,
     }
     try:

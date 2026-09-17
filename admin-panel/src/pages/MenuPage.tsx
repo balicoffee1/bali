@@ -16,7 +16,7 @@ import { Combobox } from '../components/ui/Combobox';
 import { Table, Column } from '../components/ui/Table';
 import {
   Plus, Search, Edit2, Trash2, CheckCircle2, XCircle,
-  Coffee, Flame, Snowflake, Sparkles, Droplets, Tag, AlertTriangle, Eye, EyeOff
+  Coffee, Flame, Snowflake, Sparkles, Droplets, Tag, AlertTriangle, AlertCircle, Eye, EyeOff
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 
@@ -54,7 +54,6 @@ export const MenuPage: React.FC = () => {
   const [seasonMenus, setSeasonMenus] = useState<SeasonMenu[]>([]);
   const [isSeasonModalOpen, setIsSeasonModalOpen] = useState(false);
   const [editingSeason, setEditingSeason] = useState<Partial<SeasonMenu> | null>(null);
-  const [seasonError, setSeasonError] = useState('');
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -63,6 +62,7 @@ export const MenuPage: React.FC = () => {
   const [categoryError, setCategoryError] = useState('');
   const [addonErrors, setAddonErrors] = useState<Record<string, string>>({});
   const [flavorError, setFlavorError] = useState('');
+  const [seasonErrors, setSeasonErrors] = useState<Record<string, string>>({});
 
   // Всё в этом разделе принадлежит конкретной точке. Пока она не выбрана,
   // создавать нечего: раньше в тело запроса подставлялось coffee_shop: 1,
@@ -428,14 +428,58 @@ export const MenuPage: React.FC = () => {
   };
 
   // --- Season menu ---
+  const targetSeasonShopId = editingSeason?.coffee_shop ?? selectedShopId;
   const seasonProducts = products.filter(
-    p => p.which_menu === 'season_menu' || p.which_menu === 'both'
+    p =>
+      (!targetSeasonShopId || p.coffee_shop === targetSeasonShopId) &&
+      (p.which_menu === 'season_menu' || p.which_menu === 'both')
   );
+
+  const validateSeason = (
+    draft: Partial<SeasonMenu>,
+    availableProductsCount: number
+  ): Record<string, string> => {
+    const errors: Record<string, string> = {};
+
+    if (!draft.season) {
+      errors.season = 'Выберите время года';
+    }
+
+    const section = (draft.seasonal_section || '').trim();
+    if (!section) {
+      errors.seasonal_section = 'Укажите название раздела';
+    } else if (section.length > 100) {
+      errors.seasonal_section = 'Название раздела не должно превышать 100 символов';
+    } else {
+      // Уникальность на сервере — по паре «сезон + раздел» внутри кофейни.
+      const clash = seasonMenus.some(
+        m =>
+          m.id !== draft.id &&
+          m.season === draft.season &&
+          m.seasonal_section.trim().toLowerCase() === section.toLowerCase()
+      );
+      if (clash) {
+        errors.seasonal_section = 'Раздел с таким названием в этом сезоне уже есть';
+      }
+    }
+
+    if (!draft.products || draft.products.length === 0) {
+      if (availableProductsCount === 0) {
+        errors.products =
+          'Нет доступных сезонных товаров. Сначала добавьте товары с размещением «Сезонное меню» или «Оба меню» во вкладке «Товары»';
+      } else {
+        errors.products = 'Выберите хотя бы один товар для раздела';
+      }
+    }
+
+    return errors;
+  };
 
   const handleSaveSeason = async () => {
     if (!editingSeason) return;
 
-    if (!selectedShopId && !editingSeason.coffee_shop) {
+    const targetShopId = editingSeason.coffee_shop ?? selectedShopId;
+    if (!targetShopId) {
       addToast({
         type: 'error',
         title: 'Не выбрана кофейня',
@@ -444,30 +488,32 @@ export const MenuPage: React.FC = () => {
       return;
     }
 
-    const section = (editingSeason.seasonal_section || '').trim();
-    if (!section) {
-      setSeasonError('Укажите название раздела');
-      return;
-    }
+    // Исключаем товары других кофеен, если они попали в draft
+    const sanitizedProducts = (editingSeason.products || []).filter(id => {
+      const p = products.find(prod => prod.id === id);
+      return p ? (!targetShopId || p.coffee_shop === targetShopId) : false;
+    });
 
-    // Уникальность на сервере — по паре «сезон + раздел» внутри кофейни.
-    const clash = seasonMenus.some(
-      m =>
-        m.id !== editingSeason.id &&
-        m.season === editingSeason.season &&
-        m.seasonal_section.trim().toLowerCase() === section.toLowerCase()
-    );
-    if (clash) {
-      setSeasonError('Такой раздел в этом сезоне уже есть');
+    const draftToValidate = {
+      ...editingSeason,
+      products: sanitizedProducts,
+    };
+
+    const errors = validateSeason(draftToValidate, seasonProducts.length);
+    if (Object.keys(errors).length > 0) {
+      setSeasonErrors(errors);
       return;
     }
-    setSeasonError('');
+    setSeasonErrors({});
+
+    const section = (editingSeason.seasonal_section || '').trim();
 
     try {
       const saved = await api.saveSeasonMenu({
         ...editingSeason,
         seasonal_section: section,
-        coffee_shop: editingSeason.coffee_shop ?? (selectedShopId as number),
+        coffee_shop: targetShopId as number,
+        products: sanitizedProducts,
       });
       setSeasonMenus(prev => {
         const exists = prev.some(m => m.id === saved.id);
@@ -481,6 +527,13 @@ export const MenuPage: React.FC = () => {
         message: saved.seasonal_section,
       });
     } catch (err: any) {
+      if (err?.details && typeof err.details === 'object') {
+        const serverErrors: Record<string, string> = {};
+        for (const [key, val] of Object.entries(err.details)) {
+          serverErrors[key] = Array.isArray(val) ? val.join(' ') : String(val);
+        }
+        setSeasonErrors(prev => ({ ...prev, ...serverErrors }));
+      }
       addToast({
         type: 'error',
         title: 'Ошибка',
@@ -517,7 +570,7 @@ export const MenuPage: React.FC = () => {
   const closeSeasonModal = () => {
     setIsSeasonModalOpen(false);
     setEditingSeason(null);
-    setSeasonError('');
+    setSeasonErrors({});
   };
 
   const filteredProducts = products.filter(p => {
@@ -703,7 +756,7 @@ export const MenuPage: React.FC = () => {
               disabled={!canManage}
               title={canManage ? undefined : 'Сначала выберите кофейню'}
               onClick={() => {
-                setSeasonError('');
+                setSeasonErrors({});
                 setEditingSeason({
                   season: 'winter',
                   seasonal_section: '',
@@ -907,8 +960,13 @@ export const MenuPage: React.FC = () => {
                 <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
                   <button
                     onClick={() => {
-                      setSeasonError('');
-                      setEditingSeason({ ...r, products: r.products || [] });
+                      setSeasonErrors({});
+                      const shopId = r.coffee_shop || selectedShopId;
+                      const validProducts = (r.products || []).filter(id => {
+                        const p = products.find(prod => prod.id === id);
+                        return p ? (!shopId || p.coffee_shop === shopId) : false;
+                      });
+                      setEditingSeason({ ...r, products: validProducts });
                       setIsSeasonModalOpen(true);
                     }}
                     className="w-8 h-8 rounded-lg text-brand-dark-blue hover:text-brand-dark hover:bg-slate-100 flex items-center justify-center transition-colors"
@@ -1307,11 +1365,16 @@ export const MenuPage: React.FC = () => {
             <Select
               label="Время года"
               value={editingSeason.season || 'winter'}
-              onChange={e => setEditingSeason({ ...editingSeason, season: e.target.value as Season })}
+              error={seasonErrors.season}
+              onChange={e => {
+                setSeasonErrors(prev => ({ ...prev, season: '' }));
+                setEditingSeason({ ...editingSeason, season: e.target.value as Season });
+              }}
               options={(Object.keys(SEASON_LABELS) as Season[]).map(season => ({
                 value: season,
                 label: SEASON_LABELS[season],
               }))}
+              requiredAsterisk
             />
 
             <Combobox
@@ -1319,9 +1382,9 @@ export const MenuPage: React.FC = () => {
               placeholder="Например: Зимние согревающие"
               value={editingSeason.seasonal_section || ''}
               suggestions={seasonMenus.map(m => m.seasonal_section)}
-              error={seasonError}
+              error={seasonErrors.seasonal_section}
               onChange={value => {
-                setSeasonError('');
+                setSeasonErrors(prev => ({ ...prev, seasonal_section: '' }));
                 setEditingSeason({ ...editingSeason, seasonal_section: value });
               }}
               requiredAsterisk
@@ -1336,22 +1399,32 @@ export const MenuPage: React.FC = () => {
                   <input
                     type="color"
                     value={editingSeason.color || '#CFEBFF'}
-                    onChange={e => setEditingSeason({ ...editingSeason, color: e.target.value })}
+                    onChange={e => {
+                      setSeasonErrors(prev => ({ ...prev, color: '' }));
+                      setEditingSeason({ ...editingSeason, color: e.target.value });
+                    }}
                     className="h-[50px] w-16 rounded-r12 border border-slate-200 bg-white p-1 cursor-pointer"
                   />
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setEditingSeason({ ...editingSeason, color: '' })}
+                    onClick={() => {
+                      setSeasonErrors(prev => ({ ...prev, color: '' }));
+                      setEditingSeason({ ...editingSeason, color: '' });
+                    }}
                   >
                     Из набора
                   </Button>
                 </div>
-                <p className="text-xs text-brand-gray-blue font-medium">
-                  {editingSeason.color
-                    ? `Плитка будет ${editingSeason.color}`
-                    : 'Приложение возьмёт цвет из своего набора'}
-                </p>
+                {seasonErrors.color ? (
+                  <p className="text-xs text-brand-red font-medium">{seasonErrors.color}</p>
+                ) : (
+                  <p className="text-xs text-brand-gray-blue font-medium">
+                    {editingSeason.color
+                      ? `Плитка будет ${editingSeason.color}`
+                      : 'Приложение возьмёт цвет из своего набора'}
+                  </p>
+                )}
               </div>
 
               <Select
@@ -1378,16 +1451,40 @@ export const MenuPage: React.FC = () => {
             </p>
 
             <div className="space-y-2 pt-2 border-t border-slate-100">
-              <label className="block text-xs font-semibold text-brand-dark-blue">
-                Товары раздела
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold text-brand-dark-blue">
+                  Товары раздела <span className="text-brand-red font-bold">*</span>
+                </label>
+                {(editingSeason.products?.length || 0) > 0 && (
+                  <span className="text-xs font-semibold text-brand-dark-blue bg-slate-100 px-2 py-0.5 rounded-full">
+                    Выбрано: {editingSeason.products?.length}
+                  </span>
+                )}
+              </div>
               {seasonProducts.length === 0 ? (
-                <p className="text-xs text-brand-gray-blue">
-                  Нет товаров с размещением «Сезонное меню» или «Оба меню». Поставьте его товару
-                  во вкладке «Товары».
-                </p>
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-r12">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs text-amber-800 font-semibold">
+                        Нет доступных сезонных товаров
+                      </p>
+                      <p className="text-xs text-amber-700 mt-0.5">
+                        В этой кофейне нет товаров с типом размещения «Сезонное меню» или «Оба меню».
+                        Сначала перейдите во вкладку «Товары» и настройте размещение нужных товаров.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               ) : (
-                <div className="flex flex-wrap gap-2 pt-1 max-h-48 overflow-y-auto">
+                <div
+                  className={cn(
+                    'flex flex-wrap gap-2 pt-1 max-h-48 overflow-y-auto p-2 rounded-r12 border transition-colors',
+                    seasonErrors.products
+                      ? 'border-brand-red bg-red-50/20'
+                      : 'border-slate-200/80 bg-slate-50/50'
+                  )}
+                >
                   {seasonProducts.map(product => {
                     const isSelected = (editingSeason.products || []).includes(product.id);
                     return (
@@ -1395,6 +1492,7 @@ export const MenuPage: React.FC = () => {
                         key={product.id}
                         type="button"
                         onClick={() => {
+                          setSeasonErrors(prev => ({ ...prev, products: '' }));
                           const current = editingSeason.products || [];
                           const next = isSelected
                             ? current.filter(id => id !== product.id)
@@ -1405,7 +1503,7 @@ export const MenuPage: React.FC = () => {
                           'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border',
                           isSelected
                             ? 'bg-brand-lime text-brand-dark border-brand-lime font-bold shadow-sm'
-                            : 'bg-brand-light-gray text-brand-dark-blue border-slate-200/80 hover:bg-slate-200/60'
+                            : 'bg-white text-brand-dark-blue border-slate-200/80 hover:bg-slate-100'
                         )}
                       >
                         {product.product}
@@ -1414,13 +1512,24 @@ export const MenuPage: React.FC = () => {
                   })}
                 </div>
               )}
+              {seasonErrors.products && (
+                <p className="text-xs text-brand-red font-medium flex items-center gap-1 mt-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  {seasonErrors.products}
+                </p>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2">
               <Button variant="ghost" size="sm" onClick={closeSeasonModal}>
                 Отмена
               </Button>
-              <Button size="sm" onClick={handleSaveSeason}>
+              <Button
+                size="sm"
+                onClick={handleSaveSeason}
+                disabled={seasonProducts.length === 0}
+                title={seasonProducts.length === 0 ? 'Сначала добавьте сезонные товары' : undefined}
+              >
                 {editingSeason.id ? 'Сохранить изменения' : 'Создать раздел'}
               </Button>
             </div>
