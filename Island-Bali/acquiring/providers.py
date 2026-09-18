@@ -52,6 +52,29 @@ def _normalize_status_code(status_code) -> str:
     return NOT_FOUND
 
 
+def normalize_lifepay_login(login: str | None) -> str:
+    """
+    Нормализует логин для LifePay API.
+    LifePay ожидает телефон в формате 7XXXXXXXXXX (11 цифр, без плюса).
+    Если передан email или пустота, оставляет как есть (после strip).
+    """
+    if not login:
+        return ""
+    login_str = str(login).strip()
+    if not login_str:
+        return ""
+    if "@" in login_str:
+        return login_str
+    digits = "".join(c for c in login_str if c.isdigit())
+    if digits:
+        if digits.startswith("8") and len(digits) == 11:
+            return "7" + digits[1:]
+        if len(digits) == 10:
+            return "7" + digits
+        return digits
+    return login_str
+
+
 def get_lifepay_transaction_status(coffee_shop, transaction_number: str) -> ProviderPaymentStatus:
     """
     Прямой запрос статуса конкретной транзакции к API LifePay.
@@ -59,7 +82,7 @@ def get_lifepay_transaction_status(coffee_shop, transaction_number: str) -> Prov
     (orders.services.OrderStateService).
     """
     apikey = (coffee_shop.lifepay_api_key or getattr(settings, 'LIFEPAY_API_KEY', '') or '').strip()
-    login = (coffee_shop.lifepay_login or getattr(settings, 'LIFEPAY_LOGIN', '') or '').strip()
+    login = normalize_lifepay_login(coffee_shop.lifepay_login or getattr(settings, 'LIFEPAY_LOGIN', '') or '')
 
     params = {
         "apikey": apikey,

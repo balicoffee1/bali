@@ -142,6 +142,12 @@ class AdminCoffeeShopSerializer(serializers.ModelSerializer):
     def get_has_lifepay_api_key(self, obj):
         return bool(obj.lifepay_api_key)
 
+    def validate_lifepay_login(self, value):
+        if value:
+            from acquiring.providers import normalize_lifepay_login
+            return normalize_lifepay_login(value)
+        return value
+
     def update(self, instance, validated_data):
         if 'lifepay_api_key' in validated_data and not validated_data['lifepay_api_key']:
             validated_data.pop('lifepay_api_key')

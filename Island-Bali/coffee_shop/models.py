@@ -146,6 +146,12 @@ class CoffeeShop(models.Model):
     def __str__(self):
         return f"{self.street}, {self.city.name}"
 
+    def save(self, *args, **kwargs):
+        if self.lifepay_login:
+            from acquiring.providers import normalize_lifepay_login
+            self.lifepay_login = normalize_lifepay_login(self.lifepay_login)
+        super().save(*args, **kwargs)
+
     class Meta:
         verbose_name = "Кофейня"
         verbose_name_plural = "Кофейни"

@@ -287,8 +287,9 @@ class AdminCoffeeShopsViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='bulk-lifepay', permission_classes=[IsAdminRole])
     def bulk_lifepay(self, request):
+        from acquiring.providers import normalize_lifepay_login
         api_key = (request.data.get('lifepay_api_key') or '').strip()
-        login = (request.data.get('lifepay_login') or '').strip()
+        login = normalize_lifepay_login(request.data.get('lifepay_login') or '')
         shop_ids = request.data.get('shop_ids')
 
         if not api_key or not login:
@@ -305,14 +306,15 @@ class AdminCoffeeShopsViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'], url_path='test-lifepay', permission_classes=[IsAdminRole])
     def test_lifepay(self, request):
         import requests
+        from acquiring.providers import normalize_lifepay_login
         api_key = (request.data.get('lifepay_api_key') or '').strip()
-        login = (request.data.get('lifepay_login') or '').strip()
+        login = normalize_lifepay_login(request.data.get('lifepay_login') or '')
         coffee_shop_id = request.data.get('coffee_shop_id')
 
         if coffee_shop_id and (not api_key or not login):
             shop = get_object_or_404(CoffeeShop, id=coffee_shop_id)
             api_key = api_key or (shop.lifepay_api_key or '').strip()
-            login = login or (shop.lifepay_login or '').strip()
+            login = login or normalize_lifepay_login(shop.lifepay_login or '')
 
         if not api_key or not login:
             return Response({'valid': False, 'error': 'API ключ и логин LifePay не указаны'}, status=status.HTTP_400_BAD_REQUEST)
@@ -324,9 +326,10 @@ class AdminCoffeeShopsViewSet(viewsets.ModelViewSet):
                 timeout=8
             )
             data = resp.json()
-            # If bad credentials, LifePay returns code 4001, 401, 1001, 1002
-            if data.get("code") in [4001, 401, 1001, 1002] or "auth" in str(data.get("message", "")).lower() or "ключ" in str(data.get("message", "")).lower():
-                return Response({'valid': False, 'error': data.get('message', 'Неверный API ключ или логин LifePay')}, status=status.HTTP_400_BAD_REQUEST)
+            # In LifePay API, code 0 is the only success code. Any non-zero code is an error.
+            if data.get("code") != 0:
+                err_msg = data.get('message') or f"Неверный API ключ или логин LifePay (код {data.get('code')})"
+                return Response({'valid': False, 'error': err_msg}, status=status.HTTP_400_BAD_REQUEST)
             return Response({'valid': True, 'message': 'Подключение к LifePay успешно проверено'})
         except Exception as exc:
             return Response({'valid': False, 'error': f'Ошибка подключения к LifePay: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)

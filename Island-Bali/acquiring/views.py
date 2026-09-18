@@ -267,9 +267,10 @@ def create_invoice(request):
     if order.user_id != request.user.id:
         return Response({"error": "Forbidden"}, status=403)
 
+    from .providers import normalize_lifepay_login
     coffee_shop = order.coffee_shop
     apikey = (coffee_shop.lifepay_api_key or getattr(settings, 'LIFEPAY_API_KEY', '') or '').strip()
-    login = (coffee_shop.lifepay_login or getattr(settings, 'LIFEPAY_LOGIN', '') or '').strip()
+    login = normalize_lifepay_login(coffee_shop.lifepay_login or getattr(settings, 'LIFEPAY_LOGIN', '') or '')
 
     if not apikey or not login:
         logger.error("create_invoice: coffee shop %s (%s) has no LifePay credentials configured", coffee_shop.id, coffee_shop.street)

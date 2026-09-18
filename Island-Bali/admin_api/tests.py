@@ -225,3 +225,109 @@ class AdminCoffeeShopTests(TestCase):
         )
         self.assertEqual(response.status_code, 400, response.data)
         self.assertIn('street', response.data)
+
+
+class LifePayIntegrationTests(TestCase):
+    def setUp(self):
+        self.admin = CustomUser.objects.create_user(
+            login='+79990000004', password='pw', role='admin', first_name='Admin'
+        )
+        self.city = City.objects.create(name='Омск')
+
+    def auth_as(self, user):
+        refresh = RefreshToken.for_user(user)
+        self.client.defaults['HTTP_AUTHORIZATION'] = f'Bearer {refresh.access_token}'
+
+    def test_normalize_lifepay_login(self):
+        from acquiring.providers import normalize_lifepay_login
+
+        cases = [
+            ('+79872716165', '79872716165'),
+            ('+7 (987) 271-61-65', '79872716165'),
+            ('89872716165', '79872716165'),
+            ('9872716165', '79872716165'),
+            ('79872716165', '79872716165'),
+            ('admin@company.ru', 'admin@company.ru'),
+            ('', ''),
+            (None, ''),
+        ]
+        for raw, expected in cases:
+            with self.subTest(raw=raw):
+                self.assertEqual(normalize_lifepay_login(raw), expected)
+
+    def test_coffee_shop_save_normalizes_lifepay_login(self):
+        shop = CoffeeShop.objects.create(
+            city=self.city,
+            street='10 лет октября',
+            lifepay_login='+79872716165',
+            lifepay_api_key='test_key',
+        )
+        shop.refresh_from_db()
+        self.assertEqual(shop.lifepay_login, '79872716165')
+
+    def test_admin_api_creates_coffee_shop_with_normalized_lifepay_login(self):
+        self.auth_as(self.admin)
+        response = self.client.post(
+            '/api/admin/coffee-shops/',
+            data={
+                'city': self.city.id,
+                'street': 'Ленина',
+                'lifepay_login': '+7 (987) 271-61-65',
+                'lifepay_api_key': 'test_api_key',
+            },
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        shop = CoffeeShop.objects.get(id=response.data['id'])
+        self.assertEqual(shop.lifepay_login, '79872716165')
+
+    def test_admin_api_test_lifepay_detects_nonzero_code_as_error(self):
+        from unittest.mock import patch, MagicMock
+        self.auth_as(self.admin)
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            'code': 6010,
+            'message': 'Несоответствие apikey и login',
+            'data': {}
+        }
+
+        with patch('requests.get', return_value=mock_resp):
+            response = self.client.post(
+                '/api/admin/coffee-shops/test-lifepay/',
+                data={
+                    'lifepay_api_key': 'test_key',
+                    'lifepay_login': '+79872716165',
+                },
+                content_type='application/json',
+            )
+            self.assertEqual(response.status_code, 400)
+            self.assertFalse(response.data['valid'])
+            self.assertIn('Несоответствие apikey и login', response.data['error'])
+
+    def test_admin_api_test_lifepay_success_on_code_zero(self):
+        from unittest.mock import patch, MagicMock
+        self.auth_as(self.admin)
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            'code': 0,
+            'message': '',
+            'data': {}
+        }
+
+        with patch('requests.get', return_value=mock_resp) as mock_get:
+            response = self.client.post(
+                '/api/admin/coffee-shops/test-lifepay/',
+                data={
+                    'lifepay_api_key': 'valid_key',
+                    'lifepay_login': '+79872716165',
+                },
+                content_type='application/json',
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.data['valid'])
+            # Verify login was normalized before being sent to LifePay
+            params = mock_get.call_args.kwargs['params']
+            self.assertEqual(params['login'], '79872716165')
+
