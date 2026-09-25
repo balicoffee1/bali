@@ -54,7 +54,7 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS("Telegram-бот запущен и слушает входящие сообщения (Long Polling)..."))
 
-        session = requests.Session()
+        session = telegram_bot.get_telegram_session()
         offset = 0
         poll_url = f"https://api.telegram.org/bot{token}/getUpdates"
 
@@ -63,7 +63,7 @@ class Command(BaseCommand):
                 response = session.get(
                     poll_url,
                     params={"offset": offset, "timeout": 20},
-                    timeout=(10, 30),
+                    timeout=(20.0, 35.0),
                 )
                 if response.status_code != 200:
                     logger.warning("Telegram getUpdates returned status %s: %s", response.status_code, response.text)
