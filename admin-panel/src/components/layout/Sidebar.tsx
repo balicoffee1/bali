@@ -118,6 +118,7 @@ export const Sidebar: React.FC = () => {
       children: [
         { id: 'shops', label: 'Кофейни', roles: ['owner', 'admin'] },
         { id: 'cities', label: 'Города', roles: ['owner', 'admin'] },
+        { id: 'telegram', label: 'Подключить Telegram-бота', roles: ['owner', 'admin'] },
         { id: 'crm', label: 'CRM и интеграции', roles: ['owner', 'admin'] },
         { id: 'acquiring', label: 'Эквайринг', roles: ['owner', 'admin'] },
       ]

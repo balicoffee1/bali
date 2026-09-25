@@ -16,7 +16,7 @@ export type PageId =
   | 'settings';
 
 export type MenuTabId = 'products' | 'categories' | 'seasons' | 'addons' | 'flavors';
-export type SettingsTabId = 'shops' | 'cities' | 'crm' | 'acquiring';
+export type SettingsTabId = 'shops' | 'cities' | 'telegram' | 'crm' | 'acquiring';
 
 interface Toast {
   id: string;
@@ -67,7 +67,7 @@ const parseUrlParams = (): { page: PageId; menuTab: MenuTabId; settingsTab: Sett
       ? (tabParam as MenuTabId)
       : 'products';
 
-    const validSettingsTabs: SettingsTabId[] = ['shops', 'cities', 'crm', 'acquiring'];
+    const validSettingsTabs: SettingsTabId[] = ['shops', 'cities', 'telegram', 'crm', 'acquiring'];
     const settingsTab: SettingsTabId = (tabParam && validSettingsTabs.includes(tabParam as SettingsTabId))
       ? (tabParam as SettingsTabId)
       : 'shops';
