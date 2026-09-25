@@ -591,7 +591,8 @@ class TelegramBotInteractiveFeaturesTests(TestCase):
             cmd.process_message(message)
             mock_send.assert_called_once()
             text = mock_send.call_args[0][1]
-            self.assertIn("Открытая смена", text)
+            self.assertIn("Информация о текущих сменах", text)
+            self.assertIn("Бариста", text)
             self.assertIn("Алексей", text)
 
     def test_my_shops(self):
