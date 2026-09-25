@@ -242,6 +242,20 @@ class Command(BaseCommand):
         logger.info("Попытка привязки Telegram: chat_id=%s, token=%s, shop_id=%s", chat_id, token, shop_id)
 
         if not shop_id:
+            user_shops = self.get_user_shops(chat_id)
+            if user_shops:
+                shop_names = ", ".join(s.street for s in user_shops if s.street) or f"{len(user_shops)} кофеен"
+                msg = (
+                    f"✅ <b>Вы уже подключены к кофейне ({html.escape(shop_names)})!</b>\n\n"
+                    "Данная ссылка уже была активирована, ваши уведомления настроены и активны.\n\n"
+                    "Воспользуйтесь кнопками меню ниже ⬇️"
+                )
+                try:
+                    telegram_bot.send_review_to_user(chat_id, msg, parse_mode="HTML", reply_markup=MAIN_KEYBOARD)
+                except Exception as e:
+                    logger.error("Ошибка отправки сообщения об уже подключенной кофейне: %s", e)
+                return
+
             msg = (
                 "⚠️ Ссылка для привязки устарела или уже была использована.\n\n"
                 "Пожалуйста, откройте панель управления кофейней и нажмите "
@@ -286,6 +300,7 @@ class Command(BaseCommand):
             shop_desc = f"{shop.street}, {shop.building_number}" if shop.street else str(shop)
             city_name = getattr(shop.city, "name", "") if shop.city else ""
             full_addr = f"{city_name}, {shop_desc}".strip(", ")
+            logger.info("Пользователь %s (@%s) успешно подключен к кофейне %s (ID %s)", chat_id, username, full_addr, shop_id)
 
             success_msg = (
                 f"✅ <b>Вы успешно подключены к кофейне!</b>\n\n"
@@ -293,14 +308,19 @@ class Command(BaseCommand):
                 f"Теперь вам доступны оперативные уведомления о заказах и отзывах, "
                 f"а также меню аналитики и истории ниже ⬇️"
             )
-            telegram_bot.send_review_to_user(chat_id, success_msg, parse_mode="HTML", reply_markup=MAIN_KEYBOARD)
-            logger.info("Пользователь %s (@%s) успешно подключен к кофейне %s (ID %s)", chat_id, username, full_addr, shop_id)
+            try:
+                telegram_bot.send_review_to_user(chat_id, success_msg, parse_mode="HTML", reply_markup=MAIN_KEYBOARD)
+            except Exception as send_err:
+                logger.warning("Привязка сохранена в БД, но возникла ошибка при отправке подтверждения: %s", send_err)
 
         except CoffeeShop.DoesNotExist:
             telegram_bot.send_review_to_user(chat_id, "❌ Ошибка: привязываемая кофейня не найдена в базе данных.")
         except Exception as e:
             logger.exception("Ошибка при сохранении привязки кофейни: %s", e)
-            telegram_bot.send_review_to_user(chat_id, "❌ Произошла ошибка при привязке. Попробуйте еще раз позже.")
+            try:
+                telegram_bot.send_review_to_user(chat_id, "❌ Произошла ошибка при сохранении привязки. Попробуйте еще раз позже.")
+            except Exception:
+                pass
 
     def handle_reviews(self, chat_id, offset=0, limit=5):
         shops = self.get_user_shops(chat_id)

@@ -2,8 +2,34 @@ import json
 import logging
 import requests
 from django.conf import settings
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 logger = logging.getLogger(__name__)
+
+_session = None
+
+
+def get_telegram_session():
+    global _session
+    if _session is None:
+        _session = requests.Session()
+        retries = Retry(
+            total=3,
+            connect=3,
+            read=3,
+            backoff_factor=0.5,
+            status_forcelist=[500, 502, 503, 504],
+            raise_on_status=False,
+        )
+        adapter = HTTPAdapter(
+            max_retries=retries,
+            pool_connections=10,
+            pool_maxsize=20,
+        )
+        _session.mount("https://", adapter)
+        _session.mount("http://", adapter)
+    return _session
 
 
 def send_review_to_user(chat_id, review_text, parse_mode=None, reply_markup=None):
@@ -18,10 +44,11 @@ def send_review_to_user(chat_id, review_text, parse_mode=None, reply_markup=None
         else:
             payload["reply_markup"] = reply_markup
 
-    result = requests.post(
+    session = get_telegram_session()
+    result = session.post(
         url_request,
         data=payload,
-        timeout=(10.0, 30.0),
+        timeout=(15.0, 30.0),
     )
     if result.status_code != 200:
         logger.error("Telegram sendMessage error [%s]: %s", result.status_code, result.text)
@@ -45,10 +72,11 @@ def edit_message_text(chat_id, message_id, text, parse_mode=None, reply_markup=N
         else:
             payload["reply_markup"] = reply_markup
 
-    result = requests.post(
+    session = get_telegram_session()
+    result = session.post(
         url_request,
         data=payload,
-        timeout=(10.0, 30.0),
+        timeout=(15.0, 30.0),
     )
     if result.status_code != 200:
         logger.error("Telegram editMessageText error [%s]: %s", result.status_code, result.text)
@@ -63,10 +91,11 @@ def answer_callback_query(callback_query_id, text=None):
     if text:
         payload["text"] = text
 
-    result = requests.post(
+    session = get_telegram_session()
+    result = session.post(
         url_request,
         data=payload,
-        timeout=(10.0, 30.0),
+        timeout=(15.0, 30.0),
     )
     if result.status_code != 200:
         logger.error("Telegram answerCallbackQuery error [%s]: %s", result.status_code, result.text)
