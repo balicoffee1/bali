@@ -1,6 +1,9 @@
 import json
+import logging
 import requests
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 
 def send_review_to_user(chat_id, review_text, parse_mode=None, reply_markup=None):
@@ -20,6 +23,8 @@ def send_review_to_user(chat_id, review_text, parse_mode=None, reply_markup=None
         data=payload,
         timeout=(3.05, 10),
     )
+    if result.status_code != 200:
+        logger.error("Telegram sendMessage error [%s]: %s", result.status_code, result.text)
     result.raise_for_status()
     return result.json()
 
@@ -45,6 +50,8 @@ def edit_message_text(chat_id, message_id, text, parse_mode=None, reply_markup=N
         data=payload,
         timeout=(3.05, 10),
     )
+    if result.status_code != 200:
+        logger.error("Telegram editMessageText error [%s]: %s", result.status_code, result.text)
     result.raise_for_status()
     return result.json()
 
@@ -61,5 +68,7 @@ def answer_callback_query(callback_query_id, text=None):
         data=payload,
         timeout=(3.05, 10),
     )
+    if result.status_code != 200:
+        logger.error("Telegram answerCallbackQuery error [%s]: %s", result.status_code, result.text)
     result.raise_for_status()
     return result.json()
