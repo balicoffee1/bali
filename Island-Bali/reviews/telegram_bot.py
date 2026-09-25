@@ -21,7 +21,7 @@ def send_review_to_user(chat_id, review_text, parse_mode=None, reply_markup=None
     result = requests.post(
         url_request,
         data=payload,
-        timeout=(3.05, 10),
+        timeout=(10.0, 30.0),
     )
     if result.status_code != 200:
         logger.error("Telegram sendMessage error [%s]: %s", result.status_code, result.text)
@@ -48,7 +48,7 @@ def edit_message_text(chat_id, message_id, text, parse_mode=None, reply_markup=N
     result = requests.post(
         url_request,
         data=payload,
-        timeout=(3.05, 10),
+        timeout=(10.0, 30.0),
     )
     if result.status_code != 200:
         logger.error("Telegram editMessageText error [%s]: %s", result.status_code, result.text)
@@ -66,7 +66,7 @@ def answer_callback_query(callback_query_id, text=None):
     result = requests.post(
         url_request,
         data=payload,
-        timeout=(3.05, 10),
+        timeout=(10.0, 30.0),
     )
     if result.status_code != 200:
         logger.error("Telegram answerCallbackQuery error [%s]: %s", result.status_code, result.text)
