@@ -42,8 +42,8 @@ class Command(BaseCommand):
             try:
                 response = session.get(
                     poll_url,
-                    params={"offset": offset, "timeout": 25},
-                    timeout=35,
+                    params={"offset": offset, "timeout": 20},
+                    timeout=(10, 30),
                 )
                 if response.status_code != 200:
                     logger.warning("Telegram getUpdates returned status %s: %s", response.status_code, response.text)
