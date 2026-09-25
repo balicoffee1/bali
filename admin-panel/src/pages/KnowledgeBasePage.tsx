@@ -14,7 +14,7 @@ import { Select } from '../components/ui/Select';
 import { cn } from '../utils/cn';
 import {
   Home, ChevronRight, ChevronDown, Sun, Edit3, Trash2, Plus,
-  Coffee, ShoppingBag, Send, Check
+  ExternalLink, ArrowRight, ShieldCheck, CheckCircle2, Clock
 } from 'lucide-react';
 
 export interface KnowledgeBasePageProps {
@@ -30,12 +30,12 @@ interface SectionTarget {
 const SECTION_TARGETS: Record<string, SectionTarget> = {
   'пользователи': { name: 'Пользователи', page: 'users' },
   'пользователи.': { name: 'Пользователи', page: 'users' },
-  'корзину': { name: 'Заказы', page: 'orders' },
-  'корзина': { name: 'Заказы', page: 'orders' },
+  'корзину': { name: 'Заказы (Live Desk)', page: 'orders' },
+  'корзина': { name: 'Заказы (Live Desk)', page: 'orders' },
   'заказы': { name: 'Заказы (Live Desk)', page: 'orders' },
   'live desk': { name: 'Live Desk', page: 'orders' },
   'меню и товары': { name: 'Меню и товары', page: 'menu', tab: 'products' },
-  'меню': { name: 'Меню', page: 'menu', tab: 'products' },
+  'меню': { name: 'Меню и товары', page: 'menu', tab: 'products' },
   'товары': { name: 'Товары', page: 'menu', tab: 'products' },
   'категории': { name: 'Категории меню', page: 'menu', tab: 'categories' },
   'добавки': { name: 'Добавки', page: 'menu', tab: 'addons' },
@@ -46,12 +46,13 @@ const SECTION_TARGETS: Record<string, SectionTarget> = {
   'telegram': { name: 'Telegram-бот', page: 'telegram' },
   'push-рассылки': { name: 'Push-рассылки', page: 'notifications' },
   'отзывы клиентов': { name: 'Отзывы клиентов', page: 'reviews' },
-  'отзывы': { name: 'Отзывы', page: 'reviews' },
+  'отзывы': { name: 'Отзывы клиентов', page: 'reviews' },
   'кофейни и сеть': { name: 'Кофейни и сеть', page: 'settings', tab: 'shops' },
-  'кофейни': { name: 'Кофейни', page: 'settings', tab: 'shops' },
+  'кофейни': { name: 'Кофейни и сеть', page: 'settings', tab: 'shops' },
   'эквайринг': { name: 'Эквайринг', page: 'settings', tab: 'acquiring' },
   'журнал аудита': { name: 'Журнал аудита', page: 'logs' },
   'дашборд': { name: 'Дашборд', page: 'dashboard' },
+  'главный дашборд': { name: 'Дашборд', page: 'dashboard' },
 };
 
 export const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ isStandalone = false }) => {
@@ -65,17 +66,19 @@ export const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ isStandalo
   const [categories, setCategories] = useState<KnowledgeCategory[]>(() => getStoredCategories());
   const [articles, setArticles] = useState<KnowledgeArticle[]>(() => getStoredArticles());
 
-  // Selected article ID
+  // Selected article ID (default to platform overview 'about-1' or first article)
   const [selectedArticleId, setSelectedArticleId] = useState<string>(() => {
     const list = getStoredArticles();
-    return list[0]?.id || 'orders-1';
+    const aboutArt = list.find(a => a.categoryId === 'about' || a.slug === 'platform-overview');
+    return aboutArt?.id || list[0]?.id || 'orders-1';
   });
 
   // Track expanded categories in the sidebar tree
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
+    about: true,
     start: true,
     orders: true,
-    menu: true,
+    menu: false,
     staff: false,
     telegram: false,
     marketing: false,
@@ -114,7 +117,8 @@ export const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ isStandalo
       if (serverArts && serverArts.length > 0) {
         setArticles(serverArts);
         if (!selectedArticleId || !serverArts.some(a => a.id === selectedArticleId)) {
-          setSelectedArticleId(serverArts[0].id);
+          const aboutArt = serverArts.find(a => a.categoryId === 'about' || a.slug === 'platform-overview');
+          setSelectedArticleId(aboutArt?.id || serverArts[0].id);
         }
       }
     } catch {
@@ -191,7 +195,7 @@ export const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ isStandalo
 
   // Helper to parse step text and make phrases like "Перейдите в Корзину" or "в раздел «Пользователи»" clean clickable links
   const renderInteractiveStepText = (text: string) => {
-    const regex = /(Перейдите в раздел|перейдите в раздел|в раздел|раздел|Перейдите в|перейдите в|вкладка|вкладку)\s*(«[^»]+»|Корзину|корзину)/gi;
+    const regex = /(Перейдите в раздел|перейдите в раздел|в раздел|раздел|Перейдите в|перейдите в|вкладка|вкладку)\s*(«[^»]+»|Корзину|корзину|Главный Дашборд)/gi;
     const parts: React.ReactNode[] = [];
     let lastIndex = 0;
     let match: RegExpExecArray | null;
@@ -219,8 +223,9 @@ export const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ isStandalo
                 handleNavigateToSection(target.page, target.tab);
               }}
               className="font-bold text-[#1D4ED8] hover:text-[#1e40af] hover:underline underline-offset-2 transition-colors cursor-pointer inline"
+              title={`Открыть раздел «${target.name}» в основном окне админ-панели`}
             >
-              {match[2]}
+              «{target.name}»
             </button>
           </span>
         );
@@ -361,9 +366,9 @@ export const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ isStandalo
   };
 
   return (
-    <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans">
+    <div className="min-h-screen bg-[#F8FAFC] text-brand-dark flex flex-col font-montserrat">
       {/* 1:1 WIKKEO DOCS TOP HEADER */}
-      <header className="sticky top-0 z-30 bg-white border-b border-slate-100 px-6 sm:px-8 py-3.5 flex items-center justify-between">
+      <header className="sticky top-0 z-30 bg-white border-b border-slate-200/80 px-6 sm:px-8 py-3.5 flex items-center justify-between">
         {/* Left: Brand Logo text matching WIKKEO Docs 1-to-1 */}
         <div className="flex items-center gap-2">
           <span className="text-xl sm:text-2xl font-black tracking-tight text-[#1D4ED8]">
@@ -401,12 +406,12 @@ export const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ isStandalo
         </div>
       </header>
 
-      {/* 1:1 WIKKEO DOCS LAYOUT: SIDEBAR (NO ICONS) + MAIN CONTENT */}
+      {/* 1:1 WIKKEO DOCS LAYOUT: SIDEBAR (NO ICONS) + MAIN CONTENT IN APP BG */}
       <div className="flex-1 flex max-w-[1440px] w-full mx-auto">
         {/* ========================================================================= */}
         {/* LEFT SIDEBAR: PURE TEXT TREE HIERARCHY WITHOUT ICONS                      */}
         {/* ========================================================================= */}
-        <aside className="w-72 shrink-0 border-r border-slate-100 py-6 px-4 sm:px-6 overflow-y-auto select-none">
+        <aside className="w-72 shrink-0 bg-white border-r border-slate-200/80 py-6 px-4 sm:px-6 overflow-y-auto select-none">
           <nav className="space-y-1">
             {categories.map(cat => {
               const catArticles = articlesByCategory[cat.id] || [];
@@ -414,24 +419,29 @@ export const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ isStandalo
               const hasArticles = catArticles.length > 0;
               const hasActiveChild = catArticles.some(a => a.id === selectedArticleId || a.slug === selectedArticleId);
 
+              // If category is a single article (e.g. "about"), allow direct click to open
+              const isSingleAbout = cat.slug === 'about' || cat.id === 'about';
+
               return (
                 <div key={cat.id} className="py-0.5">
                   {/* Category Header Item */}
                   <div
                     onClick={() => {
-                      if (hasArticles) {
+                      if (isSingleAbout && catArticles[0]) {
+                        setSelectedArticleId(catArticles[0].id);
+                      } else if (hasArticles) {
                         toggleCategory(cat.id);
                       }
                     }}
                     className={cn(
                       "flex items-center justify-between py-1.5 px-2 rounded cursor-pointer transition-colors text-[14px]",
-                      hasActiveChild || isExpanded
+                      hasActiveChild || (isSingleAbout && currentArticle?.categoryId === cat.id)
                         ? "text-[#1D4ED8] font-semibold"
                         : "text-slate-700 hover:text-slate-900 font-medium"
                     )}
                   >
                     <span className="truncate pr-2">{cat.name}</span>
-                    {hasArticles && (
+                    {hasArticles && !isSingleAbout && (
                       <span className="text-slate-400 shrink-0">
                         {isExpanded ? (
                           <ChevronDown className="w-3.5 h-3.5" />
@@ -443,7 +453,7 @@ export const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ isStandalo
                   </div>
 
                   {/* Sub-items (Articles under category) - NO ICONS */}
-                  {isExpanded && hasArticles && (
+                  {isExpanded && hasArticles && !isSingleAbout && (
                     <div className="pl-3 mt-0.5 space-y-0.5">
                       {catArticles.map(art => {
                         const isCurrent = art.id === selectedArticleId || art.slug === selectedArticleId;
@@ -456,10 +466,10 @@ export const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ isStandalo
                               window.scrollTo({ top: 0, behavior: 'smooth' });
                             }}
                             className={cn(
-                              "w-full text-left text-[13.5px] py-1 px-2.5 rounded transition-colors block leading-snug",
+                              "w-full text-left text-[13px] py-1 px-2.5 rounded transition-colors block leading-snug",
                               isCurrent
-                                ? "text-[#1D4ED8] font-semibold"
-                                : "text-slate-600 hover:text-slate-900 font-normal"
+                                ? "text-[#1D4ED8] font-semibold bg-blue-50/60"
+                                : "text-slate-600 hover:text-slate-900 font-normal hover:bg-slate-50"
                             )}
                           >
                             {art.title}
@@ -475,13 +485,13 @@ export const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ isStandalo
         </aside>
 
         {/* ========================================================================= */}
-        {/* MAIN CONTENT AREA: 1-TO-1 WIKKEO DOCS ARTICLE VIEW                        */}
+        {/* MAIN CONTENT AREA: CLEAN WHITE READING CARD OVER APP BACKGROUND           */}
         {/* ========================================================================= */}
-        <main className="flex-1 min-w-0 py-8 px-6 sm:px-12 max-w-4xl">
+        <main className="flex-1 min-w-0 bg-[#F8FAFC] py-8 px-4 sm:px-10 overflow-y-auto">
           {currentArticle ? (
-            <div>
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-6 sm:p-10 shadow-xs max-w-4xl mx-auto space-y-8 animate-fadeIn">
               {/* Breadcrumbs: 🏠 > Category > [Article Pill] */}
-              <div className="flex items-center gap-2 text-xs text-slate-400 mb-6 flex-wrap">
+              <div className="flex items-center gap-2 text-xs text-slate-400 flex-wrap pb-4 border-b border-slate-100">
                 <Home className="w-3.5 h-3.5 text-slate-800 shrink-0" />
                 <span className="text-slate-300 font-light">&gt;</span>
                 <span className="text-slate-600 font-medium">
@@ -494,8 +504,8 @@ export const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ isStandalo
               </div>
 
               {/* H1 Title: Large, bold, clean */}
-              <div className="flex items-start justify-between gap-4 mb-4">
-                <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              <div className="flex items-start justify-between gap-4">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
                   {currentArticle.title}
                 </h1>
 
@@ -520,136 +530,99 @@ export const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ isStandalo
                 )}
               </div>
 
-              {/* Intro Text */}
-              <p className="text-[15px] text-slate-800 leading-relaxed mb-6 font-normal">
-                {renderInteractiveStepText(
-                  currentArticle.steps[0] ||
-                  `Перейдите в Корзину и приступайте к оформлению заказа, нажав Купить`
-                )}
-              </p>
-
-              {/* 1:1 WIKKEO DOCS MOCKUP SCREENS (Side-by-side Mobile Interface Preview) */}
-              <div className="my-8 flex flex-col md:flex-row items-center justify-center gap-6 max-w-3xl mx-auto">
-                {/* Screen 1: Mobile App Showcase / Catalog */}
-                <div className="w-full max-w-[290px] rounded-[30px] border-4 border-slate-800 bg-white p-2.5 shadow-xl text-slate-900">
-                  <div className="w-16 h-3 bg-slate-800 rounded-full mx-auto mb-2" />
-                  
-                  {/* Search bar inside screen */}
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-xl text-[11px] text-slate-400 mb-2 border border-slate-200">
-                    <span className="w-4 h-4 rounded-full bg-amber-400 flex items-center justify-center text-[9px] font-black text-white">W</span>
-                    <span>Искать в Happy Island...</span>
-                  </div>
-
-                  {/* Banner */}
-                  <div className="h-24 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 p-3 text-white flex flex-col justify-between relative overflow-hidden mb-2.5">
-                    <div>
-                      <span className="text-[9px] bg-white/20 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Спецпредложение</span>
-                      <p className="text-xs font-bold mt-1">Скидка 20% на весь авторский кофе</p>
-                    </div>
-                    <span className="text-[9px] text-white/80">Каждый день до 12:00</span>
-                  </div>
-
-                  {/* Categories grid */}
-                  <div className="grid grid-cols-4 gap-1.5 text-center text-[10px] mb-2">
-                    <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-100 font-medium">Кофе</div>
-                    <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-100 font-medium">Чай</div>
-                    <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-100 font-medium">Выпечка</div>
-                    <div className="p-1.5 rounded-lg bg-slate-50 border border-slate-100 font-medium">Десерты</div>
-                  </div>
-
-                  {/* Bottom nav inside phone */}
-                  <div className="flex items-center justify-around pt-2 border-t border-slate-100 text-[11px] text-slate-400">
-                    <span className="text-blue-600 font-bold">Главная</span>
-                    <span>Каталог</span>
-                    <span className="relative">
-                      Корзина
-                      <span className="absolute -top-1.5 -right-2.5 w-3.5 h-3.5 bg-red-500 text-white rounded-full text-[8px] font-bold flex items-center justify-center">1</span>
-                    </span>
-                    <span>Профиль</span>
-                  </div>
-                </div>
-
-                {/* Screen 2: Cart / Checkout Screen (Matching Wikkeo Right Screen 1-to-1) */}
-                <div className="w-full max-w-[290px] rounded-[30px] border-4 border-slate-800 bg-white p-2.5 shadow-xl text-slate-900 flex flex-col justify-between min-h-[390px]">
-                  <div>
-                    <div className="w-16 h-3 bg-slate-800 rounded-full mx-auto mb-2" />
-                    
-                    {/* Header in phone */}
-                    <div className="flex items-center justify-between px-2 pb-2 border-b border-slate-100 text-xs">
-                      <span className="text-slate-400">&lt;</span>
-                      <span className="font-bold text-slate-800">Корзина</span>
-                      <span className="text-[10px] text-slate-400">Удалить</span>
-                    </div>
-
-                    {/* Shop and item in cart */}
-                    <div className="pt-2 px-1 space-y-2">
-                      <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-3.5 h-3.5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[8px]"><Check className="w-2.5 h-2.5" /></span>
-                          <span>Happy Island Coffee</span>
-                        </div>
-                        <span className="font-mono text-slate-500">510 ₽</span>
-                      </div>
-
-                      {/* Product item 1 */}
-                      <div className="p-2 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
-                        <div className="flex items-center justify-between font-bold">
-                          <span>Раф Цитрусовый (350 мл)</span>
-                          <span className="font-mono">320 ₽</span>
-                        </div>
-                        <p className="text-[10px] text-slate-500">Альтернативное молоко (овсяное)</p>
-                        <span className="inline-block text-[9px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded font-semibold">+ 15 бонусов</span>
-                      </div>
-
-                      {/* Product item 2 */}
-                      <div className="p-2 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
-                        <div className="flex items-center justify-between font-bold">
-                          <span>Круассан миндальный x1</span>
-                          <span className="font-mono">190 ₽</span>
-                        </div>
-                        <p className="text-[10px] text-slate-500">Свежая выпечка</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Checkout bar matching Wikkeo blue button */}
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between px-1">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                      <span className="w-3.5 h-3.5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[8px]"><Check className="w-2.5 h-2.5" /></span>
-                      <span>Итого: <strong className="text-slate-900 font-mono">510 ₽</strong></span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleNavigateToSection('orders')}
-                      className="px-4 py-1.5 rounded-full bg-[#1D4ED8] hover:bg-[#1e40af] text-white font-bold text-xs shadow-sm transition-colors"
-                    >
-                      Купить
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Detailed Steps text below screenshots */}
-              <div className="space-y-4 my-6 text-[14.5px] text-slate-800 leading-relaxed font-normal">
-                {currentArticle.steps.slice(1).map((step, idx) => (
-                  <p key={idx} className="leading-relaxed">
-                    {renderInteractiveStepText(step)}
+              {/* 1. Обоснование и бизнес-логика */}
+              {currentArticle.whyNeeded && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">
+                    Обоснование и бизнес-логика
+                  </h3>
+                  <p className="text-[15px] text-slate-800 leading-relaxed font-normal">
+                    {renderInteractiveStepText(currentArticle.whyNeeded)}
                   </p>
-                ))}
-              </div>
+                </div>
+              )}
 
-              {/* Troubleshooting notes (if any) */}
-              {currentArticle.troubleshooting && currentArticle.troubleshooting.length > 0 && (
-                <div className="mt-8 pt-6 border-t border-slate-100 text-sm text-slate-700">
-                  <h4 className="font-bold text-slate-900 text-sm mb-2">Обратите внимание:</h4>
-                  <ul className="list-disc list-inside space-y-1.5 leading-relaxed">
-                    {currentArticle.troubleshooting.map((tr, idx) => (
-                      <li key={idx}>
-                        {renderInteractiveStepText(tr)}
-                      </li>
+              {/* 2. Что это такое и как устроено */}
+              {currentArticle.whatIsIt && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">
+                    Устройство и принцип работы
+                  </h3>
+                  <p className="text-[15px] text-slate-800 leading-relaxed font-normal">
+                    {renderInteractiveStepText(currentArticle.whatIsIt)}
+                  </p>
+                </div>
+              )}
+
+              {/* 3. Пошаговый регламент действий (Как сделать) */}
+              {currentArticle.steps && currentArticle.steps.length > 0 && (
+                <div className="space-y-4 pt-2">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">
+                    Пошаговый регламент действий
+                  </h3>
+                  <div className="space-y-3">
+                    {currentArticle.steps.map((step, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-start gap-3.5 p-3.5 rounded-xl bg-slate-50/70 border border-slate-200/70 text-slate-800 text-[14.5px] leading-relaxed"
+                      >
+                        <span className="w-5 h-5 rounded-full bg-[#1D4ED8] text-white text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                          {idx + 1}
+                        </span>
+                        <div className="flex-1">
+                          {renderInteractiveStepText(step)}
+                        </div>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
+                </div>
+              )}
+
+              {/* 4. Troubleshooting: Частые вопросы и ошибки */}
+              {currentArticle.troubleshooting && currentArticle.troubleshooting.length > 0 && (
+                <div className="space-y-3 pt-2">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-amber-600">
+                    Важные нюансы и решение проблем
+                  </h3>
+                  <div className="space-y-2.5">
+                    {currentArticle.troubleshooting.map((tr, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3.5 rounded-xl bg-amber-50/40 border border-amber-200/80 text-slate-800 text-[14px] leading-relaxed"
+                      >
+                        {renderInteractiveStepText(tr)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 5. Кнопка быстрого перехода в раздел админки */}
+              {currentArticle.quickAction && (
+                <div className="pt-4 border-t border-slate-100 flex items-center justify-between flex-wrap gap-4">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {currentArticle.tags.map(tag => (
+                      <span
+                        key={tag}
+                        className="px-2.5 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-600"
+                      >
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const targetPage = currentArticle.quickAction?.page || 'dashboard';
+                      const targetTab = currentArticle.quickAction?.tab;
+                      handleNavigateToSection(targetPage, targetTab);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1D4ED8] hover:bg-[#1e40af] text-white font-bold text-xs shadow-xs transition-colors"
+                  >
+                    <span>{currentArticle.quickAction.label}</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               )}
             </div>
@@ -719,9 +692,33 @@ export const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ isStandalo
               </div>
 
               <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Обоснование и бизнес-логика (Зачем это нужно)
+                </label>
+                <textarea
+                  rows={2}
+                  value={editingArticle.whyNeeded || ''}
+                  onChange={e => setEditingArticle({ ...editingArticle, whyNeeded: e.target.value })}
+                  className="w-full p-2 rounded border border-slate-300 text-xs outline-none focus:border-blue-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Устройство и принцип работы (Что это такое)
+                </label>
+                <textarea
+                  rows={2}
+                  value={editingArticle.whatIsIt || ''}
+                  onChange={e => setEditingArticle({ ...editingArticle, whatIsIt: e.target.value })}
+                  className="w-full p-2 rounded border border-slate-300 text-xs outline-none focus:border-blue-600"
+                />
+              </div>
+
+              <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-semibold text-slate-700">
-                    Текст и шаги инструкции
+                    Шаги регламента
                   </label>
                   <button
                     type="button"
@@ -731,7 +728,7 @@ export const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ isStandalo
                     })}
                     className="text-xs font-bold text-blue-600 hover:text-blue-800"
                   >
-                    + Добавить абзац/шаг
+                    + Добавить шаг
                   </button>
                 </div>
                 <div className="space-y-2">
@@ -748,7 +745,7 @@ export const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ isStandalo
                           next[idx] = e.target.value;
                           setEditingArticle({ ...editingArticle, steps: next });
                         }}
-                        placeholder="Например: Перейдите в Корзину и нажмите Купить..."
+                        placeholder="Например: Перейдите в раздел «Пользователи»..."
                         className="flex-1 p-2 rounded border border-slate-300 text-xs outline-none focus:border-blue-600"
                       />
                       <button
