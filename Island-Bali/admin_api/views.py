@@ -340,14 +340,15 @@ class AdminCoffeeShopsViewSet(viewsets.ModelViewSet):
         from django.core.cache import cache
         shop = self.get_object()
         token = f"bind_{uuid.uuid4().hex[:12]}"
-        cache.set(f"tg_bind_{token}", shop.id, timeout=900)  # 15 minutes
+        cache.set(f"tg_bind_{token}", shop.id, timeout=1800)  # 30 minutes
         bot_username = "happy_island_bot"
         link = f"https://t.me/{bot_username}?start={token}"
+        log_admin_activity(request, 'UPDATE', 'CoffeeShop', shop.id, f"Сгенерирована ссылка привязки Telegram для {shop}")
         return Response({
             "link": link,
             "token": token,
             "bot_username": bot_username,
-            "expires_in": 900,
+            "expires_in": 1800,
         })
 
     @action(detail=True, methods=['get'], url_path='telegram-bind-status', permission_classes=[IsAdminOrReadOnly])

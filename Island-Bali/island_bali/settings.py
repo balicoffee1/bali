@@ -374,6 +374,14 @@ CELERY_SEND_EVENTS = True
 # место хранения периодических задач (данные для планировщика)
 CELERYBEAT_SCHEDULER = "djcelery.schedulers.DatabaseScheduler"
 
+REDIS_CACHE_URL = env.str("REDIS_CACHE_URL", default="redis://127.0.0.1:6379/3")
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": REDIS_CACHE_URL,
+    }
+}
+
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 
 URL_SUB_TOTAL = env.str("URL_SUB_TOTAL")

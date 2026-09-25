@@ -86,8 +86,8 @@ class Command(BaseCommand):
 
         if text.startswith("/start"):
             parts = text.split(maxsplit=1)
-            if len(parts) > 1 and parts[1].startswith("bind_"):
-                token = parts[1]
+            if len(parts) > 1 and parts[1].strip().startswith("bind_"):
+                token = parts[1].strip()
                 self.handle_bind(chat_id, username, first_name, token)
             else:
                 self.send_welcome_message(chat_id, first_name)
@@ -134,8 +134,10 @@ class Command(BaseCommand):
             logger.error("Ошибка отправки сообщения: %s", e)
 
     def handle_bind(self, chat_id, username, first_name, token):
+        token = token.strip()
         cache_key = f"tg_bind_{token}"
         shop_id = cache.get(cache_key)
+        logger.info("Попытка привязки Telegram: chat_id=%s, token=%s, shop_id=%s", chat_id, token, shop_id)
 
         if not shop_id:
             msg = (
