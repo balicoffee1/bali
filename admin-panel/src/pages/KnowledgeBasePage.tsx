@@ -381,24 +381,7 @@ export const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ isStandalo
 
         {/* Right: Sun icon and discreet Owner controls */}
         <div className="flex items-center gap-4">
-          {isOwner && (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleOpenCreateArticle}
-                className="px-2.5 py-1 text-xs font-semibold rounded bg-[#1D4ED8] text-white hover:bg-[#1e40af] transition-colors"
-              >
-                + Статья
-              </button>
-              <button
-                type="button"
-                onClick={handleOpenCreateCategory}
-                className="px-2.5 py-1 text-xs font-semibold rounded border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
-              >
-                + Раздел
-              </button>
-            </div>
-          )}
+
 
           <div className="text-slate-400 p-1 cursor-default" title="Светлая тема">
             <Sun className="w-5 h-5 text-slate-400" />
@@ -509,25 +492,7 @@ export const KnowledgeBasePage: React.FC<KnowledgeBasePageProps> = ({ isStandalo
                   {currentArticle.title}
                 </h1>
 
-                {/* Owner controls */}
-                {isOwner && (
-                  <div className="flex items-center gap-2 shrink-0 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEditArticle(currentArticle)}
-                      className="text-xs text-slate-500 hover:text-[#1D4ED8] font-medium px-2 py-1 rounded border border-slate-200 hover:border-blue-300 transition-colors"
-                    >
-                      Редактировать
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setArticleToDelete(currentArticle)}
-                      className="text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1 rounded border border-slate-200 hover:border-red-300 transition-colors"
-                    >
-                      Удалить
-                    </button>
-                  </div>
-                )}
+
               </div>
 
               {/* 1. Обоснование и бизнес-логика */}
