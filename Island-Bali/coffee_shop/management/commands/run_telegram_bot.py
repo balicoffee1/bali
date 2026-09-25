@@ -522,7 +522,11 @@ class Command(BaseCommand):
                 pass
 
             barista = s.staff.users if s.staff else None
-            barista_name = barista.get_full_name() if (barista and barista.get_full_name()) else (barista.first_name if barista else "Сотрудник")
+            if barista:
+                full_name = f"{barista.first_name} {barista.last_name or ''}".strip()
+                barista_name = full_name if full_name else (barista.first_name or barista.login)
+            else:
+                barista_name = "Сотрудник"
             shop_name = f"{s.staff.place_of_work.street}, {s.staff.place_of_work.building_number}".strip(", ") if (s.staff and s.staff.place_of_work) else "Точка"
             start_str = timezone.localtime(s.start_time).strftime("%H:%M (%d.%m)") if s.start_time else "не зафиксировано"
 
