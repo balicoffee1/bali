@@ -12,8 +12,9 @@ import { Modal } from '../components/ui/Modal';
 import { Table, Column } from '../components/ui/Table';
 import {
   ShoppingBag, Search, CheckCircle2, Clock, XCircle,
-  LayoutGrid, List, User, Phone, MapPin, Coffee, AlertCircle
+  LayoutGrid, List, User, Phone, MapPin, Coffee, AlertCircle, Plus
 } from 'lucide-react';
+import { CreateOrderModal } from '../components/orders/CreateOrderModal';
 
 export const OrdersPage: React.FC = () => {
   const { selectedShopId, addToast } = useApp();
@@ -25,6 +26,7 @@ export const OrdersPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [cancellationReason, setCancellationReason] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -144,8 +146,19 @@ export const OrdersPage: React.FC = () => {
           />
         </div>
 
-        {/* View mode toggle (Table / Kanban) */}
-        <div className="flex items-center gap-2">
+        {/* Actions: Create Order + View mode toggle (Table / Kanban) */}
+        <div className="flex items-center gap-2.5">
+          {canManageOrders && (
+            <Button
+              variant="primary"
+              size="sm"
+              leftIcon={<Plus className="w-4 h-4" />}
+              onClick={() => setIsCreateModalOpen(true)}
+            >
+              Создать заказ
+            </Button>
+          )}
+
           <div className="bg-brand-light-gray p-1 rounded-r12 flex items-center gap-1 border border-slate-200/60">
             <button
               onClick={() => setViewMode('table')}
@@ -396,6 +409,17 @@ export const OrdersPage: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* Create Order Modal */}
+      <CreateOrderModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        initialShopId={selectedShopId}
+        onOrderCreated={newOrder => {
+          setOrders(prev => [newOrder, ...prev]);
+          setSelectedOrder(newOrder);
+        }}
+      />
     </div>
   );
 };

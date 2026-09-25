@@ -208,6 +208,30 @@ export interface Order {
   } | null;
 }
 
+export interface CreateOrderItemPayload {
+  product: number;
+  size: 'S' | 'M' | 'L';
+  temperature_type?: 'Hot' | 'Cold' | null;
+  amount: number;
+  addons?: number[];
+  flavors?: number[];
+}
+
+export interface CreateOrderPayload {
+  coffee_shop: number;
+  city_choose?: number;
+  user?: number;
+  user_phone?: string;
+  user_name?: string;
+  items: CreateOrderItemPayload[];
+  client_comments?: string;
+  staff_comments?: string;
+  status_orders?: OrderStatus;
+  payment_status?: PaymentStatus;
+  time_is_finish?: string;
+  staff?: number | null;
+}
+
 export interface StaffMember {
   id: number;
   users: number;

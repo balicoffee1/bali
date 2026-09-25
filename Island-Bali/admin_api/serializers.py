@@ -400,6 +400,182 @@ class AdminOrderSerializer(serializers.ModelSerializer):
         return None
 
 
+class AdminOrderItemCreateSerializer(serializers.Serializer):
+    product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all())
+    size = serializers.ChoiceField(choices=['S', 'M', 'L'], default='S')
+    temperature_type = serializers.ChoiceField(
+        choices=['Hot', 'Cold'], required=False, allow_null=True, allow_blank=True
+    )
+    amount = serializers.IntegerField(min_value=1, default=1)
+    addons = serializers.PrimaryKeyRelatedField(
+        queryset=Addon.objects.all(), many=True, required=False
+    )
+    flavors = serializers.PrimaryKeyRelatedField(
+        queryset=AdditiveFlavors.objects.all(), many=True, required=False
+    )
+
+
+class AdminOrderCreateSerializer(serializers.Serializer):
+    coffee_shop = serializers.PrimaryKeyRelatedField(queryset=CoffeeShop.objects.all())
+    city_choose = serializers.PrimaryKeyRelatedField(
+        queryset=City.objects.all(), required=False, allow_null=True
+    )
+    user = serializers.PrimaryKeyRelatedField(
+        queryset=CustomUser.objects.all(), required=False, allow_null=True
+    )
+    user_phone = serializers.CharField(required=False, allow_blank=True)
+    user_name = serializers.CharField(required=False, allow_blank=True)
+    items = AdminOrderItemCreateSerializer(many=True, required=True, write_only=True)
+    client_comments = serializers.CharField(required=False, allow_blank=True)
+    staff_comments = serializers.CharField(required=False, allow_blank=True)
+    status_orders = serializers.ChoiceField(
+        choices=Orders.StatusOrders, default=Orders.WAITING, required=False
+    )
+    payment_status = serializers.ChoiceField(
+        choices=Orders.PaymentStatus, default=Orders.PAID, required=False
+    )
+    time_is_finish = serializers.DateTimeField(required=False, allow_null=True)
+    staff = serializers.PrimaryKeyRelatedField(
+        queryset=Staff.objects.all(), required=False, allow_null=True
+    )
+
+    def validate(self, attrs):
+        coffee_shop = attrs.get('coffee_shop')
+        items = attrs.get('items', [])
+        if not items:
+            raise serializers.ValidationError({'items': 'Необходимо добавить хотя бы один товар.'})
+
+        # Проверка принадлежности товаров выбранной кофейне
+        invalid_products = [
+            item['product'].product
+            for item in items
+            if item['product'].coffee_shop_id != coffee_shop.id
+        ]
+        if invalid_products:
+            raise serializers.ValidationError({
+                'items': f"Товары {invalid_products} не принадлежат кофейне #{coffee_shop.id} ({coffee_shop})."
+            })
+
+        for item in items:
+            addons = item.get('addons', [])
+            for addon in addons:
+                if addon.coffee_shop_id and addon.coffee_shop_id != coffee_shop.id:
+                    raise serializers.ValidationError({
+                        'items': f"Добавка {addon.name} не принадлежит выбранной кофейне."
+                    })
+            flavors = item.get('flavors', [])
+            for flavor in flavors:
+                if flavor.coffee_shop_id and flavor.coffee_shop_id != coffee_shop.id:
+                    raise serializers.ValidationError({
+                        'items': f"Вкус {flavor.name} не принадлежит выбранной кофейне."
+                    })
+
+        return attrs
+
+    def create(self, validated_data):
+        from django.db import transaction, models
+        from phonenumber_field.phonenumber import to_python
+        from bonus_system.services import calculate_cart_pricing
+        from orders.services import OrderStateService
+        from .audit import log_admin_activity
+
+        request = self.context.get('request')
+        coffee_shop = validated_data['coffee_shop']
+        city_choose = validated_data.get('city_choose') or coffee_shop.city
+        items_data = validated_data['items']
+
+        # Резолв пользователя: по user_id, номеру телефона или текущему пользователю
+        user = validated_data.get('user')
+        if not user and validated_data.get('user_phone'):
+            raw_phone = validated_data['user_phone'].strip()
+            parsed_phone = to_python(raw_phone)
+            user = CustomUser.objects.filter(
+                models.Q(login=raw_phone) | models.Q(phone_number=raw_phone)
+            ).first()
+            if not user and parsed_phone and parsed_phone.is_valid():
+                user = CustomUser.objects.filter(phone_number=parsed_phone).first()
+
+            if not user:
+                first_name = (validated_data.get('user_name') or '').strip() or 'Клиент'
+                phone_val = str(parsed_phone) if (parsed_phone and parsed_phone.is_valid()) else raw_phone
+                user = CustomUser.objects.create_user(
+                    login=phone_val,
+                    phone_number=phone_val,
+                    first_name=first_name,
+                    role='user',
+                )
+
+        if not user and request and request.user.is_authenticated:
+            user = request.user
+
+        if not user:
+            user = CustomUser.objects.filter(role='user').first()
+            if not user:
+                user = CustomUser.objects.create_user(
+                    login='+70000000000',
+                    phone_number='+70000000000',
+                    first_name='Гость',
+                    role='user',
+                )
+
+        status_orders = validated_data.get('status_orders', Orders.WAITING)
+        payment_status = validated_data.get('payment_status', Orders.PAID)
+
+        with transaction.atomic():
+            cart = ShoppingCart.objects.create(user=user, is_active=False)
+            for it in items_data:
+                cart_item = CartItem.objects.create(
+                    cart=cart,
+                    product=it['product'],
+                    size=it.get('size', 'S'),
+                    temperature_type=it.get('temperature_type') or None,
+                    amount=it.get('amount', 1),
+                )
+                if it.get('addons'):
+                    cart_item.addons.set(it['addons'])
+                if it.get('flavors'):
+                    cart_item.flavors.set(it['flavors'])
+
+            pricing = calculate_cart_pricing(user, cart)
+
+            order = Orders.objects.create(
+                user=user,
+                city_choose=city_choose,
+                coffee_shop=coffee_shop,
+                cart=cart,
+                client_comments=validated_data.get('client_comments', ''),
+                staff_comments=validated_data.get('staff_comments', ''),
+                status_orders=status_orders,
+                payment_status=payment_status,
+                time_is_finish=validated_data.get('time_is_finish'),
+                staff=validated_data.get('staff'),
+                subtotal_price=pricing.subtotal,
+                discount_percent=pricing.discount_percent,
+                discount_amount=pricing.discount_amount,
+                full_price=pricing.total,
+                is_used_discount=pricing.discount_amount > 0,
+                issued=True if status_orders == Orders.COMPLETED else False,
+            )
+
+        OrderStateService.order_created(order.id)
+
+        log_admin_activity(
+            request,
+            action="CREATE",
+            entity_name="Orders",
+            entity_id=str(order.id),
+            summary=f"Создан заказ #{order.id} на сумму {order.full_price} ₽ в кофейне {coffee_shop}",
+            changes={
+                "status_orders": status_orders,
+                "payment_status": payment_status,
+                "full_price": str(order.full_price),
+                "items_count": len(items_data),
+            },
+        )
+
+        return order
+
+
 class AdminStaffSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source='users.__str__', read_only=True)
     user_phone = serializers.CharField(source='users.phone_number', read_only=True)

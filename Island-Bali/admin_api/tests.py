@@ -773,3 +773,144 @@ class TelegramBotInteractiveFeaturesTests(TestCase):
             self.assertIn("История отзывов", mock_send.call_args[0][1])
 
 
+class AdminOrderCreateTests(TestCase):
+    def setUp(self):
+        from decimal import Decimal
+        from cart.models import ShoppingCart, CartItem
+        from coffee_shop.models import City, CoffeeShop
+        from menu_coffee_product.models import Category, Product, Addon, AdditiveFlavors
+        from staff.models import Staff
+        from users.models import CustomUser
+
+        self.owner = CustomUser.objects.create_user(
+            login='+79991110001', password='pw', role='owner', first_name='Владелец'
+        )
+        self.admin = CustomUser.objects.create_user(
+            login='+79991110002', password='pw', role='admin', first_name='Админ'
+        )
+        self.customer = CustomUser.objects.create_user(
+            login='+79991110003', password='pw', role='user', first_name='Клиент'
+        )
+        self.city = City.objects.create(name='Москва')
+        self.shop1 = CoffeeShop.objects.create(
+            city=self.city, street='Арбат', building_number='1'
+        )
+        self.shop2 = CoffeeShop.objects.create(
+            city=self.city, street='Тверская', building_number='2'
+        )
+        Staff.objects.create(users=self.admin, place_of_work=self.shop1)
+
+        self.category = Category.objects.create(coffee_shop=self.shop1, name='Кофе')
+        self.product = Product.objects.create(
+            coffee_shop=self.shop1,
+            category=self.category,
+            product='Капучино',
+            price_s=Decimal('200.00'),
+            price_m=Decimal('250.00'),
+            price_l=Decimal('300.00'),
+            availability=True,
+        )
+        self.flavor = AdditiveFlavors.objects.create(coffee_shop=self.shop1, name='Ваниль')
+        self.addon = Addon.objects.create(coffee_shop=self.shop1, name='Сироп', price=Decimal('50.00'))
+        self.addon.flavors.add(self.flavor)
+
+    def auth_as(self, user):
+        refresh = RefreshToken.for_user(user)
+        self.client.defaults['HTTP_AUTHORIZATION'] = f'Bearer {refresh.access_token}'
+
+    def test_owner_can_create_order_successfully(self):
+        from decimal import Decimal
+        self.auth_as(self.owner)
+        payload = {
+            'coffee_shop': self.shop1.id,
+            'user': self.customer.id,
+            'status_orders': 'Waiting',
+            'payment_status': 'Paid',
+            'client_comments': 'Без сахара',
+            'items': [
+                {
+                    'product': self.product.id,
+                    'size': 'M',
+                    'temperature_type': 'Hot',
+                    'amount': 2,
+                    'addons': [self.addon.id],
+                    'flavors': [self.flavor.id],
+                }
+            ]
+        }
+        with patch('orders.services.publish_order_status_changed'):
+            response = self.client.post('/api/admin/orders/', data=payload, content_type='application/json')
+        self.assertEqual(response.status_code, 201, response.data)
+        data = response.data
+        self.assertEqual(data['status_orders'], 'Waiting')
+        self.assertEqual(data['payment_status'], 'Paid')
+        # Price: (250 + 50) * 2 = 600
+        self.assertEqual(Decimal(str(data['full_price'])), Decimal('600.00'))
+        self.assertEqual(len(data['items']), 1)
+        self.assertEqual(data['items'][0]['product'], self.product.id)
+
+        # Audit log created
+        log = AdminActivityLog.objects.filter(entity_name='Orders', entity_id=str(data['id'])).first()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.action, 'CREATE')
+
+    def test_create_order_with_phone_number_creates_user_if_not_exists(self):
+        self.auth_as(self.owner)
+        new_phone = '+79998889900'
+        payload = {
+            'coffee_shop': self.shop1.id,
+            'user_phone': new_phone,
+            'user_name': 'Новый Клиент',
+            'items': [
+                {
+                    'product': self.product.id,
+                    'size': 'S',
+                    'amount': 1,
+                }
+            ]
+        }
+        with patch('orders.services.publish_order_status_changed'):
+            response = self.client.post('/api/admin/orders/', data=payload, content_type='application/json')
+        self.assertEqual(response.status_code, 201, response.data)
+        created_user = CustomUser.objects.filter(phone_number=new_phone).first()
+        self.assertIsNotNone(created_user)
+        self.assertEqual(created_user.first_name, 'Новый Клиент')
+
+    def test_admin_cannot_create_order_for_different_coffee_shop(self):
+        from decimal import Decimal
+        from menu_coffee_product.models import Category, Product
+        self.auth_as(self.admin)
+        # self.admin place_of_work is shop1
+        category2 = Category.objects.create(coffee_shop=self.shop2, name='Чай')
+        product2 = Product.objects.create(
+            coffee_shop=self.shop2,
+            category=category2,
+            product='Чай зеленый',
+            price_s=Decimal('150.00'),
+            availability=True,
+        )
+        payload = {
+            'coffee_shop': self.shop2.id,
+            'items': [
+                {
+                    'product': product2.id,
+                    'size': 'S',
+                    'amount': 1,
+                }
+            ]
+        }
+        response = self.client.post('/api/admin/orders/', data=payload, content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('coffee_shop', response.data)
+
+    def test_create_order_validation_empty_items(self):
+        self.auth_as(self.owner)
+        payload = {
+            'coffee_shop': self.shop1.id,
+            'items': []
+        }
+        response = self.client.post('/api/admin/orders/', data=payload, content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('items', response.data)
+
+

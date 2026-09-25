@@ -36,7 +36,7 @@ from .serializers import (
     AdminCitySerializer, AdminCoffeeShopSerializer, AdminCrmSystemSerializer, AdminAcquiringSerializer,
     AdminCategorySerializer, AdminProductSerializer, AdminAddonSerializer, AdminAdditiveFlavorsSerializer,
     AdminSeasonMenuSerializer,
-    AdminOrderSerializer, AdminStaffSerializer, AdminShiftSerializer,
+    AdminOrderSerializer, AdminOrderCreateSerializer, AdminStaffSerializer, AdminShiftSerializer,
     AdminReviewSerializer, AdminFranchiseRequestSerializer, AdminDiscountCardSerializer,
     AdminActivityLogSerializer, AdminNotificationBroadcastSerializer,
     AdminKnowledgeCategorySerializer, AdminKnowledgeArticleSerializer
@@ -564,6 +564,33 @@ class AdminOrdersViewSet(viewsets.ModelViewSet):
     filterset_fields = ['status_orders', 'payment_status', 'coffee_shop', 'city_choose', 'issued']
     search_fields = ['id', 'user__login', 'user__first_name', 'user__phone_number']
     ordering_fields = ['id', 'created_at', 'full_price']
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return AdminOrderCreateSerializer
+        return AdminOrderSerializer
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        if not user.is_superuser and getattr(user, 'role', None) == 'admin':
+            staff_record = Staff.objects.filter(users=user).first()
+            if staff_record and staff_record.place_of_work:
+                target_shop = serializer.validated_data.get('coffee_shop')
+                if target_shop and target_shop.id != staff_record.place_of_work_id:
+                    from rest_framework import serializers as drf_serializers
+                    raise drf_serializers.ValidationError({
+                        'coffee_shop': 'Вы можете создавать заказы только на своей точке.'
+                    })
+        serializer.save()
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        order = serializer.instance
+        output_serializer = AdminOrderSerializer(order)
+        headers = self.get_success_headers(output_serializer.data)
+        return Response(output_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     @action(detail=True, methods=['patch'])
     def update_status(self, request, pk=None):

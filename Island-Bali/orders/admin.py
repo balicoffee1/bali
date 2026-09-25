@@ -32,6 +32,15 @@ class OrdersAdmin(admin.ModelAdmin):
         else:
             return Orders.objects.none()
 
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        if obj is None:
+            if 'cart' in form.base_fields:
+                form.base_fields['cart'].required = False
+            if 'city_choose' in form.base_fields:
+                form.base_fields['city_choose'].required = False
+        return form
+
     # Доменные поля заказа: менять их обычным obj.save() из админки нельзя.
     DOMAIN_FIELDS = ('status_orders', 'payment_status')
 
@@ -53,19 +62,26 @@ class OrdersAdmin(admin.ModelAdmin):
         """
         user_creating_order = request.user
         if not change:
+            if not obj.city_choose_id and obj.coffee_shop_id:
+                obj.city_choose = obj.coffee_shop.city
+            if not obj.cart_id:
+                from cart.models import ShoppingCart
+                obj.cart = ShoppingCart.objects.create(user=obj.user, is_active=False)
+
             if user_creating_order.is_superuser or user_creating_order.role == 'owner':
                 obj.save()
 
             elif user_creating_order.role == 'admin':
-                place_of_work = Staff.objects.filter(
-                    users=request.user).first().place_of_work
+                staff_record = Staff.objects.filter(users=request.user).first()
+                place_of_work = staff_record.place_of_work if staff_record else None
 
                 if place_of_work == obj.coffee_shop:
                     obj.save()
-
                 else:
                     raise Exception('Вы можете '
                                     'создавать заказы только на своей точке')
+            else:
+                obj.save()
 
             super().save_model(request, obj, form, change)
             OrderStateService.order_created(obj.id)

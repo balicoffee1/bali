@@ -2,7 +2,7 @@ import {
   User, City, CoffeeShop, Category, Product, Addon, AdditiveFlavor,
   Order, StaffMember, Shift, Review, FranchiseRequest, DiscountCard,
   AdminActivityLog, DashboardKPI, DashboardChartPoint, TopProductItem,
-  OrderStatus, UserRole, SeasonMenu, TelegramRecipient
+  OrderStatus, UserRole, SeasonMenu, TelegramRecipient, CreateOrderPayload
 } from '../types';
 import {
   mockCities, mockCoffeeShops, mockCategories, mockProducts, mockAddons, mockFlavors,
@@ -342,6 +342,82 @@ class ApiClient {
         return orders[idx];
       }
       throw new Error('Order not found');
+    }
+  }
+
+  async createOrder(payload: CreateOrderPayload): Promise<Order> {
+    try {
+      const res: any = await this.request('/orders/', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      return res;
+    } catch (error) {
+      this.ensureMockFallback(error);
+      const orders: Order[] = loadFromStorage('orders', mockOrders);
+      const products: Product[] = loadFromStorage('products', mockProducts);
+      const shops: CoffeeShop[] = loadFromStorage('coffee_shops', mockCoffeeShops);
+      const users: User[] = loadFromStorage('users', mockUsers);
+
+      const targetShop = shops.find(s => s.id === payload.coffee_shop) || mockCoffeeShops[0];
+      const targetUser = payload.user
+        ? users.find(u => u.id === payload.user)
+        : payload.user_phone
+        ? users.find(u => u.phone_number === payload.user_phone || u.login === payload.user_phone) || {
+            id: Math.max(...users.map(u => u.id), 0) + 1,
+            login: payload.user_phone,
+            first_name: payload.user_name || 'Клиент',
+            full_name: payload.user_name || 'Клиент',
+            phone_number: payload.user_phone,
+            role: 'user' as UserRole,
+            is_active: true,
+            is_staff: false,
+            is_superuser: false,
+          }
+        : mockUsers[0];
+
+      let subtotal = 0;
+      const items = payload.items.map((it, idx) => {
+        const prod = products.find(p => p.id === it.product);
+        const price = (it.size === 'S' ? prod?.price_s : it.size === 'M' ? prod?.price_m : prod?.price_l) || prod?.price || 150;
+        const itemTotal = Number(price) * it.amount;
+        subtotal += itemTotal;
+        return {
+          id: Date.now() + idx,
+          product: it.product,
+          product_name: prod?.product || `Товар #${it.product}`,
+          size: it.size,
+          amount: it.amount,
+          item_total: itemTotal,
+        };
+      });
+
+      const nextId = Math.max(...orders.map(o => o.id), 0) + 1;
+      const newOrder: Order = {
+        id: nextId,
+        user: targetUser.id,
+        user_login: targetUser.login,
+        user_full_name: targetUser.full_name || targetUser.first_name,
+        city_choose: targetShop.city,
+        city_name: targetShop.city_name || 'Москва',
+        coffee_shop: targetShop.id,
+        coffee_shop_address: `${targetShop.street}, ${targetShop.building_number}`,
+        client_comments: payload.client_comments,
+        staff_comments: payload.staff_comments,
+        status_orders: payload.status_orders || 'Waiting',
+        payment_status: payload.payment_status || 'Paid',
+        full_price: subtotal,
+        client_confirmed: true,
+        issued: payload.status_orders === 'Completed',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        items,
+      };
+
+      orders.unshift(newOrder);
+      saveToStorage('orders', orders);
+      this.logActivity('CREATE', 'Orders', String(nextId), `Создан заказ #${nextId} на сумму ${subtotal} ₽`);
+      return newOrder;
     }
   }
 

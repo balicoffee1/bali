@@ -1170,6 +1170,26 @@ class DjangoAdminPublishesEventsTests(OrdersTestBase):
             AdminActivityLog.objects.filter(entity_name='Orders', entity_id=order.id).exists()
         )
 
+    def test_order_creation_in_admin_auto_creates_cart_and_publishes_event(self):
+        self.staff_user.role = 'owner'
+        self.staff_user.save()
+        new_order = Orders(
+            user=self.user,
+            coffee_shop=self.coffee_shop,
+            status_orders=Orders.WAITING,
+            payment_status=Orders.PAID,
+        )
+        form = self._Form([], {})
+        self.request.user = self.staff_user
+        with mock.patch("orders.services.publish_order_status_changed") as mocked:
+            with self.captureOnCommitCallbacks(execute=True):
+                self.admin.save_model(self.request, new_order, form, change=False)
+
+        self.assertIsNotNone(new_order.id)
+        self.assertIsNotNone(new_order.cart)
+        self.assertEqual(new_order.city_choose, self.coffee_shop.city)
+        self.assertEqual(mocked.call_count, 1)
+
 
 class OrderCartCheckoutIsolationTestCase(OrdersTestBase):
     """
