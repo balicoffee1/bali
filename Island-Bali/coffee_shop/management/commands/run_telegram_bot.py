@@ -7,7 +7,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.core.management.base import BaseCommand
 from coffee_shop.models import CoffeeShop
-from reviews.telegram_bot import send_review_to_user
+from reviews import telegram_bot
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +106,7 @@ class Command(BaseCommand):
             f"либо введите ваш ID в настройках точки."
         )
         try:
-            send_review_to_user(chat_id, msg)
+            telegram_bot.send_review_to_user(chat_id, msg)
         except Exception as e:
             logger.error("Ошибка отправки приветствия: %s", e)
 
@@ -118,7 +118,7 @@ class Command(BaseCommand):
             "Для привязки кофейни используйте кнопку в веб-панели управления."
         )
         try:
-            send_review_to_user(chat_id, msg)
+            telegram_bot.send_review_to_user(chat_id, msg)
         except Exception as e:
             logger.error("Ошибка отправки справки: %s", e)
 
@@ -129,7 +129,7 @@ class Command(BaseCommand):
             "Напишите /start для повторного вывода информации."
         )
         try:
-            send_review_to_user(chat_id, msg)
+            telegram_bot.send_review_to_user(chat_id, msg)
         except Exception as e:
             logger.error("Ошибка отправки сообщения: %s", e)
 
@@ -144,7 +144,7 @@ class Command(BaseCommand):
                 "«Подключить через Telegram» заново, чтобы получить свежую ссылку."
             )
             try:
-                send_review_to_user(chat_id, msg)
+                telegram_bot.send_review_to_user(chat_id, msg)
             except Exception as e:
                 logger.error("Ошибка отправки сообщения об устаревшей ссылке: %s", e)
             return
@@ -174,11 +174,11 @@ class Command(BaseCommand):
                 f"📍 Точка: {full_addr}\n\n"
                 f"Теперь отзывы и оценки гостей этой кофейни будут приходить сюда в реальном времени."
             )
-            send_review_to_user(chat_id, success_msg)
+            telegram_bot.send_review_to_user(chat_id, success_msg)
             logger.info("Кофейня %s (ID %s) успешно привязана к Telegram %s (@%s)", full_addr, shop_id, chat_id, username)
 
         except CoffeeShop.DoesNotExist:
-            send_review_to_user(chat_id, "❌ Ошибка: привязываемая кофейня не найдена в базе данных.")
+            telegram_bot.send_review_to_user(chat_id, "❌ Ошибка: привязываемая кофейня не найдена в базе данных.")
         except Exception as e:
             logger.exception("Ошибка при сохранении привязки кофейни: %s", e)
-            send_review_to_user(chat_id, "❌ Произошла ошибка при привязке. Попробуйте еще раз позже.")
+            telegram_bot.send_review_to_user(chat_id, "❌ Произошла ошибка при привязке. Попробуйте еще раз позже.")

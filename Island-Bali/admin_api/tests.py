@@ -409,7 +409,7 @@ class TelegramIntegrationTests(TestCase):
             "text": f"/start {token}"
         }
 
-        with patch('reviews.telegram_bot.send_review_to_user') as mock_send:
+        with patch('reviews.telegram_bot.send_review_to_user', return_value={'ok': True}) as mock_send:
             cmd.process_message(message)
             self.shop.refresh_from_db()
             self.assertEqual(self.shop.telegram_id, "999888777")
