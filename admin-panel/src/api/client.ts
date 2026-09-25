@@ -1098,6 +1098,62 @@ class ApiClient {
       return { valid: true, message: 'Проверка успешна (мок)' };
     }
   }
+
+  async getTelegramBindLink(shopId: number): Promise<{ link: string; token: string; bot_username: string; expires_in: number }> {
+    try {
+      return await this.request(`/coffee-shops/${shopId}/telegram-bind-link/`);
+    } catch (error: any) {
+      this.ensureMockFallback(error);
+      const token = `bind_mock_${Date.now()}`;
+      return {
+        link: `https://t.me/happy_island_bot?start=${token}`,
+        token,
+        bot_username: 'happy_island_bot',
+        expires_in: 900,
+      };
+    }
+  }
+
+  async getTelegramBindStatus(shopId: number, token?: string): Promise<{ is_connected: boolean; telegram_id?: string; telegram_username?: string; bind_event?: any }> {
+    try {
+      const url = token ? `/coffee-shops/${shopId}/telegram-bind-status/?token=${token}` : `/coffee-shops/${shopId}/telegram-bind-status/`;
+      return await this.request(url);
+    } catch (error: any) {
+      this.ensureMockFallback(error);
+      const shops: CoffeeShop[] = loadFromStorage('coffee_shops', mockCoffeeShops);
+      const shop = shops.find(s => s.id === shopId);
+      return {
+        is_connected: Boolean(shop?.telegram_id),
+        telegram_id: shop?.telegram_id,
+        telegram_username: shop?.telegram_username,
+      };
+    }
+  }
+
+  async testTelegramNotification(shopId: number): Promise<{ success: boolean; message?: string; error?: string }> {
+    try {
+      return await this.request(`/coffee-shops/${shopId}/test-telegram/`, { method: 'POST' });
+    } catch (error: any) {
+      this.ensureMockFallback(error);
+      return { success: true, message: 'Тестовое сообщение отправлено (мок)' };
+    }
+  }
+
+  async unlinkTelegram(shopId: number): Promise<{ success: boolean; message?: string }> {
+    try {
+      return await this.request(`/coffee-shops/${shopId}/unlink-telegram/`, { method: 'POST' });
+    } catch (error: any) {
+      this.ensureMockFallback(error);
+      const shops: CoffeeShop[] = loadFromStorage('coffee_shops', mockCoffeeShops);
+      const shop = shops.find(s => s.id === shopId);
+      if (shop) {
+        shop.telegram_id = '';
+        shop.telegram_username = '';
+        saveToStorage('coffee_shops', shops);
+      }
+      return { success: true, message: 'Telegram отвязан (мок)' };
+    }
+  }
 }
 
 export const api = new ApiClient();

@@ -331,3 +331,77 @@ class LifePayIntegrationTests(TestCase):
             params = mock_get.call_args.kwargs['params']
             self.assertEqual(params['login'], '79872716165')
 
+    def test_telegram_bind_link_generates_token(self):
+        self.auth_as(self.admin)
+        response = self.client.get(f'/api/admin/coffee-shops/{self.shop.id}/telegram-bind-link/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('link', response.data)
+        self.assertIn('token', response.data)
+        self.assertTrue(response.data['token'].startswith('bind_'))
+        self.assertIn(response.data['token'], response.data['link'])
+
+    def test_telegram_bind_status(self):
+        self.auth_as(self.admin)
+        self.shop.telegram_id = '123456789'
+        self.shop.telegram_username = '@test_shop'
+        self.shop.save()
+
+        response = self.client.get(f'/api/admin/coffee-shops/{self.shop.id}/telegram-bind-status/')
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['is_connected'])
+        self.assertEqual(response.data['telegram_id'], '123456789')
+        self.assertEqual(response.data['telegram_username'], '@test_shop')
+
+    def test_test_telegram_action(self):
+        self.auth_as(self.admin)
+        self.shop.telegram_id = '123456789'
+        self.shop.save()
+
+        with patch('reviews.telegram_bot.send_review_to_user', return_value={'ok': True}) as mock_send:
+            response = self.client.post(f'/api/admin/coffee-shops/{self.shop.id}/test-telegram/')
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.data['success'])
+            mock_send.assert_called_once()
+
+    def test_unlink_telegram_action(self):
+        self.auth_as(self.admin)
+        self.shop.telegram_id = '123456789'
+        self.shop.telegram_username = '@test_shop'
+        self.shop.save()
+
+        response = self.client.post(f'/api/admin/coffee-shops/{self.shop.id}/unlink-telegram/')
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['success'])
+
+        self.shop.refresh_from_db()
+        self.assertIsNone(self.shop.telegram_id)
+        self.assertEqual(self.shop.telegram_username, '')
+
+    def test_run_telegram_bot_process_bind_command(self):
+        from coffee_shop.management.commands.run_telegram_bot import Command
+        from django.core.cache import cache
+
+        cmd = Command()
+        token = "bind_test123"
+        cache.set(f"tg_bind_{token}", self.shop.id, timeout=300)
+
+        message = {
+            "chat": {"id": 999888777},
+            "from": {"username": "barista_boss", "first_name": "Иван"},
+            "text": f"/start {token}"
+        }
+
+        with patch('reviews.telegram_bot.send_review_to_user') as mock_send:
+            cmd.process_message(message)
+            self.shop.refresh_from_db()
+            self.assertEqual(self.shop.telegram_id, "999888777")
+            self.assertEqual(self.shop.telegram_username, "@barista_boss")
+            mock_send.assert_called_once()
+            self.assertIn("успешно подключена", mock_send.call_args[0][1])
+
+            # Check cache status
+            status_data = cache.get(f"tg_bind_status_{token}")
+            self.assertIsNotNone(status_data)
+            self.assertEqual(status_data["status"], "linked")
+            self.assertEqual(status_data["shop_id"], self.shop.id)
+

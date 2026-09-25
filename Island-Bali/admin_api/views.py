@@ -334,6 +334,66 @@ class AdminCoffeeShopsViewSet(viewsets.ModelViewSet):
         except Exception as exc:
             return Response({'valid': False, 'error': f'Ошибка подключения к LifePay: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
 
+    @action(detail=True, methods=['get'], url_path='telegram-bind-link', permission_classes=[IsAdminRole])
+    def telegram_bind_link(self, request, pk=None):
+        import uuid
+        from django.core.cache import cache
+        shop = self.get_object()
+        token = f"bind_{uuid.uuid4().hex[:12]}"
+        cache.set(f"tg_bind_{token}", shop.id, timeout=900)  # 15 minutes
+        bot_username = "happy_island_bot"
+        link = f"https://t.me/{bot_username}?start={token}"
+        return Response({
+            "link": link,
+            "token": token,
+            "bot_username": bot_username,
+            "expires_in": 900,
+        })
+
+    @action(detail=True, methods=['get'], url_path='telegram-bind-status', permission_classes=[IsAdminOrReadOnly])
+    def telegram_bind_status(self, request, pk=None):
+        from django.core.cache import cache
+        shop = self.get_object()
+        token = request.query_params.get('token')
+        status_data = None
+        if token:
+            status_data = cache.get(f"tg_bind_status_{token}")
+
+        return Response({
+            "is_connected": bool(shop.telegram_id),
+            "telegram_id": shop.telegram_id,
+            "telegram_username": shop.telegram_username,
+            "bind_event": status_data,
+        })
+
+    @action(detail=True, methods=['post'], url_path='test-telegram', permission_classes=[IsAdminRole])
+    def test_telegram(self, request, pk=None):
+        from reviews.telegram_bot import send_review_to_user
+        shop = self.get_object()
+        if not shop.telegram_id:
+            return Response({"error": "Telegram ID не привязан к этой кофейне"}, status=status.HTTP_400_BAD_REQUEST)
+
+        shop_desc = f"{shop.street}, {shop.building_number}" if shop.street else str(shop)
+        city_name = getattr(shop.city, "name", "") if shop.city else ""
+        full_addr = f"{city_name}, {shop_desc}".strip(", ")
+        text = f"🔔 Проверка связи!\nУведомления для кофейни «{full_addr}» настроены успешно и готовы к работе."
+        try:
+            send_review_to_user(shop.telegram_id, text)
+            log_admin_activity(request, 'UPDATE', 'CoffeeShop', shop.id, f"Отправлено тестовое Telegram-уведомление для {shop}")
+            return Response({"success": True, "message": "Тестовое сообщение успешно отправлено в Telegram"})
+        except Exception as e:
+            return Response({"success": False, "error": f"Ошибка отправки в Telegram: {str(e)}"}, status=status.HTTP_502_BAD_GATEWAY)
+
+    @action(detail=True, methods=['post'], url_path='unlink-telegram', permission_classes=[IsAdminRole])
+    def unlink_telegram(self, request, pk=None):
+        shop = self.get_object()
+        old_tg = shop.telegram_id
+        shop.telegram_id = None
+        shop.telegram_username = ''
+        shop.save(update_fields=['telegram_id', 'telegram_username'])
+        log_admin_activity(request, 'UPDATE', 'CoffeeShop', shop.id, f"Отвязан Telegram (был {old_tg}) от кофейни {shop}")
+        return Response({"success": True, "message": "Telegram успешно отвязан"})
+
 
 # -------------------------------------------------------------
 # 5. MENU, CATEGORIES, PRODUCTS, ADDONS

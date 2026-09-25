@@ -42,9 +42,125 @@ export const SettingsPage: React.FC = () => {
   const [isSavingLifePay, setIsSavingLifePay] = useState(false);
   const [isTestingLifePay, setIsTestingLifePay] = useState(false);
 
+  // Telegram Integration state
+  const [tgBindLink, setTgBindLink] = useState<string | null>(null);
+  const [tgBindToken, setTgBindToken] = useState<string | null>(null);
+  const [isGeneratingTgLink, setIsGeneratingTgLink] = useState(false);
+  const [isTestingTg, setIsTestingTg] = useState(false);
+  const [isUnlinkingTg, setIsUnlinkingTg] = useState(false);
+
   useEffect(() => {
     loadSettingsData();
   }, []);
+
+  // Poll for Telegram link completion when token is active
+  useEffect(() => {
+    if (!tgBindToken || !editingShop?.id || !isShopDrawerOpen) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.getTelegramBindStatus(editingShop.id!, tgBindToken);
+        if (res.is_connected && res.telegram_id) {
+          setEditingShop(prev => prev ? {
+            ...prev,
+            telegram_id: res.telegram_id,
+            telegram_username: res.telegram_username || prev.telegram_username,
+          } : null);
+          setTgBindToken(null);
+          setTgBindLink(null);
+          addToast({
+            title: 'Telegram успешно подключен!',
+            message: `Кофейня привязана к аккаунту ${res.telegram_username || res.telegram_id}`,
+            type: 'success',
+          });
+          setShops(prev => prev.map(s => s.id === editingShop.id ? {
+            ...s,
+            telegram_id: res.telegram_id,
+            telegram_username: res.telegram_username || s.telegram_username,
+          } : s));
+        }
+      } catch (e) {
+        // ignore polling error
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [tgBindToken, editingShop?.id, isShopDrawerOpen]);
+
+  const handleGenerateTgLink = async () => {
+    if (!editingShop?.id) return;
+    setIsGeneratingTgLink(true);
+    try {
+      const res = await api.getTelegramBindLink(editingShop.id);
+      setTgBindLink(res.link);
+      setTgBindToken(res.token);
+      window.open(res.link, '_blank');
+      addToast({
+        title: 'Бот открыт в Telegram',
+        message: 'Нажмите «Запустить» (Start) в боте для завершения привязки.',
+        type: 'info',
+      });
+    } catch (err: any) {
+      addToast({
+        title: 'Ошибка',
+        message: err.message || 'Не удалось получить ссылку привязки',
+        type: 'error',
+      });
+    } finally {
+      setIsGeneratingTgLink(false);
+    }
+  };
+
+  const handleTestTg = async () => {
+    if (!editingShop?.id) return;
+    setIsTestingTg(true);
+    try {
+      const res = await api.testTelegramNotification(editingShop.id);
+      if (res.success) {
+        addToast({
+          title: 'Успешно!',
+          message: 'Тестовое уведомление доставлено в Telegram!',
+          type: 'success',
+        });
+      } else {
+        addToast({
+          title: 'Ошибка отправки',
+          message: res.error || 'Не удалось отправить сообщение',
+          type: 'error',
+        });
+      }
+    } catch (err: any) {
+      addToast({
+        title: 'Ошибка',
+        message: err.message || 'Сбой при проверке связи',
+        type: 'error',
+      });
+    } finally {
+      setIsTestingTg(false);
+    }
+  };
+
+  const handleUnlinkTg = async () => {
+    if (!editingShop?.id) return;
+    setIsUnlinkingTg(true);
+    try {
+      await api.unlinkTelegram(editingShop.id);
+      setEditingShop(prev => prev ? { ...prev, telegram_id: '', telegram_username: '' } : null);
+      setShops(prev => prev.map(s => s.id === editingShop.id ? { ...s, telegram_id: '', telegram_username: '' } : s));
+      addToast({
+        title: 'Отвязано',
+        message: 'Telegram-уведомления для точки отключены',
+        type: 'info',
+      });
+    } catch (err: any) {
+      addToast({
+        title: 'Ошибка',
+        message: err.message || 'Не удалось отвязать Telegram',
+        type: 'error',
+      });
+    } finally {
+      setIsUnlinkingTg(false);
+    }
+  };
+
 
   const loadSettingsData = async () => {
     setIsLoading(true);
@@ -252,6 +368,19 @@ export const SettingsPage: React.FC = () => {
           <Badge variant="success" size="sm">СБП: настроен</Badge>
         ) : (
           <Badge variant="warning" size="sm">СБП: не настроен</Badge>
+        )
+      ),
+    },
+    {
+      header: 'Telegram-бот',
+      accessor: row => (
+        row.telegram_id ? (
+          <Badge variant="success" size="sm">
+            <CheckCircle2 className="w-3 h-3 mr-1 inline" />
+            {row.telegram_username || 'Подключен'}
+          </Badge>
+        ) : (
+          <Badge variant="neutral" size="sm">Не подключен</Badge>
         )
       ),
     },
@@ -643,12 +772,128 @@ export const SettingsPage: React.FC = () => {
                 value={editingShop.email || ''}
                 onChange={e => setEditingShop({ ...editingShop, email: e.target.value })}
               />
-              <Input
-                label="Telegram Username для уведомлений"
-                placeholder="@island_point"
-                value={editingShop.telegram_username || ''}
-                onChange={e => setEditingShop({ ...editingShop, telegram_username: e.target.value })}
-              />
+              {/* Telegram Integration Block */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Send className="w-4 h-4 text-sky-500" />
+                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Уведомления в Telegram
+                    </span>
+                  </div>
+                  {editingShop.telegram_id ? (
+                    <Badge variant="success" size="sm">
+                      <CheckCircle2 className="w-3 h-3 mr-1 inline" /> Подключено
+                    </Badge>
+                  ) : (
+                    <Badge variant="neutral" size="sm">
+                      Не подключено
+                    </Badge>
+                  )}
+                </div>
+
+                {editingShop.id ? (
+                  <div className="space-y-2">
+                    {editingShop.telegram_id ? (
+                      <div className="space-y-2">
+                        <div className="text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200 flex justify-between items-center">
+                          <div>
+                            <div className="font-semibold text-slate-800">
+                              {editingShop.telegram_username || 'ID: ' + editingShop.telegram_id}
+                            </div>
+                            <div className="text-[11px] text-slate-400 font-mono">
+                              Chat ID: {editingShop.telegram_id}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              className="text-xs py-1 h-7"
+                              onClick={handleTestTg}
+                              disabled={isTestingTg}
+                            >
+                              <Send className="w-3 h-3 mr-1 text-sky-500" />
+                              {isTestingTg ? 'Отправка...' : 'Проверить'}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="danger"
+                              size="sm"
+                              className="text-xs py-1 h-7"
+                              onClick={handleUnlinkTg}
+                              disabled={isUnlinkingTg}
+                            >
+                              Отвязать
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                          Подключите Telegram, чтобы мгновенно получать отзывы гостей и оперативные алерты в режиме реального времени.
+                        </p>
+                        <div className="flex flex-col gap-2">
+                          <Button
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            className="w-full bg-sky-500 hover:bg-sky-600 text-white"
+                            onClick={handleGenerateTgLink}
+                            disabled={isGeneratingTgLink}
+                          >
+                            <Send className="w-3.5 h-3.5 mr-1.5" />
+                            {isGeneratingTgLink ? 'Генерация ссылки...' : 'Подключить через Telegram (в 1 клик)'}
+                          </Button>
+                          {tgBindLink && (
+                            <div className="text-[11px] bg-sky-50 border border-sky-100 text-sky-800 p-2 rounded-lg flex items-center justify-between">
+                              <span className="truncate pr-2">Ожидание нажатия Start в боте...</span>
+                              <a
+                                href={tgBindLink}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="underline font-semibold shrink-0"
+                              >
+                                Открыть бота ↗
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 italic">
+                    Сохраните кофейню, чтобы подключить Telegram-бота.
+                  </p>
+                )}
+
+                {/* Manual fallback fields */}
+                <details className="text-xs text-slate-500 pt-1 border-t border-slate-200/60">
+                  <summary className="cursor-pointer text-[11px] font-medium text-slate-500 hover:text-slate-700 py-1">
+                    Ручная настройка Telegram ID / Username
+                  </summary>
+                  <div className="space-y-2 pt-2">
+                    <Input
+                      label="Telegram ID (числовой chat_id)"
+                      placeholder="Например: 6463435986"
+                      value={editingShop.telegram_id || ''}
+                      onChange={e => setEditingShop({ ...editingShop, telegram_id: e.target.value })}
+                    />
+                    <Input
+                      label="Telegram Username"
+                      placeholder="@island_point"
+                      value={editingShop.telegram_username || ''}
+                      onChange={e => setEditingShop({ ...editingShop, telegram_username: e.target.value })}
+                    />
+                    <p className="text-[10px] text-slate-400">
+                      ID можно узнать через бота <a href="https://t.me/getmyid_bot" target="_blank" rel="noreferrer" className="text-sky-600 underline">@getmyid_bot</a>. Получатель должен предварительно нажать Start в <a href="https://t.me/happy_island_bot" target="_blank" rel="noreferrer" className="text-sky-600 underline">@happy_island_bot</a>.
+                    </p>
+                  </div>
+                </details>
+              </div>
             </div>
 
             {/* Section 2: CRM & Acquiring */}
