@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard, ShoppingBag, UtensilsCrossed, Users, Clock,
   Star, FileText, Bell, ShieldCheck, Settings, LogOut,
-  ChevronLeft, ChevronRight, ChevronDown, Coffee, Store, Send
+  ChevronLeft, ChevronRight, ChevronDown, Coffee, Store, Send, BookOpen
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
@@ -127,6 +127,12 @@ export const Sidebar: React.FC = () => {
         { id: 'crm', label: 'CRM и интеграции', roles: ['owner', 'admin'] },
         { id: 'acquiring', label: 'Эквайринг', roles: ['owner', 'admin'] },
       ]
+    },
+    {
+      id: 'knowledge-base',
+      label: 'База знаний',
+      icon: <BookOpen className="w-5 h-5" />,
+      roles: ['owner', 'admin', 'moderator', 'support']
     },
   ];
 

@@ -14,6 +14,7 @@ import { NotificationsPage } from './pages/NotificationsPage';
 import { AuditLogsPage } from './pages/AuditLogsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { TelegramPage } from './pages/TelegramPage';
+import { KnowledgeBasePage } from './pages/KnowledgeBasePage';
 
 export const App: React.FC = () => {
   const { isAuthenticated } = useAuth();
@@ -47,6 +48,8 @@ export const App: React.FC = () => {
         return <AuditLogsPage />;
       case 'settings':
         return <SettingsPage />;
+      case 'knowledge-base':
+        return <KnowledgeBasePage />;
       default:
         return <DashboardPage />;
     }

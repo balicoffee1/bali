@@ -14,7 +14,8 @@ export type PageId =
   | 'notifications'
   | 'telegram'
   | 'logs'
-  | 'settings';
+  | 'settings'
+  | 'knowledge-base';
 
 export type MenuTabId = 'products' | 'categories' | 'seasons' | 'addons' | 'flavors';
 export type SettingsTabId = 'shops' | 'cities' | 'telegram' | 'crm' | 'acquiring';
@@ -56,7 +57,7 @@ const parseUrlParams = (): { page: PageId; menuTab: MenuTabId; settingsTab: Sett
     const params = new URLSearchParams(window.location.search);
     const validPages: PageId[] = [
       'dashboard', 'orders', 'menu', 'users', 'shifts',
-      'reviews', 'franchise', 'notifications', 'telegram', 'logs', 'settings'
+      'reviews', 'franchise', 'notifications', 'telegram', 'logs', 'settings', 'knowledge-base'
     ];
     const pageParam = params.get('page') as PageId;
     const tabParam = params.get('tab');
