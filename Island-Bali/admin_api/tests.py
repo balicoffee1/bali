@@ -1,5 +1,6 @@
 from django.test import TestCase
 from rest_framework_simplejwt.tokens import RefreshToken
+from unittest.mock import patch, MagicMock
 
 from admin_api.models import AdminActivityLog
 from coffee_shop.models import City, CoffeeShop, CrmSystem, Acquiring
