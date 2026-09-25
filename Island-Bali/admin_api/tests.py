@@ -423,3 +423,206 @@ class TelegramIntegrationTests(TestCase):
             self.assertEqual(status_data["status"], "linked")
             self.assertEqual(status_data["shop_id"], self.shop.id)
 
+
+class TelegramBotInteractiveFeaturesTests(TestCase):
+    def setUp(self):
+        from decimal import Decimal
+        from django.utils import timezone
+        from cart.models import ShoppingCart, CartItem
+        from coffee_shop.models import City, CoffeeShop
+        from menu_coffee_product.models import Category, Product
+        from orders.models import Orders
+        from reviews.models import ReviewsCoffeeShop
+        from staff.models import Staff, Shift
+        from users.models import CustomUser
+
+        self.city = City.objects.create(name='Казань')
+        self.shop = CoffeeShop.objects.create(
+            city=self.city,
+            street='ул. Кремлевская',
+            building_number='10',
+            telegram_id='555666777',
+            telegram_username='@test_manager',
+        )
+        self.user = CustomUser.objects.create_user(
+            login='+79998881122', password='pw', first_name='Алексей'
+        )
+        self.category = Category.objects.create(
+            coffee_shop=self.shop, name='Кофе'
+        )
+        self.product = Product.objects.create(
+            coffee_shop=self.shop,
+            category=self.category,
+            product='Капучино',
+            price=Decimal('250.00'),
+            product_type='coffee',
+        )
+        self.cart = ShoppingCart.objects.create(user=self.user)
+        self.cart_item = CartItem.objects.create(
+            cart=self.cart,
+            product=self.product,
+            amount=2,
+            size='M',
+        )
+        self.order = Orders.objects.create(
+            user=self.user,
+            city_choose=self.city,
+            coffee_shop=self.shop,
+            cart=self.cart,
+            full_price=Decimal('500.00'),
+            status_orders=Orders.COMPLETED,
+            payment_status=Orders.PAID,
+            created_at=timezone.now(),
+            client_comments='Без сахара, пожалуйста',
+        )
+        self.review = ReviewsCoffeeShop.objects.create(
+            coffee_shop=self.shop,
+            user=self.user,
+            orders=self.order,
+            evaluation=5,
+            very_tasty=True,
+            comments='Отличный капучино!',
+        )
+
+    def test_unbound_user_message(self):
+        from coffee_shop.management.commands.run_telegram_bot import Command
+        cmd = Command()
+        message = {
+            "chat": {"id": 111222333},
+            "from": {"first_name": "Незнакомец"},
+            "text": "💬 История отзывов"
+        }
+        with patch('reviews.telegram_bot.send_review_to_user', return_value={'ok': True}) as mock_send:
+            cmd.process_message(message)
+            mock_send.assert_called_once()
+            self.assertIn("Кофейня не привязана", mock_send.call_args[0][1])
+
+    def test_start_bound_user(self):
+        from coffee_shop.management.commands.run_telegram_bot import Command
+        cmd = Command()
+        message = {
+            "chat": {"id": 555666777},
+            "from": {"first_name": "Менеджер"},
+            "text": "/start"
+        }
+        with patch('reviews.telegram_bot.send_review_to_user', return_value={'ok': True}) as mock_send:
+            cmd.process_message(message)
+            mock_send.assert_called_once()
+            self.assertIn("Вы подключены к кофейням", mock_send.call_args[0][1])
+            self.assertIsNotNone(mock_send.call_args.kwargs.get('reply_markup'))
+
+    def test_reviews_history(self):
+        from coffee_shop.management.commands.run_telegram_bot import Command
+        cmd = Command()
+        message = {
+            "chat": {"id": 555666777},
+            "from": {"first_name": "Менеджер"},
+            "text": "💬 История отзывов"
+        }
+        with patch('reviews.telegram_bot.send_review_to_user', return_value={'ok': True}) as mock_send:
+            cmd.process_message(message)
+            mock_send.assert_called_once()
+            text = mock_send.call_args[0][1]
+            self.assertIn("История отзывов", text)
+            self.assertIn("⭐⭐⭐⭐⭐", text)
+            self.assertIn("Алексей", text)
+            self.assertIn("Отличный капучино!", text)
+            self.assertIn("#вкусно", text)
+
+    def test_orders_history(self):
+        from coffee_shop.management.commands.run_telegram_bot import Command
+        cmd = Command()
+        message = {
+            "chat": {"id": 555666777},
+            "from": {"first_name": "Менеджер"},
+            "text": "📦 История заказов"
+        }
+        with patch('reviews.telegram_bot.send_review_to_user', return_value={'ok': True}) as mock_send:
+            cmd.process_message(message)
+            mock_send.assert_called_once()
+            text = mock_send.call_args[0][1]
+            self.assertIn("История заказов", text)
+            self.assertIn(f"Заказ #{self.order.id}", text)
+            self.assertIn("🟢 Выполнен", text)
+            self.assertIn("💳 Оплачено", text)
+            self.assertIn("500.00 ₽", text)
+            self.assertIn("Капучино (M) x2", text)
+            self.assertIn("Без сахара, пожалуйста", text)
+
+    def test_today_summary(self):
+        from coffee_shop.management.commands.run_telegram_bot import Command
+        cmd = Command()
+        message = {
+            "chat": {"id": 555666777},
+            "from": {"first_name": "Менеджер"},
+            "text": "📊 Сводка за сегодня"
+        }
+        with patch('reviews.telegram_bot.send_review_to_user', return_value={'ok': True}) as mock_send:
+            cmd.process_message(message)
+            mock_send.assert_called_once()
+            text = mock_send.call_args[0][1]
+            self.assertIn("Сводка за сегодня", text)
+            self.assertIn("500.00 ₽", text)
+            self.assertIn("Закрыто чеков:</b> 1", text)
+            self.assertIn("Отзывов за сегодня:</b> 1", text)
+            self.assertIn("5.0 / 5.0", text)
+
+    def test_current_shift(self):
+        from staff.models import Staff, Shift
+        from django.utils import timezone
+        from coffee_shop.management.commands.run_telegram_bot import Command
+
+        staff = Staff.objects.create(users=self.user, place_of_work=self.shop)
+        Shift.objects.create(
+            staff=staff,
+            start_time=timezone.now(),
+            status_shift="Open",
+            number_orders_closed=3,
+            amount_closed_orders=1500.00,
+        )
+
+        cmd = Command()
+        message = {
+            "chat": {"id": 555666777},
+            "from": {"first_name": "Менеджер"},
+            "text": "⏱ Текущая смена"
+        }
+        with patch('reviews.telegram_bot.send_review_to_user', return_value={'ok': True}) as mock_send:
+            cmd.process_message(message)
+            mock_send.assert_called_once()
+            text = mock_send.call_args[0][1]
+            self.assertIn("Открытая смена", text)
+            self.assertIn("Алексей", text)
+
+    def test_my_shops(self):
+        from coffee_shop.management.commands.run_telegram_bot import Command
+        cmd = Command()
+        message = {
+            "chat": {"id": 555666777},
+            "from": {"first_name": "Менеджер"},
+            "text": "📍 Мои кофейни"
+        }
+        with patch('reviews.telegram_bot.send_review_to_user', return_value={'ok': True}) as mock_send:
+            cmd.process_message(message)
+            mock_send.assert_called_once()
+            text = mock_send.call_args[0][1]
+            self.assertIn("Ваши подключенные кофейни", text)
+            self.assertIn("Кремлевская", text)
+            self.assertIn("555666777", text)
+
+    def test_callback_query_pagination(self):
+        from coffee_shop.management.commands.run_telegram_bot import Command
+        cmd = Command()
+        callback = {
+            "id": "cb_12345",
+            "from": {"id": 555666777},
+            "data": "rev_more_0",
+        }
+        with patch('reviews.telegram_bot.answer_callback_query', return_value={'ok': True}) as mock_ack, \
+             patch('reviews.telegram_bot.send_review_to_user', return_value={'ok': True}) as mock_send:
+            cmd.process_callback_query(callback)
+            mock_ack.assert_called_once_with("cb_12345")
+            mock_send.assert_called_once()
+            self.assertIn("История отзывов", mock_send.call_args[0][1])
+
+
