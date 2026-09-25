@@ -25,11 +25,11 @@ from franchise.models import FranchiseRequest
 from bonus_system.models import DiscountCard
 from notifications.main import send_push_notification
 
-from .models import AdminActivityLog
+from .models import AdminActivityLog, KnowledgeCategory, KnowledgeArticle
 from .audit import log_admin_activity
 from .permissions import (
     IsSuperAdmin, IsAdminRole, IsModeratorRole, IsAnyAdminUser,
-    IsAdminOrReadOnly, IsModeratorOrReadOnly,
+    IsAdminOrReadOnly, IsModeratorOrReadOnly, IsOwnerOrReadOnly,
 )
 from .serializers import (
     AdminUserSerializer, AdminUserDetailSerializer,
@@ -38,7 +38,8 @@ from .serializers import (
     AdminSeasonMenuSerializer,
     AdminOrderSerializer, AdminStaffSerializer, AdminShiftSerializer,
     AdminReviewSerializer, AdminFranchiseRequestSerializer, AdminDiscountCardSerializer,
-    AdminActivityLogSerializer, AdminNotificationBroadcastSerializer
+    AdminActivityLogSerializer, AdminNotificationBroadcastSerializer,
+    AdminKnowledgeCategorySerializer, AdminKnowledgeArticleSerializer
 )
 
 
@@ -730,3 +731,94 @@ class AdminActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
         if user.is_superuser or user.role == 'owner':
             return queryset
         return queryset.filter(user=user)
+
+
+# -------------------------------------------------------------
+# 10. KNOWLEDGE BASE (DOCS)
+# -------------------------------------------------------------
+class AdminKnowledgeCategoryViewSet(viewsets.ModelViewSet):
+    queryset = KnowledgeCategory.objects.all().order_by('order', 'id')
+    serializer_class = AdminKnowledgeCategorySerializer
+    permission_classes = [IsOwnerOrReadOnly]
+    pagination_class = None
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        log_admin_activity(
+            user=self.request.user if self.request.user.is_authenticated else None,
+            action='CREATE',
+            entity_name='KnowledgeCategory',
+            entity_id=instance.id,
+            summary=f"Создан раздел базы знаний: {instance.name}",
+            request=self.request
+        )
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        log_admin_activity(
+            user=self.request.user if self.request.user.is_authenticated else None,
+            action='UPDATE',
+            entity_name='KnowledgeCategory',
+            entity_id=instance.id,
+            summary=f"Обновлен раздел базы знаний: {instance.name}",
+            request=self.request
+        )
+
+    def perform_destroy(self, instance):
+        name = instance.name
+        instance_id = instance.id
+        instance.delete()
+        log_admin_activity(
+            user=self.request.user if self.request.user.is_authenticated else None,
+            action='DELETE',
+            entity_name='KnowledgeCategory',
+            entity_id=instance_id,
+            summary=f"Удален раздел базы знаний: {name}",
+            request=self.request
+        )
+
+
+class AdminKnowledgeArticleViewSet(viewsets.ModelViewSet):
+    queryset = KnowledgeArticle.objects.select_related('category').all().order_by('category__order', 'id')
+    serializer_class = AdminKnowledgeArticleSerializer
+    permission_classes = [IsOwnerOrReadOnly]
+    pagination_class = None
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend]
+    search_fields = ['title', 'why_needed', 'what_is_it', 'slug']
+    filterset_fields = ['category', 'target_role']
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        log_admin_activity(
+            user=self.request.user if self.request.user.is_authenticated else None,
+            action='CREATE',
+            entity_name='KnowledgeArticle',
+            entity_id=instance.id,
+            summary=f"Создана статья базы знаний: {instance.title}",
+            request=self.request
+        )
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        log_admin_activity(
+            user=self.request.user if self.request.user.is_authenticated else None,
+            action='UPDATE',
+            entity_name='KnowledgeArticle',
+            entity_id=instance.id,
+            summary=f"Обновлена статья базы знаний: {instance.title}",
+            request=self.request
+        )
+
+    def perform_destroy(self, instance):
+        title = instance.title
+        instance_id = instance.id
+        instance.delete()
+        log_admin_activity(
+            user=self.request.user if self.request.user.is_authenticated else None,
+            action='DELETE',
+            entity_name='KnowledgeArticle',
+            entity_id=instance_id,
+            summary=f"Удалена статья базы знаний: {title}",
+            request=self.request
+        )
+

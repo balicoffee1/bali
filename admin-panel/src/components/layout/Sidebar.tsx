@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard, ShoppingBag, UtensilsCrossed, Users, Clock,
   Star, FileText, Bell, ShieldCheck, Settings, LogOut,
-  ChevronLeft, ChevronRight, ChevronDown, Coffee, Store, Send, BookOpen
+  ChevronLeft, ChevronRight, ChevronDown, Coffee, Store, Send, BookOpen, ExternalLink
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
@@ -192,6 +192,10 @@ export const Sidebar: React.FC = () => {
               <div key={item.id} className="space-y-0.5">
                 <button
                   onClick={() => {
+                    if (item.id === 'knowledge-base') {
+                      window.open('/?page=knowledge-base&standalone=true', '_blank');
+                      return;
+                    }
                     if (hasChildren && !sidebarCollapsed) {
                       // Navigate to default tab or switch group
                       if (!isPageActive) {
@@ -221,6 +225,9 @@ export const Sidebar: React.FC = () => {
                   </span>
                   {!sidebarCollapsed && (
                     <span className="flex-1 text-left truncate">{item.label}</span>
+                  )}
+                  {!sidebarCollapsed && item.id === 'knowledge-base' && (
+                    <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-white shrink-0 ml-auto" />
                   )}
                   {!sidebarCollapsed && item.badge !== undefined && (
                     <span

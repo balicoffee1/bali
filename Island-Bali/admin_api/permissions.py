@@ -51,3 +51,12 @@ class IsModeratorOrReadOnly(BasePermission):
     def has_permission(self, request, view):
         roles = {'owner', 'admin', 'moderator', 'support'} if request.method in SAFE_METHODS else {'owner', 'admin', 'moderator'}
         return has_admin_role(request.user, roles)
+
+
+class IsOwnerOrReadOnly(BasePermission):
+    """Читать базу знаний могут все пользователи (в т.ч. в открытом окне); редактировать — ТОЛЬКО owner/superuser."""
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:
+            return True
+        return has_admin_role(request.user, {'owner'})
+

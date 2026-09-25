@@ -2,6 +2,7 @@ import { PageId, MenuTabId, SettingsTabId } from '../context/AppContext';
 
 export interface KnowledgeCategory {
   id: string;
+  slug?: string;
   name: string;
   iconName: string;
   order: number;

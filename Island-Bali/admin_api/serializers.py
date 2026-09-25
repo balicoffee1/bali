@@ -8,7 +8,7 @@ from staff.models import Staff, Shift
 from reviews.models import ReviewsCoffeeShop
 from franchise.models import FranchiseRequest, FranchiseInfo
 from bonus_system.models import DiscountCard
-from .models import AdminActivityLog
+from .models import AdminActivityLog, KnowledgeCategory, KnowledgeArticle
 
 
 class AdminUserSerializer(serializers.ModelSerializer):
@@ -481,3 +481,28 @@ class AdminNotificationBroadcastSerializer(serializers.Serializer):
     city_id = serializers.IntegerField(required=False, allow_null=True)
     coffee_shop_id = serializers.IntegerField(required=False, allow_null=True)
     user_id = serializers.IntegerField(required=False, allow_null=True)
+
+
+class AdminKnowledgeCategorySerializer(serializers.ModelSerializer):
+    articles_count = serializers.IntegerField(source='articles.count', read_only=True)
+
+    class Meta:
+        model = KnowledgeCategory
+        fields = [
+            'id', 'slug', 'name', 'icon_name', 'order', 'articles_count',
+            'created_at', 'updated_at'
+        ]
+
+
+class AdminKnowledgeArticleSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    category_slug = serializers.CharField(source='category.slug', read_only=True)
+
+    class Meta:
+        model = KnowledgeArticle
+        fields = [
+            'id', 'category', 'category_name', 'category_slug', 'slug',
+            'title', 'target_role', 'why_needed', 'what_is_it', 'steps',
+            'troubleshooting', 'mockup_type', 'quick_action', 'tags',
+            'created_at', 'updated_at'
+        ]

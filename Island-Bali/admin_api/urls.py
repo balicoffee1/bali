@@ -8,7 +8,8 @@ from .views import (
     AdminCategoriesViewSet, AdminProductsViewSet, AdminAddonsViewSet, AdminAdditiveFlavorsViewSet, AdminSeasonMenuViewSet,
     AdminOrdersViewSet, AdminStaffViewSet, AdminShiftsViewSet,
     AdminReviewsViewSet, AdminFranchiseRequestsViewSet, AdminDiscountCardsViewSet,
-    AdminNotificationBroadcastView, AdminActivityLogViewSet
+    AdminNotificationBroadcastView, AdminActivityLogViewSet,
+    AdminKnowledgeCategoryViewSet, AdminKnowledgeArticleViewSet
 )
 
 router = DefaultRouter()
@@ -27,6 +28,8 @@ router.register(r'reviews', AdminReviewsViewSet, basename='admin-reviews')
 router.register(r'franchise-requests', AdminFranchiseRequestsViewSet, basename='admin-franchise-requests')
 router.register(r'discount-cards', AdminDiscountCardsViewSet, basename='admin-discount-cards')
 router.register(r'audit-logs', AdminActivityLogViewSet, basename='admin-audit-logs')
+router.register(r'knowledge-categories', AdminKnowledgeCategoryViewSet, basename='admin-knowledge-categories')
+router.register(r'knowledge-articles', AdminKnowledgeArticleViewSet, basename='admin-knowledge-articles')
 
 urlpatterns = [
     # Auth

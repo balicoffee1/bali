@@ -20,6 +20,14 @@ export const App: React.FC = () => {
   const { isAuthenticated } = useAuth();
   const { currentPage } = useApp();
 
+  const isStandalone =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('standalone') === 'true';
+
+  if (isStandalone) {
+    return <KnowledgeBasePage isStandalone={true} />;
+  }
+
   if (!isAuthenticated) {
     return <LoginPage />;
   }

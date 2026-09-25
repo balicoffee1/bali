@@ -9,6 +9,11 @@ import {
   mockUsers, mockOrders, mockStaff, mockShifts, mockReviews, mockFranchiseRequests,
   mockDiscountCards, mockActivityLogs, mockDashboardKPI, mockChartPoints, mockTopProducts
 } from './mockData';
+import {
+  KnowledgeArticle, KnowledgeCategory,
+  getStoredArticles, getStoredCategories,
+  saveStoredArticles, saveStoredCategories
+} from '../data/knowledgeBaseData';
 
 class MockModeFallback extends Error {}
 
@@ -1180,6 +1185,284 @@ class ApiClient {
         saveToStorage('coffee_shops', shops);
       }
       return { success: true, message: 'Telegram отвязан (мок)' };
+    }
+  }
+
+  // -------------------------------------------------------------
+  // KNOWLEDGE BASE (DOCS) API
+  // -------------------------------------------------------------
+  async getKnowledgeCategories(): Promise<KnowledgeCategory[]> {
+    try {
+      const res: any = await this.request('/knowledge-categories/');
+      const list = Array.isArray(res) ? res : res?.results || [];
+      if (list.length > 0) {
+        const formatted = list.map((c: any) => ({
+          id: c.slug || String(c.id),
+          slug: c.slug || String(c.id),
+          name: c.name,
+          iconName: c.icon_name || c.iconName || 'BookOpen',
+          order: c.order || 0,
+        }));
+        saveStoredCategories(formatted);
+        return formatted;
+      }
+      return getStoredCategories();
+    } catch (error: any) {
+      this.ensureMockFallback(error);
+      return getStoredCategories();
+    }
+  }
+
+  async createKnowledgeCategory(data: Partial<KnowledgeCategory>): Promise<KnowledgeCategory> {
+    try {
+      const slug = (data.name || '').toLowerCase().replace(/[^a-zа-я0-9]+/g, '-').replace(/^-|-$/g, '') || `cat-${Date.now()}`;
+      const payload = {
+        name: data.name,
+        slug: data.id || slug,
+        icon_name: data.iconName || 'BookOpen',
+        order: data.order || 1,
+      };
+      const res: any = await this.request('/knowledge-categories/', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      const created: KnowledgeCategory = {
+        id: res.slug || String(res.id),
+        slug: res.slug || String(res.id),
+        name: res.name,
+        iconName: res.icon_name || 'BookOpen',
+        order: res.order || 0,
+      };
+      const current = getStoredCategories();
+      saveStoredCategories([...current, created]);
+      return created;
+    } catch (error: any) {
+      this.ensureMockFallback(error);
+      const created: KnowledgeCategory = {
+        id: data.id || `cat-${Date.now()}`,
+        slug: data.slug || data.id || `cat-${Date.now()}`,
+        name: data.name || 'Новый отдел',
+        iconName: data.iconName || 'BookOpen',
+        order: data.order || 0,
+      };
+      const current = getStoredCategories();
+      saveStoredCategories([...current, created]);
+      return created;
+    }
+  }
+
+  async updateKnowledgeCategory(id: string, data: Partial<KnowledgeCategory>): Promise<KnowledgeCategory> {
+    try {
+      const payload: any = {};
+      if (data.name) payload.name = data.name;
+      if (data.iconName) payload.icon_name = data.iconName;
+      if (data.order !== undefined) payload.order = data.order;
+      const res: any = await this.request(`/knowledge-categories/${id}/`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      });
+      const updated: KnowledgeCategory = {
+        id: res.slug || String(res.id),
+        slug: res.slug || String(res.id),
+        name: res.name,
+        iconName: res.icon_name || 'BookOpen',
+        order: res.order || 0,
+      };
+      const current = getStoredCategories();
+      saveStoredCategories(current.map(c => (c.id === id ? updated : c)));
+      return updated;
+    } catch (error: any) {
+      this.ensureMockFallback(error);
+      const current = getStoredCategories();
+      const existing = current.find(c => c.id === id);
+      const updated: KnowledgeCategory = {
+        id,
+        slug: existing?.slug || id,
+        name: data.name || existing?.name || '',
+        iconName: data.iconName || existing?.iconName || 'BookOpen',
+        order: data.order !== undefined ? data.order : existing?.order || 0,
+      };
+      saveStoredCategories(current.map(c => (c.id === id ? updated : c)));
+      return updated;
+    }
+  }
+
+  async deleteKnowledgeCategory(id: string): Promise<void> {
+    try {
+      await this.request(`/knowledge-categories/${id}/`, { method: 'DELETE' });
+      const current = getStoredCategories();
+      saveStoredCategories(current.filter(c => c.id !== id));
+    } catch (error: any) {
+      this.ensureMockFallback(error);
+      const current = getStoredCategories();
+      saveStoredCategories(current.filter(c => c.id !== id));
+    }
+  }
+
+  async getKnowledgeArticles(): Promise<KnowledgeArticle[]> {
+    try {
+      const res: any = await this.request('/knowledge-articles/');
+      const list = Array.isArray(res) ? res : res?.results || [];
+      if (list.length > 0) {
+        const formatted: KnowledgeArticle[] = list.map((a: any) => ({
+          id: a.slug || String(a.id),
+          slug: a.slug || String(a.id),
+          categoryId: a.category_slug || String(a.category),
+          title: a.title,
+          targetRole: a.target_role || 'all',
+          whyNeeded: a.why_needed || '',
+          whatIsIt: a.what_is_it || '',
+          steps: a.steps || [],
+          troubleshooting: a.troubleshooting || [],
+          mockupType: a.mockup_type || 'none',
+          quickAction: a.quick_action,
+          tags: a.tags || [],
+          updatedAt: a.updated_at ? a.updated_at.split('T')[0] : undefined,
+        }));
+        saveStoredArticles(formatted);
+        return formatted;
+      }
+      return getStoredArticles();
+    } catch (error: any) {
+      this.ensureMockFallback(error);
+      return getStoredArticles();
+    }
+  }
+
+  async createKnowledgeArticle(data: Partial<KnowledgeArticle>): Promise<KnowledgeArticle> {
+    try {
+      const slug = (data.title || '').toLowerCase().replace(/[^a-zа-я0-9]+/g, '-').replace(/^-|-$/g, '') || `art-${Date.now()}`;
+      const catsRes: any = await this.request('/knowledge-categories/');
+      const cats = Array.isArray(catsRes) ? catsRes : catsRes?.results || [];
+      const matchCat = cats.find((c: any) => c.slug === data.categoryId || String(c.id) === String(data.categoryId));
+      const categoryId = matchCat ? matchCat.id : 1;
+
+      const payload = {
+        category: categoryId,
+        title: data.title,
+        slug: data.slug || slug,
+        target_role: data.targetRole || 'all',
+        why_needed: data.whyNeeded || '',
+        what_is_it: data.whatIsIt || '',
+        steps: data.steps || [],
+        troubleshooting: data.troubleshooting || [],
+        mockup_type: data.mockupType || 'none',
+        quick_action: data.quickAction || {},
+        tags: data.tags || [],
+      };
+      const res: any = await this.request('/knowledge-articles/', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      const created: KnowledgeArticle = {
+        id: res.slug || String(res.id),
+        slug: res.slug || String(res.id),
+        categoryId: res.category_slug || data.categoryId || '',
+        title: res.title,
+        targetRole: res.target_role || 'all',
+        whyNeeded: res.why_needed || '',
+        whatIsIt: res.what_is_it || '',
+        steps: res.steps || [],
+        troubleshooting: res.troubleshooting || [],
+        mockupType: res.mockup_type || 'none',
+        quickAction: res.quick_action,
+        tags: res.tags || [],
+        updatedAt: new Date().toISOString().split('T')[0],
+      };
+      const current = getStoredArticles();
+      saveStoredArticles([created, ...current]);
+      return created;
+    } catch (error: any) {
+      this.ensureMockFallback(error);
+      const created: KnowledgeArticle = {
+        id: data.id || `art-${Date.now()}`,
+        slug: data.slug || `art-${Date.now()}`,
+        categoryId: data.categoryId || 'start',
+        title: data.title || '',
+        targetRole: data.targetRole || 'all',
+        whyNeeded: data.whyNeeded || '',
+        whatIsIt: data.whatIsIt || '',
+        steps: data.steps || [],
+        troubleshooting: data.troubleshooting || [],
+        mockupType: data.mockupType || 'none',
+        quickAction: data.quickAction,
+        tags: data.tags || [],
+        updatedAt: new Date().toISOString().split('T')[0],
+      };
+      const current = getStoredArticles();
+      saveStoredArticles([created, ...current]);
+      return created;
+    }
+  }
+
+  async updateKnowledgeArticle(id: string, data: Partial<KnowledgeArticle>): Promise<KnowledgeArticle> {
+    try {
+      const payload: any = {};
+      if (data.title) payload.title = data.title;
+      if (data.targetRole) payload.target_role = data.targetRole;
+      if (data.whyNeeded !== undefined) payload.why_needed = data.whyNeeded;
+      if (data.whatIsIt !== undefined) payload.what_is_it = data.whatIsIt;
+      if (data.steps) payload.steps = data.steps;
+      if (data.troubleshooting) payload.troubleshooting = data.troubleshooting;
+      if (data.mockupType) payload.mockup_type = data.mockupType;
+      if (data.quickAction) payload.quick_action = data.quickAction;
+      if (data.tags) payload.tags = data.tags;
+
+      const res: any = await this.request(`/knowledge-articles/${id}/`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      });
+      const updated: KnowledgeArticle = {
+        id: res.slug || String(res.id),
+        slug: res.slug || String(res.id),
+        categoryId: res.category_slug || data.categoryId || '',
+        title: res.title,
+        targetRole: res.target_role || 'all',
+        whyNeeded: res.why_needed || '',
+        whatIsIt: res.what_is_it || '',
+        steps: res.steps || [],
+        troubleshooting: res.troubleshooting || [],
+        mockupType: res.mockup_type || 'none',
+        quickAction: res.quick_action,
+        tags: res.tags || [],
+        updatedAt: new Date().toISOString().split('T')[0],
+      };
+      const current = getStoredArticles();
+      saveStoredArticles(current.map(a => (a.id === id || a.slug === id ? updated : a)));
+      return updated;
+    } catch (error: any) {
+      this.ensureMockFallback(error);
+      const current = getStoredArticles();
+      const existing = current.find(a => a.id === id || a.slug === id);
+      const updated: KnowledgeArticle = {
+        id,
+        slug: existing?.slug || id,
+        categoryId: data.categoryId || existing?.categoryId || 'start',
+        title: data.title || existing?.title || '',
+        targetRole: data.targetRole || existing?.targetRole || 'all',
+        whyNeeded: data.whyNeeded !== undefined ? data.whyNeeded : existing?.whyNeeded || '',
+        whatIsIt: data.whatIsIt !== undefined ? data.whatIsIt : existing?.whatIsIt || '',
+        steps: data.steps || existing?.steps || [],
+        troubleshooting: data.troubleshooting || existing?.troubleshooting || [],
+        mockupType: data.mockupType || existing?.mockupType || 'none',
+        quickAction: data.quickAction !== undefined ? data.quickAction : existing?.quickAction,
+        tags: data.tags || existing?.tags || [],
+        updatedAt: new Date().toISOString().split('T')[0],
+      };
+      saveStoredArticles(current.map(a => (a.id === id || a.slug === id ? updated : a)));
+      return updated;
+    }
+  }
+
+  async deleteKnowledgeArticle(id: string): Promise<void> {
+    try {
+      await this.request(`/knowledge-articles/${id}/`, { method: 'DELETE' });
+      const current = getStoredArticles();
+      saveStoredArticles(current.filter(a => a.id !== id && a.slug !== id));
+    } catch (error: any) {
+      this.ensureMockFallback(error);
+      const current = getStoredArticles();
+      saveStoredArticles(current.filter(a => a.id !== id && a.slug !== id));
     }
   }
 }
