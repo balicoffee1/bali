@@ -331,6 +331,23 @@ class LifePayIntegrationTests(TestCase):
             params = mock_get.call_args.kwargs['params']
             self.assertEqual(params['login'], '79872716165')
 
+
+class TelegramIntegrationTests(TestCase):
+    def setUp(self):
+        self.admin = CustomUser.objects.create_user(
+            login='+79990000005', password='pw', role='admin', first_name='Admin'
+        )
+        self.city = City.objects.create(name='Казань')
+        self.shop = CoffeeShop.objects.create(
+            city=self.city,
+            street='Баумана',
+            building_number='1',
+        )
+
+    def auth_as(self, user):
+        refresh = RefreshToken.for_user(user)
+        self.client.defaults['HTTP_AUTHORIZATION'] = f'Bearer {refresh.access_token}'
+
     def test_telegram_bind_link_generates_token(self):
         self.auth_as(self.admin)
         response = self.client.get(f'/api/admin/coffee-shops/{self.shop.id}/telegram-bind-link/')
