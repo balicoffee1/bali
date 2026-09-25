@@ -15,7 +15,7 @@ import { Table, Column } from '../components/ui/Table';
 import {
   Store, MapPin, Plus, Edit2, Trash2, CheckCircle2,
   Clock, Phone, Mail, Send, ShieldCheck, CreditCard,
-  Layers, RefreshCw, Key, Server, Users, Copy
+  Layers, RefreshCw, Key, Server, Users, Copy, ChevronRight, ExternalLink
 } from 'lucide-react';
 
 export const SettingsPage: React.FC = () => {
@@ -839,17 +839,25 @@ export const SettingsPage: React.FC = () => {
                 onChange={e => setEditingShop({ ...editingShop, email: e.target.value })}
               />
               {/* Telegram Integration Block */}
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 space-y-3">
+              <div className="bg-slate-50/70 p-4 rounded-r18 border border-slate-200/80 space-y-4">
+                {/* Header */}
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Send className="w-4 h-4 text-sky-500" />
-                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Уведомления в Telegram
-                    </span>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-r12 bg-sky-500/10 text-sky-500 flex items-center justify-center shrink-0">
+                      <Send className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                        Уведомления в Telegram
+                      </h5>
+                      <p className="text-[11px] text-slate-500">
+                        Оповещения об отзывах гостей и сменах
+                      </p>
+                    </div>
                   </div>
                   {tgRecipients.length > 0 || editingShop.telegram_id ? (
                     <Badge variant="success" size="sm">
-                      <CheckCircle2 className="w-3 h-3 mr-1 inline" />
+                      <CheckCircle2 className="w-3 h-3 mr-0.5" />
                       {tgRecipients.length > 0 ? `${tgRecipients.length} подкл.` : 'Подключено'}
                     </Badge>
                   ) : (
@@ -863,87 +871,96 @@ export const SettingsPage: React.FC = () => {
                   <div className="space-y-3">
                     {/* List of active recipients */}
                     {isLoadingRecipients ? (
-                      <div className="text-center py-2 text-xs text-slate-400">Загрузка получателей...</div>
+                      <div className="text-center py-3 text-xs text-slate-400">
+                        Загрузка получателей...
+                      </div>
                     ) : tgRecipients.length > 0 ? (
-                      <div className="space-y-1.5">
+                      <div className="space-y-2">
                         <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider flex items-center justify-between">
                           <span>Подключенные сотрудники ({tgRecipients.length})</span>
-                          <button
-                            type="button"
-                            onClick={() => handleTestRecipient()}
-                            disabled={testingRecipientId === 'all'}
-                            className="text-[10px] text-sky-600 hover:text-sky-700 underline font-medium"
-                          >
-                            {testingRecipientId === 'all' ? 'Отправка...' : 'Проверить всех'}
-                          </button>
+                          {tgRecipients.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleTestRecipient()}
+                              disabled={testingRecipientId === 'all'}
+                              className="text-[11px] text-sky-600 hover:text-sky-700 underline font-medium"
+                            >
+                              {testingRecipientId === 'all' ? 'Отправка...' : 'Проверить всех'}
+                            </button>
+                          )}
                         </div>
-                        {tgRecipients.map(r => (
-                          <div
-                            key={r.id}
-                            className="text-xs text-slate-700 bg-white p-2 rounded-lg border border-slate-200 flex justify-between items-center shadow-xs"
-                          >
-                            <div className="min-w-0 pr-2">
-                              <div className="font-semibold text-slate-800 flex items-center gap-1.5 truncate">
-                                <span className="truncate">{r.telegram_username || r.first_name || `ID: ${r.telegram_id}`}</span>
-                                {r.first_name && r.telegram_username && (
-                                  <span className="text-[11px] text-slate-400 font-normal shrink-0">({r.first_name})</span>
-                                )}
+                        <div className="space-y-1.5">
+                          {tgRecipients.map(r => (
+                            <div
+                              key={r.id}
+                              className="bg-white p-2.5 rounded-r12 border border-slate-200/80 flex items-center justify-between gap-2 shadow-xs hover:border-slate-300 transition-colors"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0 pr-1">
+                                <div className="w-8 h-8 rounded-full bg-sky-100/80 text-sky-600 flex items-center justify-center font-bold text-xs shrink-0 select-none">
+                                  {r.first_name ? r.first_name[0].toUpperCase() : r.telegram_username ? r.telegram_username.replace('@', '')[0].toUpperCase() : 'TG'}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-semibold text-slate-800 text-xs flex items-center gap-1.5 truncate">
+                                    <span className="truncate">{r.telegram_username || r.first_name || `ID: ${r.telegram_id}`}</span>
+                                    {r.first_name && r.telegram_username && (
+                                      <span className="text-[11px] text-slate-400 font-normal shrink-0">({r.first_name})</span>
+                                    )}
+                                  </div>
+                                  <div className="text-[10px] text-slate-400 font-mono">
+                                    Chat ID: {r.telegram_id}
+                                  </div>
+                                </div>
                               </div>
-                              <div className="text-[10px] text-slate-400 font-mono">
-                                Chat ID: {r.telegram_id}
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleTestRecipient(r.telegram_id)}
+                                  disabled={testingRecipientId === r.telegram_id}
+                                  className="h-7 px-2.5 rounded-lg border border-sky-200 bg-sky-50/70 hover:bg-sky-100 text-sky-700 text-xs font-medium inline-flex items-center gap-1 transition-colors disabled:opacity-50"
+                                  title="Отправить тестовое сообщение"
+                                >
+                                  <Send className="w-3 h-3 text-sky-500 shrink-0" />
+                                  <span>{testingRecipientId === r.telegram_id ? 'Отправка...' : 'Тест'}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteRecipient(r.id)}
+                                  disabled={deletingRecipientId === r.id}
+                                  className="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 flex items-center justify-center transition-colors disabled:opacity-50"
+                                  title="Удалить получателя"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
                               </div>
                             </div>
-                            <div className="flex items-center gap-1 shrink-0">
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="sm"
-                                className="text-[11px] py-0.5 px-2 h-6"
-                                onClick={() => handleTestRecipient(r.telegram_id)}
-                                disabled={testingRecipientId === r.telegram_id}
-                              >
-                                <Send className="w-2.5 h-2.5 mr-1 text-sky-500" />
-                                {testingRecipientId === r.telegram_id ? '...' : 'Тест'}
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="text-[11px] py-0.5 px-1.5 h-6 text-rose-500 hover:bg-rose-50"
-                                onClick={() => handleDeleteRecipient(r.id)}
-                                disabled={deletingRecipientId === r.id}
-                                title="Удалить получателя"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
                     ) : editingShop.telegram_id ? (
                       /* Fallback legacy display if recipients table is empty */
-                      <div className="text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200 flex justify-between items-center">
-                        <div>
-                          <div className="font-semibold text-slate-800">
-                            {editingShop.telegram_username || 'ID: ' + editingShop.telegram_id}
+                      <div className="bg-white p-2.5 rounded-r12 border border-slate-200 flex items-center justify-between gap-2 shadow-xs">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-full bg-sky-100/80 text-sky-600 flex items-center justify-center font-bold text-xs shrink-0 select-none">
+                            TG
                           </div>
-                          <div className="text-[11px] text-slate-400 font-mono">
-                            Chat ID: {editingShop.telegram_id}
+                          <div>
+                            <div className="font-semibold text-slate-800 text-xs">
+                              {editingShop.telegram_username || 'ID: ' + editingShop.telegram_id}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-mono">
+                              Chat ID: {editingShop.telegram_id}
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            className="text-xs py-1 h-7"
-                            onClick={() => handleTestRecipient()}
-                            disabled={testingRecipientId !== null}
-                          >
-                            <Send className="w-3 h-3 mr-1 text-sky-500" />
-                            {testingRecipientId ? 'Отправка...' : 'Проверить'}
-                          </Button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleTestRecipient()}
+                          disabled={testingRecipientId !== null}
+                          className="h-7 px-2.5 rounded-lg border border-sky-200 bg-sky-50/70 hover:bg-sky-100 text-sky-700 text-xs font-medium inline-flex items-center gap-1 transition-colors disabled:opacity-50"
+                        >
+                          <Send className="w-3 h-3 text-sky-500 shrink-0" />
+                          <span>{testingRecipientId ? 'Отправка...' : 'Проверить'}</span>
+                        </button>
                       </div>
                     ) : (
                       <p className="text-xs text-slate-500 leading-relaxed">
@@ -953,53 +970,53 @@ export const SettingsPage: React.FC = () => {
 
                     {/* Invite / Add new recipient button */}
                     <div className="flex flex-col gap-2 pt-1">
-                      <Button
+                      <button
                         type="button"
-                        variant="primary"
-                        size="sm"
-                        className="w-full bg-sky-500 hover:bg-sky-600 text-white"
                         onClick={handleGenerateTgLink}
                         disabled={isGeneratingTgLink}
+                        className="w-full h-10 px-4 rounded-r12 border border-sky-200 bg-sky-50/60 hover:bg-sky-100/80 text-sky-700 font-semibold text-xs inline-flex items-center justify-center gap-2 transition-all disabled:opacity-50 active:scale-[0.99] shadow-xs"
                       >
-                        <Plus className="w-3.5 h-3.5 mr-1.5" />
-                        {isGeneratingTgLink ? 'Генерация ссылки...' : '+ Добавить сотрудника через Telegram'}
-                      </Button>
+                        <Plus className="w-4 h-4 text-sky-600 shrink-0" />
+                        <span>{isGeneratingTgLink ? 'Генерация ссылки...' : 'Добавить сотрудника через Telegram'}</span>
+                      </button>
 
                       {tgBindLink && (
-                        <div className="text-[11px] bg-sky-50 border border-sky-100 text-sky-800 p-2.5 rounded-lg space-y-1.5">
+                        <div className="bg-sky-50/70 border border-sky-200/80 text-sky-900 p-3 rounded-r12 space-y-2 text-xs">
                           <div className="flex items-center justify-between">
-                            <span className="font-medium text-slate-700">Ожидание запуска в боте...</span>
+                            <div className="flex items-center gap-1.5 font-semibold text-slate-800">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                              <span>Ожидание запуска в боте...</span>
+                            </div>
                             <a
                               href={tgBindLink}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-sky-600 hover:text-sky-700 font-semibold underline"
+                              className="inline-flex items-center gap-1 text-xs text-sky-600 hover:text-sky-700 font-semibold underline"
                             >
-                              Открыть бота ↗
+                              Открыть бота <ExternalLink className="w-3 h-3 inline" />
                             </a>
                           </div>
-                          <div className="text-[10px] text-slate-500">
+                          <p className="text-[11px] text-slate-500 leading-normal">
                             Отправьте эту ссылку сотруднику или откройте её на устройстве, с которого хотите подключиться.
-                          </div>
-                          <div className="flex items-center gap-1">
+                          </p>
+                          <div className="flex items-center gap-1.5">
                             <input
                               type="text"
                               readOnly
                               value={tgBindLink}
-                              className="bg-white border border-slate-200 rounded px-2 py-1 text-[10px] w-full select-all font-mono"
+                              className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 w-full select-all font-mono outline-none focus:border-sky-400 shadow-xs"
                             />
-                            <Button
+                            <button
                               type="button"
-                              variant="secondary"
-                              size="sm"
-                              className="text-[10px] py-1 px-2 h-6 shrink-0"
                               onClick={() => {
                                 navigator.clipboard.writeText(tgBindLink);
                                 addToast({ title: 'Скопировано', message: 'Ссылка скопирована в буфер обмена', type: 'info' });
                               }}
+                              className="h-8 px-3 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold inline-flex items-center gap-1.5 shrink-0 shadow-xs transition-colors"
                             >
-                              <Copy className="w-2.5 h-2.5 mr-1" /> Копировать
-                            </Button>
+                              <Copy className="w-3 h-3 text-slate-500" />
+                              <span>Копировать</span>
+                            </button>
                           </div>
                         </div>
                       )}
@@ -1010,9 +1027,10 @@ export const SettingsPage: React.FC = () => {
                             type="button"
                             onClick={handleUnlinkTg}
                             disabled={isUnlinkingTg}
-                            className="text-[11px] text-rose-500 hover:text-rose-700 underline font-medium"
+                            className="text-xs text-slate-400 hover:text-rose-500 inline-flex items-center gap-1 transition-colors"
                           >
-                            {isUnlinkingTg ? 'Отвязка...' : 'Отвязать всех получателей'}
+                            <Trash2 className="w-3 h-3" />
+                            <span>{isUnlinkingTg ? 'Отвязка...' : 'Отвязать всех получателей'}</span>
                           </button>
                         </div>
                       )}
@@ -1025,11 +1043,14 @@ export const SettingsPage: React.FC = () => {
                 )}
 
                 {/* Manual fallback fields */}
-                <details className="text-xs text-slate-500 pt-1 border-t border-slate-200/60">
-                  <summary className="cursor-pointer text-[11px] font-medium text-slate-500 hover:text-slate-700 py-1">
-                    Ручная настройка Telegram ID / Username
+                <details className="group text-xs text-slate-500 pt-2 border-t border-slate-200/60">
+                  <summary className="cursor-pointer list-none flex items-center justify-between text-xs font-medium text-slate-500 hover:text-slate-700 py-1 transition-colors">
+                    <span className="flex items-center gap-1.5">
+                      <ChevronRight className="w-3.5 h-3.5 transition-transform group-open:rotate-90 text-slate-400" />
+                      Ручная настройка Telegram ID / Username
+                    </span>
                   </summary>
-                  <div className="space-y-2 pt-2">
+                  <div className="space-y-2.5 pt-2.5">
                     <Input
                       label="Telegram ID (числовой chat_id)"
                       placeholder="Например: 6463435986"
@@ -1042,7 +1063,7 @@ export const SettingsPage: React.FC = () => {
                       value={editingShop.telegram_username || ''}
                       onChange={e => setEditingShop({ ...editingShop, telegram_username: e.target.value })}
                     />
-                    <p className="text-[10px] text-slate-400">
+                    <p className="text-[11px] text-slate-400">
                       ID можно узнать через бота <a href="https://t.me/getmyid_bot" target="_blank" rel="noreferrer" className="text-sky-600 underline">@getmyid_bot</a>. Получатель должен предварительно нажать Start в <a href="https://t.me/happy_island_bot" target="_blank" rel="noreferrer" className="text-sky-600 underline">@happy_island_bot</a>.
                     </p>
                   </div>

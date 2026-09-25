@@ -580,7 +580,13 @@ class Command(BaseCommand):
             hours = f"{s.time_open.strftime('%H:%M')} – {s.time_close.strftime('%H:%M')}"
             email = s.email or "не указан"
             crm = s.crm_system.name if s.crm_system else "не подключена"
-            acq = s.acquiring.name if s.acquiring else "не подключен"
+            acq_parts = []
+            if s.acquiring:
+                acq_name = s.acquiring.get_name_display() if hasattr(s.acquiring, 'get_name_display') else s.acquiring.name
+                acq_parts.append(acq_name)
+            if s.lifepay_api_key:
+                acq_parts.append("СБП (LifePay)")
+            acq = ", ".join(acq_parts) if acq_parts else "не подключен"
 
             blocks.append(
                 f"🏠 <b>{html.escape(addr)}</b>\n"

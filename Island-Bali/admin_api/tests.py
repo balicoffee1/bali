@@ -711,6 +711,51 @@ class TelegramBotInteractiveFeaturesTests(TestCase):
             self.assertIn("Ваши подключенные кофейни", text)
             self.assertIn("Кремлевская", text)
             self.assertIn("555666777", text)
+            self.assertIn("💳 Эквайринг: не подключен", text)
+
+    def test_my_shops_with_sbp(self):
+        from coffee_shop.management.commands.run_telegram_bot import Command
+        self.shop.lifepay_api_key = "test_key_123"
+        self.shop.lifepay_login = "79991112233"
+        self.shop.save(update_fields=["lifepay_api_key", "lifepay_login"])
+
+        cmd = Command()
+        message = {
+            "chat": {"id": 555666777},
+            "from": {"first_name": "Менеджер"},
+            "text": "📍 Мои кофейни"
+        }
+        with patch('reviews.telegram_bot.send_review_to_user', return_value={'ok': True}) as mock_send:
+            cmd.process_message(message)
+            mock_send.assert_called_once()
+            text = mock_send.call_args[0][1]
+            self.assertIn("💳 Эквайринг: СБП (LifePay)", text)
+
+    def test_my_shops_with_acquiring_and_sbp(self):
+        from coffee_shop.models import Acquiring
+        from coffee_shop.management.commands.run_telegram_bot import Command
+
+        acq = Acquiring.objects.create(
+            for_coffeeshop="Кремлевская",
+            name="RussianStandart",
+            login="test_acq",
+            password="pwd",
+        )
+        self.shop.acquiring = acq
+        self.shop.lifepay_api_key = "test_key_123"
+        self.shop.save(update_fields=["acquiring", "lifepay_api_key"])
+
+        cmd = Command()
+        message = {
+            "chat": {"id": 555666777},
+            "from": {"first_name": "Менеджер"},
+            "text": "📍 Мои кофейни"
+        }
+        with patch('reviews.telegram_bot.send_review_to_user', return_value={'ok': True}) as mock_send:
+            cmd.process_message(message)
+            mock_send.assert_called_once()
+            text = mock_send.call_args[0][1]
+            self.assertIn("💳 Эквайринг: Русский Стандарт, СБП (LifePay)", text)
 
     def test_callback_query_pagination(self):
         from coffee_shop.management.commands.run_telegram_bot import Command
