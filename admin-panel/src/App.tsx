@@ -13,6 +13,7 @@ import { FranchisePage } from './pages/FranchisePage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { AuditLogsPage } from './pages/AuditLogsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { TelegramPage } from './pages/TelegramPage';
 
 export const App: React.FC = () => {
   const { isAuthenticated } = useAuth();
@@ -40,6 +41,8 @@ export const App: React.FC = () => {
         return <FranchisePage />;
       case 'notifications':
         return <NotificationsPage />;
+      case 'telegram':
+        return <TelegramPage />;
       case 'logs':
         return <AuditLogsPage />;
       case 'settings':

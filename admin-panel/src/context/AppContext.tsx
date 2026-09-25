@@ -12,6 +12,7 @@ export type PageId =
   | 'reviews'
   | 'franchise'
   | 'notifications'
+  | 'telegram'
   | 'logs'
   | 'settings';
 
@@ -55,7 +56,7 @@ const parseUrlParams = (): { page: PageId; menuTab: MenuTabId; settingsTab: Sett
     const params = new URLSearchParams(window.location.search);
     const validPages: PageId[] = [
       'dashboard', 'orders', 'menu', 'users', 'shifts',
-      'reviews', 'franchise', 'notifications', 'logs', 'settings'
+      'reviews', 'franchise', 'notifications', 'telegram', 'logs', 'settings'
     ];
     const pageParam = params.get('page') as PageId;
     const tabParam = params.get('tab');
