@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { cn } from '../utils/cn';
 import { useApp } from '../context/AppContext';
 import { api } from '../api/client';
 import { CoffeeShop, City, TelegramRecipient } from '../types';
@@ -15,7 +16,7 @@ import { Table, Column } from '../components/ui/Table';
 import {
   Store, MapPin, Plus, Edit2, Trash2, CheckCircle2,
   Clock, Phone, Mail, Send, ShieldCheck, CreditCard,
-  Layers, RefreshCw, Key, Server, Users, Copy, ChevronRight, ExternalLink
+  Layers, RefreshCw, Key, Server, Users, Copy, ChevronRight, ExternalLink, Check
 } from 'lucide-react';
 
 export const SettingsPage: React.FC = () => {
@@ -52,6 +53,7 @@ export const SettingsPage: React.FC = () => {
   const [isLoadingRecipients, setIsLoadingRecipients] = useState(false);
   const [testingRecipientId, setTestingRecipientId] = useState<string | null>(null);
   const [deletingRecipientId, setDeletingRecipientId] = useState<number | null>(null);
+  const [hasCopiedLink, setHasCopiedLink] = useState(false);
 
   useEffect(() => {
     loadSettingsData();
@@ -76,6 +78,7 @@ export const SettingsPage: React.FC = () => {
       setTgRecipients([]);
       setTgBindLink(null);
       setTgBindToken(null);
+      setHasCopiedLink(false);
     }
   }, [editingShop?.id, isShopDrawerOpen]);
 
@@ -115,6 +118,40 @@ export const SettingsPage: React.FC = () => {
     return () => clearInterval(interval);
   }, [tgBindToken, editingShop?.id, isShopDrawerOpen]);
 
+  const copyTgLinkToClipboard = async (linkToCopy?: string) => {
+    const text = linkToCopy || tgBindLink;
+    if (!text) return;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        textArea.remove();
+      }
+      setHasCopiedLink(true);
+      setTimeout(() => setHasCopiedLink(false), 3000);
+      addToast({
+        title: 'Ссылка скопирована в буфер!',
+        message: 'Лимит: 1 подключение (одноразовая). Ссылка активна 30 минут.',
+        type: 'success',
+      });
+    } catch {
+      addToast({
+        title: 'Не удалось скопировать',
+        message: 'Пожалуйста, выделите ссылку в поле и скопируйте вручную.',
+        type: 'warning',
+      });
+    }
+  };
+
   const handleGenerateTgLink = async () => {
     if (!editingShop?.id) return;
     setIsGeneratingTgLink(true);
@@ -122,12 +159,7 @@ export const SettingsPage: React.FC = () => {
       const res = await api.getTelegramBindLink(editingShop.id);
       setTgBindLink(res.link);
       setTgBindToken(res.token);
-      window.open(res.link, '_blank');
-      addToast({
-        title: 'Ссылка создана',
-        message: 'Бот открыт. Нажмите «Запустить» (Start) в Telegram для привязки.',
-        type: 'info',
-      });
+      await copyTgLinkToClipboard(res.link);
     } catch (err: any) {
       addToast({
         title: 'Ошибка',
@@ -981,41 +1013,73 @@ export const SettingsPage: React.FC = () => {
                       </button>
 
                       {tgBindLink && (
-                        <div className="bg-sky-50/70 border border-sky-200/80 text-sky-900 p-3 rounded-r12 space-y-2 text-xs">
+                        <div className="bg-sky-50/70 border border-sky-200/80 rounded-r12 p-3.5 space-y-2.5 text-xs animate-fade-in shadow-xs">
+                          {/* Status and Direct Open Link */}
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-1.5 font-semibold text-slate-800">
-                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            <div className="flex items-center gap-2 font-semibold text-slate-800 text-xs">
+                              <span className="relative flex h-2.5 w-2.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                              </span>
                               <span>Ожидание запуска в боте...</span>
                             </div>
                             <a
                               href={tgBindLink}
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-xs text-sky-600 hover:text-sky-700 font-semibold underline"
+                              className="inline-flex items-center gap-1 text-xs text-sky-600 hover:text-sky-800 font-semibold underline"
                             >
                               Открыть бота <ExternalLink className="w-3 h-3 inline" />
                             </a>
                           </div>
+
+                          {/* Limit badges */}
+                          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-white text-slate-700 px-2 py-0.5 rounded-md border border-slate-200/90 shadow-2xs">
+                              <Clock className="w-3 h-3 text-amber-500" />
+                              <span>Срок: <b className="font-semibold text-slate-900">30 минут</b></span>
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-white text-slate-700 px-2 py-0.5 rounded-md border border-slate-200/90 shadow-2xs">
+                              <Users className="w-3 h-3 text-sky-500" />
+                              <span>Лимит: <b className="font-semibold text-slate-900">1 сотрудник</b> (одноразовая ссылка)</span>
+                            </span>
+                          </div>
+
                           <p className="text-[11px] text-slate-500 leading-normal">
-                            Отправьте эту ссылку сотруднику или откройте её на устройстве, с которого хотите подключиться.
+                            Отправьте эту ссылку сотруднику. После нажатия <b>«Запустить» (Start)</b> в боте аккаунт привяжется к кофейне, а токен ссылки сгорит в целях безопасности.
                           </p>
+
+                          {/* Input with click-to-copy & Copy Button */}
                           <div className="flex items-center gap-1.5">
                             <input
                               type="text"
                               readOnly
                               value={tgBindLink}
-                              className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 w-full select-all font-mono outline-none focus:border-sky-400 shadow-xs"
+                              onClick={() => copyTgLinkToClipboard()}
+                              className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700 w-full select-all font-mono outline-none focus:border-sky-400 cursor-pointer shadow-xs"
+                              title="Нажмите, чтобы скопировать ссылку"
                             />
                             <button
                               type="button"
-                              onClick={() => {
-                                navigator.clipboard.writeText(tgBindLink);
-                                addToast({ title: 'Скопировано', message: 'Ссылка скопирована в буфер обмена', type: 'info' });
-                              }}
-                              className="h-8 px-3 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold inline-flex items-center gap-1.5 shrink-0 shadow-xs transition-colors"
+                              onClick={() => copyTgLinkToClipboard()}
+                              className={cn(
+                                "h-8 px-3 rounded-lg border text-xs font-semibold inline-flex items-center gap-1.5 shrink-0 shadow-xs transition-all active:scale-[0.98]",
+                                hasCopiedLink
+                                  ? "bg-emerald-50 border-emerald-300 text-emerald-700"
+                                  : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700"
+                              )}
                             >
-                              <Copy className="w-3 h-3 text-slate-500" />
-                              <span>Копировать</span>
+                              {hasCopiedLink ? (
+                                <>
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>Скопировано!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3.5 h-3.5 text-slate-500" />
+                                  <span>Копировать</span>
+                                </>
+                              )}
                             </button>
                           </div>
                         </div>
