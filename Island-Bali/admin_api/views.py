@@ -334,6 +334,41 @@ class AdminCoffeeShopsViewSet(viewsets.ModelViewSet):
         except Exception as exc:
             return Response({'valid': False, 'error': f'Ошибка подключения к LifePay: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
 
+    @action(detail=True, methods=['get'], url_path='telegram-recipients', permission_classes=[IsAdminOrReadOnly])
+    def telegram_recipients(self, request, pk=None):
+        shop = self.get_object()
+        recipients = shop.telegram_recipients.filter(is_active=True).order_by("-id")
+        data = [
+            {
+                "id": r.id,
+                "telegram_id": r.telegram_id,
+                "telegram_username": r.telegram_username,
+                "first_name": r.first_name,
+                "is_active": r.is_active,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in recipients
+        ]
+        return Response({"recipients": data, "count": len(data)})
+
+    @action(detail=True, methods=['delete', 'post'], url_path=r'telegram-recipients/(?P<recipient_id>[^/.]+)', permission_classes=[IsAdminRole])
+    def delete_telegram_recipient(self, request, pk=None, recipient_id=None):
+        from coffee_shop.models import CoffeeShopTelegramRecipient
+        shop = self.get_object()
+        try:
+            recipient = shop.telegram_recipients.get(id=recipient_id)
+            old_name = recipient.telegram_username or recipient.first_name or recipient.telegram_id
+            recipient.delete()
+            if shop.telegram_id == recipient.telegram_id:
+                remaining = shop.telegram_recipients.filter(is_active=True).first()
+                shop.telegram_id = remaining.telegram_id if remaining else None
+                shop.telegram_username = remaining.telegram_username if remaining else ""
+                shop.save(update_fields=['telegram_id', 'telegram_username'])
+            log_admin_activity(request, 'UPDATE', 'CoffeeShop', shop.id, f"Удален получатель Telegram {old_name} из {shop}")
+            return Response({"success": True, "message": "Получатель успешно удален"})
+        except CoffeeShopTelegramRecipient.DoesNotExist:
+            return Response({"error": "Получатель не найден"}, status=status.HTTP_404_NOT_FOUND)
+
     @action(detail=True, methods=['get'], url_path='telegram-bind-link', permission_classes=[IsAdminRole])
     def telegram_bind_link(self, request, pk=None):
         import uuid
@@ -343,7 +378,7 @@ class AdminCoffeeShopsViewSet(viewsets.ModelViewSet):
         cache.set(f"tg_bind_{token}", shop.id, timeout=1800)  # 30 minutes
         bot_username = "happy_island_bot"
         link = f"https://t.me/{bot_username}?start={token}"
-        log_admin_activity(request, 'UPDATE', 'CoffeeShop', shop.id, f"Сгенерирована ссылка привязки Telegram для {shop}")
+        log_admin_activity(request, 'UPDATE', 'CoffeeShop', shop.id, f"Сгенерирована ссылка добавления получателя Telegram для {shop}")
         return Response({
             "link": link,
             "token": token,
@@ -360,40 +395,67 @@ class AdminCoffeeShopsViewSet(viewsets.ModelViewSet):
         if token:
             status_data = cache.get(f"tg_bind_status_{token}")
 
+        recipients = list(shop.telegram_recipients.filter(is_active=True).order_by("-id").values(
+            'id', 'telegram_id', 'telegram_username', 'first_name', 'created_at'
+        ))
+
         return Response({
-            "is_connected": bool(shop.telegram_id),
+            "is_connected": bool(recipients or shop.telegram_id),
+            "recipients_count": len(recipients),
             "telegram_id": shop.telegram_id,
             "telegram_username": shop.telegram_username,
+            "recipients": recipients,
             "bind_event": status_data,
         })
 
     @action(detail=True, methods=['post'], url_path='test-telegram', permission_classes=[IsAdminRole])
     def test_telegram(self, request, pk=None):
+        import html
         from reviews.telegram_bot import send_review_to_user
         shop = self.get_object()
-        if not shop.telegram_id:
-            return Response({"error": "Telegram ID не привязан к этой кофейне"}, status=status.HTTP_400_BAD_REQUEST)
+
+        target_id = request.data.get('telegram_id')
+        if target_id:
+            targets = [str(target_id)]
+        else:
+            targets = list(shop.telegram_recipients.filter(is_active=True).values_list('telegram_id', flat=True))
+            if not targets and shop.telegram_id:
+                targets = [shop.telegram_id]
+
+        if not targets:
+            return Response({"error": "Нет привязанных получателей Telegram для этой кофейни"}, status=status.HTTP_400_BAD_REQUEST)
 
         shop_desc = f"{shop.street}, {shop.building_number}" if shop.street else str(shop)
         city_name = getattr(shop.city, "name", "") if shop.city else ""
         full_addr = f"{city_name}, {shop_desc}".strip(", ")
-        text = f"🔔 Проверка связи!\nУведомления для кофейни «{full_addr}» настроены успешно и готовы к работе."
-        try:
-            send_review_to_user(shop.telegram_id, text)
-            log_admin_activity(request, 'UPDATE', 'CoffeeShop', shop.id, f"Отправлено тестовое Telegram-уведомление для {shop}")
-            return Response({"success": True, "message": "Тестовое сообщение успешно отправлено в Telegram"})
-        except Exception as e:
-            return Response({"success": False, "error": f"Ошибка отправки в Telegram: {str(e)}"}, status=status.HTTP_502_BAD_GATEWAY)
+        text = (
+            f"🔔 <b>Проверка связи!</b>\n\n"
+            f"Уведомления для кофейни «<b>{html.escape(full_addr)}</b>» настроены успешно и активны."
+        )
+
+        success_count = 0
+        last_error = None
+        for cid in targets:
+            try:
+                send_review_to_user(cid, text, parse_mode="HTML")
+                success_count += 1
+            except Exception as e:
+                last_error = str(e)
+
+        if success_count > 0:
+            log_admin_activity(request, 'UPDATE', 'CoffeeShop', shop.id, f"Отправлено тестовое Telegram-уведомление для {shop} ({success_count} получ.)")
+            return Response({"success": True, "message": f"Тестовое сообщение отправлено ({success_count} получ.)"})
+        return Response({"success": False, "error": f"Ошибка отправки в Telegram: {last_error}"}, status=status.HTTP_502_BAD_GATEWAY)
 
     @action(detail=True, methods=['post'], url_path='unlink-telegram', permission_classes=[IsAdminRole])
     def unlink_telegram(self, request, pk=None):
         shop = self.get_object()
-        old_tg = shop.telegram_id
+        shop.telegram_recipients.all().delete()
         shop.telegram_id = None
         shop.telegram_username = ''
         shop.save(update_fields=['telegram_id', 'telegram_username'])
-        log_admin_activity(request, 'UPDATE', 'CoffeeShop', shop.id, f"Отвязан Telegram (был {old_tg}) от кофейни {shop}")
-        return Response({"success": True, "message": "Telegram успешно отвязан"})
+        log_admin_activity(request, 'UPDATE', 'CoffeeShop', shop.id, f"Отвязаны все получатели Telegram от кофейни {shop}")
+        return Response({"success": True, "message": "Все получатели Telegram отвязаны"})
 
 
 # -------------------------------------------------------------

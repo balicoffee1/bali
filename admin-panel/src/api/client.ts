@@ -2,7 +2,7 @@ import {
   User, City, CoffeeShop, Category, Product, Addon, AdditiveFlavor,
   Order, StaffMember, Shift, Review, FranchiseRequest, DiscountCard,
   AdminActivityLog, DashboardKPI, DashboardChartPoint, TopProductItem,
-  OrderStatus, UserRole, SeasonMenu
+  OrderStatus, UserRole, SeasonMenu, TelegramRecipient
 } from '../types';
 import {
   mockCities, mockCoffeeShops, mockCategories, mockProducts, mockAddons, mockFlavors,
@@ -1114,7 +1114,32 @@ class ApiClient {
     }
   }
 
-  async getTelegramBindStatus(shopId: number, token?: string): Promise<{ is_connected: boolean; telegram_id?: string; telegram_username?: string; bind_event?: any }> {
+  async getTelegramRecipients(shopId: number): Promise<{ recipients: TelegramRecipient[]; count: number }> {
+    try {
+      return await this.request(`/coffee-shops/${shopId}/telegram-recipients/`);
+    } catch (error: any) {
+      this.ensureMockFallback(error);
+      return { recipients: [], count: 0 };
+    }
+  }
+
+  async deleteTelegramRecipient(shopId: number, recipientId: number): Promise<{ success: boolean; message?: string }> {
+    try {
+      return await this.request(`/coffee-shops/${shopId}/telegram-recipients/${recipientId}/`, { method: 'DELETE' });
+    } catch (error: any) {
+      this.ensureMockFallback(error);
+      return { success: true, message: 'Получатель удален (мок)' };
+    }
+  }
+
+  async getTelegramBindStatus(shopId: number, token?: string): Promise<{
+    is_connected: boolean;
+    recipients_count?: number;
+    telegram_id?: string;
+    telegram_username?: string;
+    recipients?: TelegramRecipient[];
+    bind_event?: any;
+  }> {
     try {
       const url = token ? `/coffee-shops/${shopId}/telegram-bind-status/?token=${token}` : `/coffee-shops/${shopId}/telegram-bind-status/`;
       return await this.request(url);
@@ -1130,9 +1155,12 @@ class ApiClient {
     }
   }
 
-  async testTelegramNotification(shopId: number): Promise<{ success: boolean; message?: string; error?: string }> {
+  async testTelegramNotification(shopId: number, telegramId?: string): Promise<{ success: boolean; message?: string; error?: string }> {
     try {
-      return await this.request(`/coffee-shops/${shopId}/test-telegram/`, { method: 'POST' });
+      return await this.request(`/coffee-shops/${shopId}/test-telegram/`, {
+        method: 'POST',
+        body: JSON.stringify({ telegram_id: telegramId }),
+      });
     } catch (error: any) {
       this.ensureMockFallback(error);
       return { success: true, message: 'Тестовое сообщение отправлено (мок)' };
@@ -1157,3 +1185,4 @@ class ApiClient {
 }
 
 export const api = new ApiClient();
+

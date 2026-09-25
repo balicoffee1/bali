@@ -415,13 +415,114 @@ class TelegramIntegrationTests(TestCase):
             self.assertEqual(self.shop.telegram_id, "999888777")
             self.assertEqual(self.shop.telegram_username, "@barista_boss")
             mock_send.assert_called_once()
-            self.assertIn("успешно подключена", mock_send.call_args[0][1])
+            self.assertIn("успешно подключен", mock_send.call_args[0][1])
 
             # Check cache status
             status_data = cache.get(f"tg_bind_status_{token}")
             self.assertIsNotNone(status_data)
             self.assertEqual(status_data["status"], "linked")
             self.assertEqual(status_data["shop_id"], self.shop.id)
+
+    def test_telegram_recipients_api(self):
+        from coffee_shop.models import CoffeeShopTelegramRecipient
+        self.auth_as(self.admin)
+
+        r1 = CoffeeShopTelegramRecipient.objects.create(
+            coffee_shop=self.shop,
+            telegram_id="111222",
+            telegram_username="@user_one",
+            first_name="Один",
+        )
+        r2 = CoffeeShopTelegramRecipient.objects.create(
+            coffee_shop=self.shop,
+            telegram_id="333444",
+            telegram_username="@user_two",
+            first_name="Два",
+        )
+
+        # GET recipients
+        response = self.client.get(f'/api/admin/coffee-shops/{self.shop.id}/telegram-recipients/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['count'], 2)
+        recipients_ids = [r['telegram_id'] for r in response.data['recipients']]
+        self.assertIn("111222", recipients_ids)
+        self.assertIn("333444", recipients_ids)
+
+        # DELETE recipient
+        del_resp = self.client.delete(f'/api/admin/coffee-shops/{self.shop.id}/telegram-recipients/{r1.id}/')
+        self.assertEqual(del_resp.status_code, 200)
+        self.assertEqual(self.shop.telegram_recipients.count(), 1)
+
+    def test_multiple_recipients_can_bind_and_resolve_shop(self):
+        from coffee_shop.management.commands.run_telegram_bot import Command
+        from coffee_shop.models import CoffeeShopTelegramRecipient
+        from django.core.cache import cache
+
+        cmd = Command()
+
+        token1 = "bind_user_1"
+        cache.set(f"tg_bind_{token1}", self.shop.id, timeout=300)
+        msg1 = {"chat": {"id": 1001}, "from": {"username": "first_user", "first_name": "Первый"}, "text": f"/start {token1}"}
+
+        token2 = "bind_user_2"
+        cache.set(f"tg_bind_{token2}", self.shop.id, timeout=300)
+        msg2 = {"chat": {"id": 1002}, "from": {"username": "second_user", "first_name": "Второй"}, "text": f"/start {token2}"}
+
+        with patch('reviews.telegram_bot.send_review_to_user', return_value={'ok': True}):
+            cmd.process_message(msg1)
+            cmd.process_message(msg2)
+
+        recipients = list(CoffeeShopTelegramRecipient.objects.filter(coffee_shop=self.shop).values_list('telegram_id', flat=True))
+        self.assertIn("1001", recipients)
+        self.assertIn("1002", recipients)
+
+        # Verify bot can resolve shops for each user
+        shops_1 = cmd.get_user_shops("1001")
+        shops_2 = cmd.get_user_shops("1002")
+        self.assertEqual(len(shops_1), 1)
+        self.assertEqual(shops_1[0].id, self.shop.id)
+        self.assertEqual(len(shops_2), 1)
+        self.assertEqual(shops_2[0].id, self.shop.id)
+
+    def test_send_review_to_telegram_task_broadcasts_to_all(self):
+        from decimal import Decimal
+        from django.utils import timezone
+        from cart.models import ShoppingCart
+        from coffee_shop.models import CoffeeShopTelegramRecipient
+        from orders.models import Orders
+        from reviews.models import ReviewsCoffeeShop
+        from reviews.tasks import send_review_to_telegram
+
+        CoffeeShopTelegramRecipient.objects.create(
+            coffee_shop=self.shop, telegram_id="777001", telegram_username="@m1", first_name="Менеджер 1"
+        )
+        CoffeeShopTelegramRecipient.objects.create(
+            coffee_shop=self.shop, telegram_id="777002", telegram_username="@m2", first_name="Менеджер 2"
+        )
+
+        cart = ShoppingCart.objects.create()
+        order = Orders.objects.create(
+            user=self.admin,
+            city_choose=self.city,
+            coffee_shop=self.shop,
+            cart=cart,
+            full_price=Decimal('300.00'),
+            created_at=timezone.now(),
+        )
+        review = ReviewsCoffeeShop.objects.create(
+            coffee_shop=self.shop,
+            user=self.admin,
+            orders=order,
+            evaluation=5,
+            comments="Прекрасный латте!",
+        )
+
+        with patch('reviews.tasks.send_review_to_user', return_value={'ok': True}) as mock_send:
+            res = send_review_to_telegram(review.id)
+            self.assertIn("Сообщение доставлено получателям: 2", res)
+            self.assertEqual(mock_send.call_count, 2)
+            called_chats = {call[0][0] for call in mock_send.call_args_list}
+            self.assertEqual(called_chats, {"777001", "777002"})
 
 
 class TelegramBotInteractiveFeaturesTests(TestCase):

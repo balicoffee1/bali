@@ -3,7 +3,14 @@ from django.contrib import admin
 from menu_coffee_product.models import Product, SeasonMenu
 from staff.models import Staff
 
-from .models import Acquiring, City, CoffeeShop, CrmSystem
+from .models import Acquiring, City, CoffeeShop, CoffeeShopTelegramRecipient, CrmSystem
+
+
+class TelegramRecipientInline(admin.TabularInline):
+    model = CoffeeShopTelegramRecipient
+    extra = 0
+    fields = ('telegram_id', 'telegram_username', 'first_name', 'is_active', 'created_at')
+    readonly_fields = ('created_at',)
 
 
 class AcquiringInline(admin.TabularInline):
@@ -28,7 +35,7 @@ class CoffeeShopAdmin(admin.ModelAdmin):
     )
     list_filter = ("city",)
     search_fields = ("city__name", "street", "building_number")
-    inlines = [ProductInline, SeasonMenuInline]
+    inlines = [TelegramRecipientInline, ProductInline, SeasonMenuInline]
     fieldsets = (
         ("Основная информация", {"fields": (
             "city", "street", "building_number", "phone_number", "email",

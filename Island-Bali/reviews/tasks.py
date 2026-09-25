@@ -15,19 +15,41 @@ from reviews.telegram_bot import send_review_to_user
     retry_kwargs={"max_retries": 3},
 )
 def send_review_to_telegram(review_id):
+    import html
     from reviews.models import ReviewsCoffeeShop
 
-    review = ReviewsCoffeeShop.objects.select_related('coffee_shop').get(pk=review_id)
-    if not review.coffee_shop.telegram_id:
+    review = ReviewsCoffeeShop.objects.select_related('coffee_shop', 'user', 'orders').get(pk=review_id)
+    shop = review.coffee_shop
+    recipients = set(shop.telegram_recipients.filter(is_active=True).values_list('telegram_id', flat=True))
+    if shop.telegram_id:
+        recipients.add(shop.telegram_id)
+
+    if not recipients:
         return "Telegram ID не задан"
-    send_review_to_user(
-        chat_id=review.coffee_shop.telegram_id,
-        review_text=(
-            f"Оценка: {review.evaluation}\n"
-            f"Комментарий: {review.comments or 'Без комментариев'}"
-        ),
+
+    stars = "⭐" * review.evaluation + "☆" * (5 - review.evaluation)
+    guest_name = html.escape(review.user.first_name) if (review.user and review.user.first_name) else "Гость"
+    comment_part = f"\n📝 <i>«{html.escape(review.comments)}»</i>" if review.comments else ""
+    order_part = f" • Заказ #{review.orders_id}" if review.orders_id else ""
+    shop_addr = f"{shop.street}, {shop.building_number}".strip(", ")
+
+    text = (
+        f"🔔 <b>Новый отзыв о кофейне!</b>\n"
+        f"📍 {html.escape(shop_addr)}\n\n"
+        f"{stars} <b>{guest_name}</b>{order_part}"
+        f"{comment_part}"
     )
-    return "Сообщение доставлено"
+
+    delivered_count = 0
+    for chat_id in recipients:
+        try:
+            send_review_to_user(chat_id, text, parse_mode="HTML")
+            delivered_count += 1
+        except Exception:
+            pass
+
+    return f"Сообщение доставлено получателям: {delivered_count}"
+
 
 
 @shared_task(

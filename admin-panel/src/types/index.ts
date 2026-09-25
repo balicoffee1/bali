@@ -30,6 +30,15 @@ export interface City {
   shops_count?: number;
 }
 
+export interface TelegramRecipient {
+  id: number;
+  telegram_id: string;
+  telegram_username?: string;
+  first_name?: string;
+  is_active: boolean;
+  created_at?: string;
+}
+
 export interface CoffeeShop {
   id: number;
   city: number;
@@ -39,6 +48,7 @@ export interface CoffeeShop {
   email: string;
   telegram_username?: string;
   telegram_id?: string;
+  telegram_recipients_count?: number;
   crm_system?: number;
   acquiring?: number;
   time_open: string;

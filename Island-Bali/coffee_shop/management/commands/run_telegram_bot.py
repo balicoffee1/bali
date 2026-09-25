@@ -154,7 +154,12 @@ class Command(BaseCommand):
             self.handle_orders(chat_id, offset=offset)
 
     def get_user_shops(self, chat_id):
-        return list(CoffeeShop.objects.filter(telegram_id=chat_id))
+        return list(
+            CoffeeShop.objects.filter(
+                Q(telegram_recipients__telegram_id=chat_id, telegram_recipients__is_active=True)
+                | Q(telegram_id=chat_id)
+            ).distinct()
+        )
 
     def send_not_bound_message(self, chat_id):
         msg = (
@@ -229,6 +234,8 @@ class Command(BaseCommand):
             logger.error("Ошибка отправки сообщения по умолчанию: %s", e)
 
     def handle_bind(self, chat_id, username, first_name, token):
+        from coffee_shop.models import CoffeeShopTelegramRecipient
+
         token = token.strip()
         cache_key = f"tg_bind_{token}"
         shop_id = cache.get(cache_key)
@@ -248,16 +255,31 @@ class Command(BaseCommand):
 
         try:
             shop = CoffeeShop.objects.get(id=shop_id)
-            shop.telegram_id = chat_id
-            shop.telegram_username = f"@{username}" if username else first_name
-            shop.save(update_fields=["telegram_id", "telegram_username"])
+
+            recipient, _ = CoffeeShopTelegramRecipient.objects.update_or_create(
+                coffee_shop=shop,
+                telegram_id=chat_id,
+                defaults={
+                    "telegram_username": f"@{username}" if username else "",
+                    "first_name": first_name or "",
+                    "is_active": True,
+                },
+            )
+
+            # Сохраняем как основной telegram_id, если он еще не был указан
+            if not shop.telegram_id:
+                shop.telegram_id = chat_id
+                shop.telegram_username = recipient.telegram_username or first_name
+                shop.save(update_fields=["telegram_id", "telegram_username"])
 
             cache.delete(cache_key)
             status_data = {
                 "status": "linked",
                 "shop_id": shop.id,
+                "recipient_id": recipient.id,
                 "telegram_id": chat_id,
-                "telegram_username": shop.telegram_username,
+                "telegram_username": recipient.telegram_username,
+                "first_name": recipient.first_name,
             }
             cache.set(f"tg_bind_status_{token}", status_data, timeout=300)
 
@@ -266,13 +288,13 @@ class Command(BaseCommand):
             full_addr = f"{city_name}, {shop_desc}".strip(", ")
 
             success_msg = (
-                f"✅ <b>Кофейня успешно подключена!</b>\n\n"
+                f"✅ <b>Вы успешно подключены к кофейне!</b>\n\n"
                 f"📍 Точка: <b>{html.escape(full_addr)}</b>\n\n"
                 f"Теперь вам доступны оперативные уведомления о заказах и отзывах, "
                 f"а также меню аналитики и истории ниже ⬇️"
             )
             telegram_bot.send_review_to_user(chat_id, success_msg, parse_mode="HTML", reply_markup=MAIN_KEYBOARD)
-            logger.info("Кофейня %s (ID %s) успешно привязана к Telegram %s (@%s)", full_addr, shop_id, chat_id, username)
+            logger.info("Пользователь %s (@%s) успешно подключен к кофейне %s (ID %s)", chat_id, username, full_addr, shop_id)
 
         except CoffeeShop.DoesNotExist:
             telegram_bot.send_review_to_user(chat_id, "❌ Ошибка: привязываемая кофейня не найдена в базе данных.")

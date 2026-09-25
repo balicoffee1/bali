@@ -111,12 +111,14 @@ class AdminAcquiringSerializer(serializers.ModelSerializer):
 class AdminCoffeeShopSerializer(serializers.ModelSerializer):
     city_name = serializers.CharField(source='city.name', read_only=True)
     has_lifepay_api_key = serializers.SerializerMethodField()
+    telegram_recipients_count = serializers.SerializerMethodField()
 
     class Meta:
         model = CoffeeShop
         fields = [
             'id', 'city', 'city_name', 'street', 'building_number', 'email',
-            'telegram_username', 'telegram_id', 'crm_system', 'acquiring',
+            'telegram_username', 'telegram_id', 'telegram_recipients_count',
+            'crm_system', 'acquiring',
             'time_open', 'time_close', 'crm_email', 'crm_password', 'crm_layer_name',
             'lifepay_api_key', 'has_lifepay_api_key', 'lifepay_login', 'inn', 'phone_number'
         ]
@@ -141,6 +143,12 @@ class AdminCoffeeShopSerializer(serializers.ModelSerializer):
 
     def get_has_lifepay_api_key(self, obj):
         return bool(obj.lifepay_api_key)
+
+    def get_telegram_recipients_count(self, obj):
+        count = obj.telegram_recipients.filter(is_active=True).count()
+        if count == 0 and obj.telegram_id:
+            return 1
+        return count
 
     def validate_lifepay_login(self, value):
         if value:

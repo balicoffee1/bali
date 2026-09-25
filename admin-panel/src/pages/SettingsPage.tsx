@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { api } from '../api/client';
-import { CoffeeShop, City } from '../types';
+import { CoffeeShop, City, TelegramRecipient } from '../types';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -15,7 +15,7 @@ import { Table, Column } from '../components/ui/Table';
 import {
   Store, MapPin, Plus, Edit2, Trash2, CheckCircle2,
   Clock, Phone, Mail, Send, ShieldCheck, CreditCard,
-  Layers, RefreshCw, Key, Server
+  Layers, RefreshCw, Key, Server, Users, Copy
 } from 'lucide-react';
 
 export const SettingsPage: React.FC = () => {
@@ -48,10 +48,36 @@ export const SettingsPage: React.FC = () => {
   const [isGeneratingTgLink, setIsGeneratingTgLink] = useState(false);
   const [isTestingTg, setIsTestingTg] = useState(false);
   const [isUnlinkingTg, setIsUnlinkingTg] = useState(false);
+  const [tgRecipients, setTgRecipients] = useState<TelegramRecipient[]>([]);
+  const [isLoadingRecipients, setIsLoadingRecipients] = useState(false);
+  const [testingRecipientId, setTestingRecipientId] = useState<string | null>(null);
+  const [deletingRecipientId, setDeletingRecipientId] = useState<number | null>(null);
 
   useEffect(() => {
     loadSettingsData();
   }, []);
+
+  const loadRecipients = async (shopId: number) => {
+    setIsLoadingRecipients(true);
+    try {
+      const res = await api.getTelegramRecipients(shopId);
+      setTgRecipients(res.recipients || []);
+    } catch {
+      // ignore
+    } finally {
+      setIsLoadingRecipients(false);
+    }
+  };
+
+  useEffect(() => {
+    if (editingShop?.id && isShopDrawerOpen) {
+      loadRecipients(editingShop.id);
+    } else {
+      setTgRecipients([]);
+      setTgBindLink(null);
+      setTgBindToken(null);
+    }
+  }, [editingShop?.id, isShopDrawerOpen]);
 
   // Poll for Telegram link completion when token is active
   useEffect(() => {
@@ -59,29 +85,33 @@ export const SettingsPage: React.FC = () => {
     const interval = setInterval(async () => {
       try {
         const res = await api.getTelegramBindStatus(editingShop.id!, tgBindToken);
-        if (res.is_connected && res.telegram_id) {
-          setEditingShop(prev => prev ? {
-            ...prev,
-            telegram_id: res.telegram_id,
-            telegram_username: res.telegram_username || prev.telegram_username,
-          } : null);
-          setTgBindToken(null);
-          setTgBindLink(null);
+        if (res.bind_event && res.bind_event.status === 'linked') {
+          const userTitle = res.bind_event.telegram_username || res.bind_event.first_name || res.bind_event.telegram_id;
           addToast({
-            title: 'Telegram успешно подключен!',
-            message: `Кофейня привязана к аккаунту ${res.telegram_username || res.telegram_id}`,
+            title: 'Пользователь добавлен!',
+            message: `К кофейне успешно подключен Telegram: ${userTitle}`,
             type: 'success',
           });
+          setTgBindToken(null);
+          setTgBindLink(null);
+          loadRecipients(editingShop.id!);
+          setEditingShop(prev => prev ? {
+            ...prev,
+            telegram_id: res.bind_event.telegram_id || prev.telegram_id,
+            telegram_username: res.bind_event.telegram_username || prev.telegram_username,
+            telegram_recipients_count: (prev.telegram_recipients_count || 0) + 1,
+          } : null);
           setShops(prev => prev.map(s => s.id === editingShop.id ? {
             ...s,
-            telegram_id: res.telegram_id,
-            telegram_username: res.telegram_username || s.telegram_username,
+            telegram_recipients_count: (s.telegram_recipients_count || 0) + 1,
+            telegram_id: res.bind_event.telegram_id || s.telegram_id,
+            telegram_username: res.bind_event.telegram_username || s.telegram_username,
           } : s));
         }
       } catch (e) {
         // ignore polling error
       }
-    }, 3000);
+    }, 2500);
     return () => clearInterval(interval);
   }, [tgBindToken, editingShop?.id, isShopDrawerOpen]);
 
@@ -94,8 +124,8 @@ export const SettingsPage: React.FC = () => {
       setTgBindToken(res.token);
       window.open(res.link, '_blank');
       addToast({
-        title: 'Бот открыт в Telegram',
-        message: 'Нажмите «Запустить» (Start) в боте для завершения привязки.',
+        title: 'Ссылка создана',
+        message: 'Бот открыт. Нажмите «Запустить» (Start) в Telegram для привязки.',
         type: 'info',
       });
     } catch (err: any) {
@@ -109,15 +139,15 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
-  const handleTestTg = async () => {
+  const handleTestRecipient = async (telegramId?: string) => {
     if (!editingShop?.id) return;
-    setIsTestingTg(true);
+    setTestingRecipientId(telegramId || 'all');
     try {
-      const res = await api.testTelegramNotification(editingShop.id);
+      const res = await api.testTelegramNotification(editingShop.id, telegramId);
       if (res.success) {
         addToast({
           title: 'Успешно!',
-          message: 'Тестовое уведомление доставлено в Telegram!',
+          message: res.message || 'Тестовое уведомление доставлено в Telegram!',
           type: 'success',
         });
       } else {
@@ -134,7 +164,37 @@ export const SettingsPage: React.FC = () => {
         type: 'error',
       });
     } finally {
-      setIsTestingTg(false);
+      setTestingRecipientId(null);
+    }
+  };
+
+  const handleDeleteRecipient = async (recipientId: number) => {
+    if (!editingShop?.id) return;
+    setDeletingRecipientId(recipientId);
+    try {
+      await api.deleteTelegramRecipient(editingShop.id, recipientId);
+      setTgRecipients(prev => prev.filter(r => r.id !== recipientId));
+      setEditingShop(prev => prev ? {
+        ...prev,
+        telegram_recipients_count: Math.max(0, (prev.telegram_recipients_count || 1) - 1),
+      } : null);
+      setShops(prev => prev.map(s => s.id === editingShop.id ? {
+        ...s,
+        telegram_recipients_count: Math.max(0, (s.telegram_recipients_count || 1) - 1),
+      } : s));
+      addToast({
+        title: 'Удалено',
+        message: 'Получатель Telegram удален из кофейни',
+        type: 'info',
+      });
+    } catch (err: any) {
+      addToast({
+        title: 'Ошибка',
+        message: err?.message || 'Не удалось удалить получателя',
+        type: 'error',
+      });
+    } finally {
+      setDeletingRecipientId(null);
     }
   };
 
@@ -143,11 +203,12 @@ export const SettingsPage: React.FC = () => {
     setIsUnlinkingTg(true);
     try {
       await api.unlinkTelegram(editingShop.id);
-      setEditingShop(prev => prev ? { ...prev, telegram_id: '', telegram_username: '' } : null);
-      setShops(prev => prev.map(s => s.id === editingShop.id ? { ...s, telegram_id: '', telegram_username: '' } : s));
+      setTgRecipients([]);
+      setEditingShop(prev => prev ? { ...prev, telegram_id: '', telegram_username: '', telegram_recipients_count: 0 } : null);
+      setShops(prev => prev.map(s => s.id === editingShop.id ? { ...s, telegram_id: '', telegram_username: '', telegram_recipients_count: 0 } : s));
       addToast({
         title: 'Отвязано',
-        message: 'Telegram-уведомления для точки отключены',
+        message: 'Все получатели Telegram для точки удалены',
         type: 'info',
       });
     } catch (err: any) {
@@ -373,16 +434,21 @@ export const SettingsPage: React.FC = () => {
     },
     {
       header: 'Telegram-бот',
-      accessor: row => (
-        row.telegram_id ? (
-          <Badge variant="success" size="sm">
-            <CheckCircle2 className="w-3 h-3 mr-1 inline" />
-            {row.telegram_username || 'Подключен'}
-          </Badge>
-        ) : (
-          <Badge variant="neutral" size="sm">Не подключен</Badge>
-        )
-      ),
+      accessor: row => {
+        const count = row.telegram_recipients_count ?? (row.telegram_id ? 1 : 0);
+        if (count > 0) {
+          const label = count === 1 && row.telegram_username
+            ? row.telegram_username
+            : `${count} ${count === 1 ? 'получатель' : count < 5 ? 'получателя' : 'получателей'}`;
+          return (
+            <Badge variant="success" size="sm">
+              <CheckCircle2 className="w-3 h-3 mr-1 inline" />
+              {label}
+            </Badge>
+          );
+        }
+        return <Badge variant="neutral" size="sm">Не подключен</Badge>;
+      },
     },
     {
       header: 'Действия',
@@ -781,9 +847,10 @@ export const SettingsPage: React.FC = () => {
                       Уведомления в Telegram
                     </span>
                   </div>
-                  {editingShop.telegram_id ? (
+                  {tgRecipients.length > 0 || editingShop.telegram_id ? (
                     <Badge variant="success" size="sm">
-                      <CheckCircle2 className="w-3 h-3 mr-1 inline" /> Подключено
+                      <CheckCircle2 className="w-3 h-3 mr-1 inline" />
+                      {tgRecipients.length > 0 ? `${tgRecipients.length} подкл.` : 'Подключено'}
                     </Badge>
                   ) : (
                     <Badge variant="neutral" size="sm">
@@ -793,76 +860,163 @@ export const SettingsPage: React.FC = () => {
                 </div>
 
                 {editingShop.id ? (
-                  <div className="space-y-2">
-                    {editingShop.telegram_id ? (
-                      <div className="space-y-2">
-                        <div className="text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200 flex justify-between items-center">
-                          <div>
-                            <div className="font-semibold text-slate-800">
-                              {editingShop.telegram_username || 'ID: ' + editingShop.telegram_id}
+                  <div className="space-y-3">
+                    {/* List of active recipients */}
+                    {isLoadingRecipients ? (
+                      <div className="text-center py-2 text-xs text-slate-400">Загрузка получателей...</div>
+                    ) : tgRecipients.length > 0 ? (
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                          <span>Подключенные сотрудники ({tgRecipients.length})</span>
+                          <button
+                            type="button"
+                            onClick={() => handleTestRecipient()}
+                            disabled={testingRecipientId === 'all'}
+                            className="text-[10px] text-sky-600 hover:text-sky-700 underline font-medium"
+                          >
+                            {testingRecipientId === 'all' ? 'Отправка...' : 'Проверить всех'}
+                          </button>
+                        </div>
+                        {tgRecipients.map(r => (
+                          <div
+                            key={r.id}
+                            className="text-xs text-slate-700 bg-white p-2 rounded-lg border border-slate-200 flex justify-between items-center shadow-xs"
+                          >
+                            <div className="min-w-0 pr-2">
+                              <div className="font-semibold text-slate-800 flex items-center gap-1.5 truncate">
+                                <span className="truncate">{r.telegram_username || r.first_name || `ID: ${r.telegram_id}`}</span>
+                                {r.first_name && r.telegram_username && (
+                                  <span className="text-[11px] text-slate-400 font-normal shrink-0">({r.first_name})</span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-slate-400 font-mono">
+                                Chat ID: {r.telegram_id}
+                              </div>
                             </div>
-                            <div className="text-[11px] text-slate-400 font-mono">
-                              Chat ID: {editingShop.telegram_id}
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                className="text-[11px] py-0.5 px-2 h-6"
+                                onClick={() => handleTestRecipient(r.telegram_id)}
+                                disabled={testingRecipientId === r.telegram_id}
+                              >
+                                <Send className="w-2.5 h-2.5 mr-1 text-sky-500" />
+                                {testingRecipientId === r.telegram_id ? '...' : 'Тест'}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="text-[11px] py-0.5 px-1.5 h-6 text-rose-500 hover:bg-rose-50"
+                                onClick={() => handleDeleteRecipient(r.id)}
+                                disabled={deletingRecipientId === r.id}
+                                title="Удалить получателя"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
                             </div>
                           </div>
-                          <div className="flex items-center gap-1.5">
+                        ))}
+                      </div>
+                    ) : editingShop.telegram_id ? (
+                      /* Fallback legacy display if recipients table is empty */
+                      <div className="text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200 flex justify-between items-center">
+                        <div>
+                          <div className="font-semibold text-slate-800">
+                            {editingShop.telegram_username || 'ID: ' + editingShop.telegram_id}
+                          </div>
+                          <div className="text-[11px] text-slate-400 font-mono">
+                            Chat ID: {editingShop.telegram_id}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="text-xs py-1 h-7"
+                            onClick={() => handleTestRecipient()}
+                            disabled={testingRecipientId !== null}
+                          >
+                            <Send className="w-3 h-3 mr-1 text-sky-500" />
+                            {testingRecipientId ? 'Отправка...' : 'Проверить'}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        Подключите сотрудников через Telegram, чтобы мгновенно получать отзывы гостей и оперативные алерты в режиме реального времени.
+                      </p>
+                    )}
+
+                    {/* Invite / Add new recipient button */}
+                    <div className="flex flex-col gap-2 pt-1">
+                      <Button
+                        type="button"
+                        variant="primary"
+                        size="sm"
+                        className="w-full bg-sky-500 hover:bg-sky-600 text-white"
+                        onClick={handleGenerateTgLink}
+                        disabled={isGeneratingTgLink}
+                      >
+                        <Plus className="w-3.5 h-3.5 mr-1.5" />
+                        {isGeneratingTgLink ? 'Генерация ссылки...' : '+ Добавить сотрудника через Telegram'}
+                      </Button>
+
+                      {tgBindLink && (
+                        <div className="text-[11px] bg-sky-50 border border-sky-100 text-sky-800 p-2.5 rounded-lg space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-slate-700">Ожидание запуска в боте...</span>
+                            <a
+                              href={tgBindLink}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-sky-600 hover:text-sky-700 font-semibold underline"
+                            >
+                              Открыть бота ↗
+                            </a>
+                          </div>
+                          <div className="text-[10px] text-slate-500">
+                            Отправьте эту ссылку сотруднику или откройте её на устройстве, с которого хотите подключиться.
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="text"
+                              readOnly
+                              value={tgBindLink}
+                              className="bg-white border border-slate-200 rounded px-2 py-1 text-[10px] w-full select-all font-mono"
+                            />
                             <Button
                               type="button"
                               variant="secondary"
                               size="sm"
-                              className="text-xs py-1 h-7"
-                              onClick={handleTestTg}
-                              disabled={isTestingTg}
+                              className="text-[10px] py-1 px-2 h-6 shrink-0"
+                              onClick={() => {
+                                navigator.clipboard.writeText(tgBindLink);
+                                addToast({ title: 'Скопировано', message: 'Ссылка скопирована в буфер обмена', type: 'info' });
+                              }}
                             >
-                              <Send className="w-3 h-3 mr-1 text-sky-500" />
-                              {isTestingTg ? 'Отправка...' : 'Проверить'}
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="danger"
-                              size="sm"
-                              className="text-xs py-1 h-7"
-                              onClick={handleUnlinkTg}
-                              disabled={isUnlinkingTg}
-                            >
-                              Отвязать
+                              <Copy className="w-2.5 h-2.5 mr-1" /> Копировать
                             </Button>
                           </div>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <p className="text-xs text-slate-500 leading-relaxed">
-                          Подключите Telegram, чтобы мгновенно получать отзывы гостей и оперативные алерты в режиме реального времени.
-                        </p>
-                        <div className="flex flex-col gap-2">
-                          <Button
+                      )}
+
+                      {(tgRecipients.length > 0 || editingShop.telegram_id) && (
+                        <div className="flex justify-end pt-1">
+                          <button
                             type="button"
-                            variant="primary"
-                            size="sm"
-                            className="w-full bg-sky-500 hover:bg-sky-600 text-white"
-                            onClick={handleGenerateTgLink}
-                            disabled={isGeneratingTgLink}
+                            onClick={handleUnlinkTg}
+                            disabled={isUnlinkingTg}
+                            className="text-[11px] text-rose-500 hover:text-rose-700 underline font-medium"
                           >
-                            <Send className="w-3.5 h-3.5 mr-1.5" />
-                            {isGeneratingTgLink ? 'Генерация ссылки...' : 'Подключить через Telegram (в 1 клик)'}
-                          </Button>
-                          {tgBindLink && (
-                            <div className="text-[11px] bg-sky-50 border border-sky-100 text-sky-800 p-2 rounded-lg flex items-center justify-between">
-                              <span className="truncate pr-2">Ожидание нажатия Start в боте...</span>
-                              <a
-                                href={tgBindLink}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="underline font-semibold shrink-0"
-                              >
-                                Открыть бота ↗
-                              </a>
-                            </div>
-                          )}
+                            {isUnlinkingTg ? 'Отвязка...' : 'Отвязать всех получателей'}
+                          </button>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <p className="text-xs text-slate-400 italic">

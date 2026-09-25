@@ -155,3 +155,31 @@ class CoffeeShop(models.Model):
     class Meta:
         verbose_name = "Кофейня"
         verbose_name_plural = "Кофейни"
+
+
+class CoffeeShopTelegramRecipient(models.Model):
+    coffee_shop = models.ForeignKey(
+        CoffeeShop,
+        on_delete=models.CASCADE,
+        related_name="telegram_recipients",
+        verbose_name="Кофейня",
+    )
+    telegram_id = models.CharField(max_length=100, verbose_name="ID в Telegram")
+    telegram_username = models.CharField(
+        max_length=100, blank=True, default="", verbose_name="Username в Telegram"
+    )
+    first_name = models.CharField(
+        max_length=100, blank=True, default="", verbose_name="Имя"
+    )
+    is_active = models.BooleanField(default=True, verbose_name="Активен")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата привязки")
+
+    class Meta:
+        verbose_name = "Получатель Telegram-уведомлений"
+        verbose_name_plural = "Получатели Telegram-уведомлений"
+        unique_together = ("coffee_shop", "telegram_id")
+
+    def __str__(self):
+        user_display = self.telegram_username or self.first_name or self.telegram_id
+        return f"{self.coffee_shop} - {user_display}"
+
