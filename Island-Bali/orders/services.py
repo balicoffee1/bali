@@ -17,6 +17,7 @@ staff endpoint или Django signal не меняет order.status_orders / orde
 """
 from __future__ import annotations
 
+from datetime import timedelta
 import logging
 
 from django.db import transaction
@@ -25,8 +26,10 @@ from django.utils import timezone
 from .models import OrderDialogAck, Orders, PaymentReconciliation, PaymentWebhookEvent
 from .realtime import publish_order_status_changed, snapshot_from_order
 from .state_machine import (
+    GRACE_PERIOD_SECONDS,
     ORDER_TERMINAL_STATUSES,
     PAYMENT_POLL_INTERVAL_SECONDS,
+    PAYMENT_WINDOW_SECONDS,
     OrderTransitionError,
     is_order_transition_allowed,
 )
@@ -255,16 +258,25 @@ class OrderStateService:
 
             order.status_orders = Orders.WAITING
             order.staff = _resolve_staff(staff_user, order.coffee_shop_id)
+            order.payment_deadline_at = timezone.now() + timedelta(seconds=PAYMENT_WINDOW_SECONDS)
             order.version += 1
-            _save_and_publish(order, ["status_orders", "staff", "version"])
-            transaction.on_commit(
-                lambda order_id=order.id: _notify_customer(
-                    order_id,
+            _save_and_publish(order, ["status_orders", "staff", "payment_deadline_at", "version"])
+
+            def _schedule_tasks_and_push(target_order_id):
+                from .tasks import evaluate_payment_deadline_task, finalize_payment_window_task
+
+                evaluate_payment_deadline_task.apply_async(args=[target_order_id], countdown=PAYMENT_WINDOW_SECONDS)
+                finalize_payment_window_task.apply_async(
+                    args=[target_order_id], countdown=PAYMENT_WINDOW_SECONDS + GRACE_PERIOD_SECONDS
+                )
+                _notify_customer(
+                    target_order_id,
                     "Заказ подтверждён",
-                    lambda order: f"Заказ №{order.id} принят. Оплатите в течение 1,5 минут",
+                    lambda order: f"Заказ №{order.id} принят! Оплатите в течение 2 минут ☕️",
                     event="order_accepted",
                 )
-            )
+
+            transaction.on_commit(lambda order_id=order.id: _schedule_tasks_and_push(order_id))
 
         transaction.on_commit(
             lambda: _log_transition(
@@ -750,7 +762,29 @@ class OrderStateService:
         )
         return order
 
-    # ------------------------------------------------------------------ payment deadline / grace (Celery)
+    # ------------------------------------------------------------------ barista confirmation SLA & payment deadline / grace (Celery)
+
+    @staticmethod
+    def evaluate_barista_confirmation_deadline(order_id):
+        """
+        Вызывается Celery-задачей на T0 + 90s (BARISTA_CONFIRMATION_TIMEOUT_SECONDS).
+        Если бариста не подтвердил заказ (статус всё ещё New) — автоотмена с причиной
+        для клиента о том, что кофейня не успела подтвердить заказ.
+        """
+        with transaction.atomic():
+            order = Orders.objects.select_for_update().get(pk=order_id)
+
+            if order.status_orders in ORDER_TERMINAL_STATUSES:
+                return order
+
+            if order.status_orders != Orders.NEW:
+                return order  # Уже принят (Waiting/In Progress/etc.) — no-op
+
+            return OrderStateService.cancel(
+                order_id,
+                actor_type="system",
+                reason="К сожалению, кофейня не успела вовремя подтвердить заказ 😔 Пожалуйста, попробуйте оформить его заново или выберите другую кофейню сети.",
+            )
 
     @staticmethod
     def evaluate_payment_deadline(order_id, *, provider_status_checker):
@@ -770,7 +804,9 @@ class OrderStateService:
             if order.payment_started_at is None:
                 # Case A: оплата не была начата вовсе.
                 return OrderStateService.cancel(
-                    order_id, actor_type="system", reason="Оплата не была произведена за 1,5 минуты"
+                    order_id,
+                    actor_type="system",
+                    reason="Время на оплату вышло, заказ отменён 😔 Пожалуйста, оформите его заново.",
                 )
 
             # Была активная попытка оплаты — проверяем провайдера прямо сейчас.
@@ -789,7 +825,9 @@ class OrderStateService:
             # FAILED / NOT_FOUND
             OrderStateService.payment_failed(order_id, provider="lifepay", reason="provider_failed_at_deadline")
             return OrderStateService.cancel(
-                order_id, actor_type="system", reason="Автоматическая отмена: провайдер не подтвердил оплату к дедлайну."
+                order_id,
+                actor_type="system",
+                reason="Банк не ответил вовремя 😕 Заказ отменён. Попробуйте оплатить ещё раз.",
             )
 
     @staticmethod
@@ -821,5 +859,5 @@ class OrderStateService:
             return OrderStateService.cancel(
                 order_id,
                 actor_type="system",
-                reason="Автоматическая отмена: оплата не подтверждена провайдером в течение grace-периода.",
+                reason="Банк слишком долго обрабатывал платёж 😥 Мы отменили заказ, чтобы избежать ошибочных списаний.",
             )

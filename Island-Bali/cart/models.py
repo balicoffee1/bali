@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 from loguru import logger
 
@@ -122,6 +123,11 @@ class CartItem(models.Model):
         ordering = ['id']
         verbose_name = "Продукт в корзине"
         verbose_name_plural = "Продукты в корзине"
+
+    def clean(self):
+        super().clean()
+        if self.cart_id and hasattr(self, 'cart') and not self.cart.is_active:
+            raise ValidationError("Нельзя изменять позиции в неактивной корзине.")
 
     def __str__(self):
         return (f"Продукт {self.product.product} в "

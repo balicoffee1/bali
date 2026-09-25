@@ -9,7 +9,9 @@ User = get_user_model()
 
 @receiver(pre_save, sender=Staff)
 def check_owner_exists(sender, instance, **kwargs):
-    user = User.objects.filter(login=instance.users.login).first()
-    if user.role == "user":
-        user.role = 'employee'
-        user.save()
+    user = getattr(instance, "users", None)
+    if user is None and getattr(instance, "users_id", None):
+        user = User.objects.filter(id=instance.users_id).first()
+    if user and getattr(user, "role", None) == "user":
+        user.role = "employee"
+        user.save(update_fields=["role"])

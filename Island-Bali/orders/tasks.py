@@ -20,9 +20,94 @@ from celery import shared_task
 from acquiring.providers import ProviderPaymentStatus, get_latest_invoice, get_lifepay_transaction_status
 from orders.models import Orders
 from orders.services import OrderStateService
-from orders.state_machine import PAYMENT_POLL_INTERVAL_SECONDS
+from orders.state_machine import (
+    BARISTA_CONFIRMATION_TIMEOUT_SECONDS,
+    BARISTA_REMINDER_INTERVAL_SECONDS,
+    PAYMENT_POLL_INTERVAL_SECONDS,
+)
 
 logger = logging.getLogger("orders.tasks")
+
+
+def _get_baristas_for_shop(coffee_shop):
+    """
+    Находит сотрудников кофейни для отправки напоминаний.
+    Сначала ищет смену со статусом 'Open'. Если таковых нет,
+    возвращает всех зарегистрированных сотрудников кофейни.
+    """
+    if not coffee_shop:
+        return []
+    from staff.models import Shift, Staff
+
+    active_shifts = Shift.objects.filter(
+        staff__place_of_work=coffee_shop,
+        status_shift="Open",
+    ).select_related("staff__users")
+
+    if active_shifts.exists():
+        users = [shift.staff.users for shift in active_shifts if shift.staff and shift.staff.users]
+        if users:
+            return users
+
+    staff_members = Staff.objects.filter(
+        place_of_work=coffee_shop,
+    ).select_related("users")
+    return [s.users for s in staff_members if s.users]
+
+
+def _format_barista_reminder(name: str, order_id: int, reminder_index: int) -> str:
+    name_str = (name or "").strip() or "Бариста"
+    messages = {
+        1: f"{name_str}, прими заказ! Гости ждут вкусный кофе ☕️ Заказ №{order_id}",
+        2: f"{name_str}, новый заказ №{order_id} скучает без тебя! Подтверди, пожалуйста ✨",
+        3: f"{name_str}, у нас новый заказ №{order_id}! Давайте порадуем клиента 🚀",
+        4: f"{name_str}, время на исходе! Заказ №{order_id} ждёт твоего подтверждения ⏳",
+    }
+    return messages.get(reminder_index, f"{name_str}, новый заказ №{order_id} ждёт подтверждения ⏳")
+
+
+@shared_task
+def send_barista_reminders_task(order_id, reminder_index=1):
+    try:
+        order = Orders.objects.select_related("coffee_shop").get(pk=order_id)
+    except Orders.DoesNotExist:
+        logger.warning("send_barista_reminders_task: order %s не найден", order_id)
+        return
+
+    # Напоминания актуальны ТОЛЬКО пока заказ в статусе NEW
+    if order.status_orders != Orders.NEW:
+        return
+
+    from notifications.main import send_push_notification
+
+    baristas = _get_baristas_for_shop(order.coffee_shop)
+    for barista in baristas:
+        name = getattr(barista, "first_name", None) or getattr(barista, "login", None) or "Бариста"
+        body = _format_barista_reminder(name, order.id, reminder_index)
+        send_push_notification(
+            barista,
+            "Новый заказ!",
+            body,
+            order_id=order.id,
+            event="barista_new_order",
+        )
+
+    # Проверяем, нужно ли планировать следующее напоминание
+    next_countdown = BARISTA_REMINDER_INTERVAL_SECONDS
+    elapsed = reminder_index * BARISTA_REMINDER_INTERVAL_SECONDS
+    if elapsed + next_countdown <= BARISTA_CONFIRMATION_TIMEOUT_SECONDS:
+        send_barista_reminders_task.apply_async(
+            args=[order_id, reminder_index + 1],
+            countdown=next_countdown,
+        )
+
+
+@shared_task
+def evaluate_barista_confirmation_deadline_task(order_id):
+    try:
+        OrderStateService.evaluate_barista_confirmation_deadline(order_id)
+    except Orders.DoesNotExist:
+        logger.warning("evaluate_barista_confirmation_deadline_task: order %s не найден", order_id)
 
 
 def _lifepay_status_checker(order) -> ProviderPaymentStatus:

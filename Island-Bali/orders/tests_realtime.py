@@ -1203,3 +1203,112 @@ class CustomerPushTests(RealtimeFixtureMixin, TestCase):
         self.assertEqual(push.call_count, 1)
         self.assertIn(str(self.order.id), push.call_args.args[2])
         self.assertEqual(push.call_args.kwargs["order_id"], self.order.id)
+
+
+class ShiftAggregatesScopedTests(RealtimeFixtureMixin, TestCase):
+    """Тесты изолированного расчёта сумм и количества заказов для смены."""
+
+    def setUp(self):
+        self._make_fixtures()
+
+    def test_shift_aggregates_scoped_to_coffee_shop(self):
+        from staff.queries import shift_aggregates
+
+        self.make_order(coffee_shop=self.coffee_shop, status_orders=Orders.COMPLETED, full_price=Decimal("350.00"))
+        self.make_order(coffee_shop=self.other_shop, status_orders=Orders.COMPLETED, full_price=Decimal("500.00"))
+
+        shop_stats = shift_aggregates(coffee_shop_id=self.coffee_shop.id)
+        self.assertEqual(shop_stats["status_counts"][Orders.COMPLETED], 1)
+        self.assertEqual(shop_stats["order_totals"][Orders.COMPLETED], 350.0)
+
+        other_stats = shift_aggregates(coffee_shop_id=self.other_shop.id)
+        self.assertEqual(other_stats["status_counts"][Orders.COMPLETED], 1)
+        self.assertEqual(other_stats["order_totals"][Orders.COMPLETED], 500.0)
+
+    def test_shift_aggregates_scoped_to_active_shift_time(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from staff.models import Shift
+        from staff.queries import shift_aggregates
+
+        now = timezone.now()
+        # Заказ, завершённый 2 часа назад (до открытия смены)
+        old_order = self.make_order(
+            coffee_shop=self.coffee_shop,
+            status_orders=Orders.COMPLETED,
+            full_price=Decimal("200.00"),
+        )
+        Orders.objects.filter(id=old_order.id).update(updated_at=now - timedelta(hours=2))
+
+        # Открываем смену 1 час назад
+        shift = Shift.objects.create(
+            staff=self.staff,
+            status_shift="Open",
+            start_time=now - timedelta(hours=1),
+        )
+
+        # Заказ, закрытый во время смены
+        new_order = self.make_order(
+            coffee_shop=self.coffee_shop,
+            status_orders=Orders.COMPLETED,
+            full_price=Decimal("450.00"),
+        )
+        Orders.objects.filter(id=new_order.id).update(updated_at=now - timedelta(minutes=10))
+
+        stats = shift_aggregates(coffee_shop_id=self.coffee_shop.id)
+        self.assertEqual(stats["status_counts"][Orders.COMPLETED], 1)
+        self.assertEqual(stats["order_totals"][Orders.COMPLETED], 450.0)
+
+    def test_shift_update_statistics_calculates_correct_amount(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from staff.models import Shift
+
+        now = timezone.now()
+        shift = Shift.objects.create(
+            staff=self.staff,
+            status_shift="Open",
+            start_time=now - timedelta(hours=3),
+        )
+
+        order1 = self.make_order(coffee_shop=self.coffee_shop, status_orders=Orders.COMPLETED, full_price=Decimal("250.00"))
+        order2 = self.make_order(coffee_shop=self.coffee_shop, status_orders=Orders.COMPLETED, full_price=Decimal("170.00"))
+        Orders.objects.filter(id=order1.id).update(updated_at=now - timedelta(hours=2))
+        Orders.objects.filter(id=order2.id).update(updated_at=now - timedelta(hours=1))
+
+        # Чужой заказ другой кофейни
+        foreign = self.make_order(coffee_shop=self.other_shop, status_orders=Orders.COMPLETED, full_price=Decimal("999.00"))
+        Orders.objects.filter(id=foreign.id).update(updated_at=now - timedelta(hours=1))
+
+        shift.status_shift = "Closed"
+        shift.end_time = now
+        shift.update_shift_statistics()
+
+        self.assertEqual(shift.number_orders_closed, 2)
+        self.assertEqual(shift.amount_closed_orders, Decimal("420.00"))
+
+    def test_orders_with_status_completed_scoped_to_shift(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from staff.models import Shift
+        from staff.queries import orders_with_status
+
+        now = timezone.now()
+        old_order = self.make_order(coffee_shop=self.coffee_shop, status_orders=Orders.COMPLETED, full_price=Decimal("100.00"))
+        Orders.objects.filter(id=old_order.id).update(updated_at=now - timedelta(hours=5))
+
+        Shift.objects.create(
+            staff=self.staff,
+            status_shift="Open",
+            start_time=now - timedelta(hours=2),
+        )
+
+        in_shift_order = self.make_order(coffee_shop=self.coffee_shop, status_orders=Orders.COMPLETED, full_price=Decimal("300.00"))
+        Orders.objects.filter(id=in_shift_order.id).update(updated_at=now - timedelta(minutes=30))
+
+        completed_ids = list(
+            orders_with_status(city_id=None, coffee_shop_id=self.coffee_shop.id, status=Orders.COMPLETED)
+            .values_list("id", flat=True)
+        )
+        self.assertEqual(completed_ids, [in_shift_order.id])
+

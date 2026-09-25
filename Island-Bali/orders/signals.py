@@ -21,8 +21,14 @@ from django.utils import timezone
 from datetime import timedelta
 
 from .models import Orders
-from .state_machine import PAYMENT_WINDOW_SECONDS
-from .tasks import evaluate_payment_deadline_task, finalize_payment_window_task
+from .state_machine import (
+    BARISTA_CONFIRMATION_TIMEOUT_SECONDS,
+    BARISTA_REMINDER_INTERVAL_SECONDS,
+)
+from .tasks import (
+    evaluate_barista_confirmation_deadline_task,
+    send_barista_reminders_task,
+)
 
 logger = logging.getLogger("orders.signals")
 
@@ -40,23 +46,20 @@ def set_waiting_status_for_testing_order(sender, instance, created, **kwargs):
 
 
 @receiver(post_save, sender=Orders)
-def initialize_payment_window(sender, instance, created, **kwargs):
+def initialize_barista_confirmation_sla(sender, instance, created, **kwargs):
     if not created:
         return
-    if instance.payment_deadline_at is None:
-        deadline = timezone.now() + timedelta(seconds=PAYMENT_WINDOW_SECONDS)
-        Orders.objects.filter(pk=instance.pk).update(payment_deadline_at=deadline)
-        instance.payment_deadline_at = deadline
 
     order_id = instance.id
 
     def _schedule():
         # Внутри on_commit: диспетчеризация Celery-тасков не должна происходить,
-        # если внешняя транзакция (создание заказа) в итоге откатится — иначе
-        # таймаут-таск может стартовать раньше, чем строка Orders вообще
-        # закоммичена, и упасть на Orders.DoesNotExist, либо (хуже) отработать
-        # против несуществующего/чужого заказа при переиспользовании PK.
-        evaluate_payment_deadline_task.apply_async(args=[order_id], countdown=PAYMENT_WINDOW_SECONDS)
-        finalize_payment_window_task.apply_async(args=[order_id], countdown=PAYMENT_WINDOW_SECONDS + 30)
+        # если внешняя транзакция (создание заказа) в итоге откатится.
+        send_barista_reminders_task.apply_async(
+            args=[order_id, 1], countdown=BARISTA_REMINDER_INTERVAL_SECONDS
+        )
+        evaluate_barista_confirmation_deadline_task.apply_async(
+            args=[order_id], countdown=BARISTA_CONFIRMATION_TIMEOUT_SECONDS
+        )
 
     transaction.on_commit(_schedule)

@@ -622,6 +622,19 @@ from fcm_django.models import FCMDevice
 class RegisterFCMToken(APIView):
     permission_classes = [IsAuthenticated]
 
+    @swagger_auto_schema(
+        operation_description="Регистрация FCM токена устройства.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=["registration_id"],
+            properties={
+                "registration_id": openapi.Schema(type=openapi.TYPE_STRING, description="FCM токен"),
+                "type_device": openapi.Schema(type=openapi.TYPE_STRING, description="ios | android"),
+            },
+        ),
+        responses={200: "OK", 400: "Bad Request"},
+        tags=TAGS_USER,
+    )
     def post(self, request):
         token = request.data.get("registration_id")
         type_device = request.data.get("type_device")
@@ -637,5 +650,31 @@ class RegisterFCMToken(APIView):
                 "active": True,
             }
         )
+
+        return Response({"status": "ok"})
+
+
+class UnregisterFCMToken(APIView):
+    permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        operation_description="Отвязка FCM токена устройства при выходе из аккаунта.",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=["registration_id"],
+            properties={
+                "registration_id": openapi.Schema(type=openapi.TYPE_STRING, description="FCM токен"),
+            },
+        ),
+        responses={200: "OK", 400: "Bad Request"},
+        tags=TAGS_USER,
+    )
+    def post(self, request):
+        token = request.data.get("registration_id")
+        if not token:
+            return Response({"error": "FCM token is required"}, status=400)
+
+        FCMDevice.objects.filter(registration_id=token).delete()
+        CustomUser.objects.filter(fcm_token=token).update(fcm_token=None)
 
         return Response({"status": "ok"})

@@ -1,8 +1,9 @@
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 
 from acquiring.clients import RussianStandard
-from cart.models import get_active_cart
+from cart.models import ShoppingCart, get_active_cart
 from coffee_shop.models import City, CoffeeShop
 from users.models import CustomUser
 
@@ -56,35 +57,48 @@ class CheckoutSerializer(serializers.Serializer):
         user_data = validated_data.get('user')
         user_id = user_data.get('id')
         user = CustomUser.objects.get(id=user_id)
-        cart = get_active_cart(user)
 
-        if not cart.items.exists():
-            raise serializers.ValidationError("Корзина пуста")
+        with transaction.atomic():
+            cart = (
+                ShoppingCart.objects
+                .select_for_update()
+                .filter(user=user, is_active=True)
+                .order_by("-id")
+                .first()
+            )
 
-        coffee_shop, shop_error = cart.resolve_coffee_shop()
-        if shop_error:
-            raise serializers.ValidationError(shop_error)
+            if not cart or not cart.items.exists():
+                raise serializers.ValidationError("Корзина пуста или уже оформлена")
 
-        # Создаем заказ
-        pricing = calculate_cart_pricing(user, cart)
-        order = cart.send_orders_for_confirmation_to_barista(
-            user=user,
-            city_choose=coffee_shop.city,
-            coffee_shop=coffee_shop,
-            client_comments="",
-            staff=None,
-            time_is_finish=None,
-            cart=cart
-        )
-        order.subtotal_price = pricing.subtotal
-        order.discount_percent = pricing.discount_percent
-        order.discount_amount = pricing.discount_amount
-        order.full_price = pricing.total
-        order.is_used_discount = pricing.discount_amount > 0
-        order.save(update_fields=[
-            "subtotal_price", "discount_percent", "discount_amount",
-            "full_price", "is_used_discount",
-        ])
+            coffee_shop, shop_error = cart.resolve_coffee_shop()
+            if shop_error:
+                raise serializers.ValidationError(shop_error)
+
+            # Создаем заказ
+            pricing = calculate_cart_pricing(user, cart)
+            order = cart.send_orders_for_confirmation_to_barista(
+                user=user,
+                city_choose=coffee_shop.city,
+                coffee_shop=coffee_shop,
+                client_comments="",
+                staff=None,
+                time_is_finish=None,
+                cart=cart
+            )
+            order.subtotal_price = pricing.subtotal
+            order.discount_percent = pricing.discount_percent
+            order.discount_amount = pricing.discount_amount
+            order.full_price = pricing.total
+            order.is_used_discount = pricing.discount_amount > 0
+            # Переводим заказ в статус "Ожидание оплаты"
+            order.payment_status = "Pending"
+            order.save(update_fields=[
+                "subtotal_price", "discount_percent", "discount_amount",
+                "full_price", "is_used_discount", "payment_status",
+            ])
+
+            cart.is_active = False
+            cart.save(update_fields=["is_active"])
 
         # Генерация ссылки на оплату
         payment_link = rus_standard.link_for_payment(
@@ -95,10 +109,6 @@ class CheckoutSerializer(serializers.Serializer):
             'Оплата товаров',
             str(user.phone_number)
         )
-
-        # Переводим заказ в статус "Ожидание оплаты"
-        order.payment_status = "Pending"
-        order.save()
 
         # M7: этот путь создания заказа (POST /api/orders/checkout/) идёт мимо
         # OrderViewSet.perform_create, поэтому событие о создании нужно

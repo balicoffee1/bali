@@ -67,17 +67,22 @@ class CartItemPriceTestCase(TestCase):
         self.assertEqual(self.cart_item.item_total_price, Decimal('200.00'))
 
     def test_item_total_price_with_addon(self):
-        # Add caramel addon (price 20.00)
-        self.cart_item.addons.add(self.addon_caramel)
-        # Total should be (100.00 + 20.00) * 2 = 240.00
+        # Добавка без вкусов учитывается сразу
+        addon_cream = Addon.objects.create(
+            coffee_shop=self.coffeeshop,
+            name="Cream",
+            price=Decimal('20.00')
+        )
+        self.cart_item.addons.add(addon_cream)
+        # Total: (100.00 + 20.00) * 2 = 240.00
         self.assertEqual(self.cart_item.item_total_price, Decimal('240.00'))
 
     def test_item_total_price_with_addon_and_flavor(self):
-        # Add caramel addon (price 20.00) and bubble flavor (adds price of addon: 20.00)
+        # Добавка с вкусом (карамель + вкус bubble): вкус не удваивает цену
         self.cart_item.addons.add(self.addon_caramel)
         self.cart_item.flavors.add(self.flavor_bubble)
-        # Total should be (100.00 + 20.00 + 20.00) * 2 = 280.00
-        self.assertEqual(self.cart_item.item_total_price, Decimal('280.00'))
+        # Total: (100.00 + 20.00) * 2 = 240.00
+        self.assertEqual(self.cart_item.item_total_price, Decimal('240.00'))
 
 
 class CartItemSplitViewTestCase(TestCase):
@@ -353,3 +358,109 @@ class ResolveCoffeeShopTests(TestCase):
         self._add(self.shop_a, self.cat_a, "Латте")
         with self.assertRaises(IntegrityError):
             self._add(self.shop_a, self.cat_a, "Латте")
+
+
+class CartItemInactiveProtectionTestCase(TestCase):
+    """Тесты запрета любых модификаций позиций в неактивной корзине."""
+
+    def setUp(self):
+        from rest_framework_simplejwt.tokens import RefreshToken
+
+        self.user = CustomUser.objects.create_user(login='+79991112233', password='pw')
+        refresh = RefreshToken.for_user(self.user)
+        self.client.defaults['HTTP_AUTHORIZATION'] = f'Bearer {refresh.access_token}'
+
+        self.city = City.objects.create(name="Казань")
+        self.shop = CoffeeShop.objects.create(city=self.city, street="Баумана")
+        self.category = Category.objects.create(coffee_shop=self.shop, name="Кофе")
+        self.product = Product.objects.create(
+            coffee_shop=self.shop, category=self.category, product="Капучино",
+            price_s=Decimal('150.00'), price_m=Decimal('200.00'), price_l=Decimal('250.00'),
+            product_type="coffee", availability=True,
+        )
+
+        self.cart = ShoppingCart.objects.create(user=self.user, is_active=True)
+        self.item = CartItem.objects.create(
+            cart=self.cart, product=self.product, amount=1, size="S"
+        )
+
+    def test_cart_item_clean_raises_when_cart_inactive(self):
+        from django.core.exceptions import ValidationError
+
+        self.cart.is_active = False
+        self.cart.save(update_fields=['is_active'])
+
+        self.item.refresh_from_db()
+        with self.assertRaises(ValidationError):
+            self.item.clean()
+
+    def test_change_quantity_rejected_on_inactive_cart_by_id(self):
+        self.cart.is_active = False
+        self.cart.save(update_fields=['is_active'])
+
+        import json
+
+        response = self.client.put(
+            '/api/cart/change_quantity/',
+            json.dumps({'cart_item_id': self.item.id, 'quantity': 2}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Корзина уже оформлена", response.json().get('error', ''))
+
+    def test_change_quantity_rejected_on_inactive_cart_by_product_name(self):
+        import json
+
+        self.cart.is_active = False
+        self.cart.save(update_fields=['is_active'])
+
+        response = self.client.put(
+            '/api/cart/change_quantity/',
+            json.dumps({'product_name': self.product.product, 'quantity': 2}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Корзина уже оформлена", response.json().get('error', ''))
+
+    def test_remove_from_cart_rejected_on_inactive_cart_by_id(self):
+        import json
+
+        self.cart.is_active = False
+        self.cart.save(update_fields=['is_active'])
+
+        response = self.client.delete(
+            '/api/cart/remove_from_cart/',
+            json.dumps({'cart_item_id': self.item.id}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Корзина уже оформлена", response.json().get('error', ''))
+
+    def test_remove_from_cart_rejected_on_inactive_cart_by_product_name(self):
+        import json
+
+        self.cart.is_active = False
+        self.cart.save(update_fields=['is_active'])
+
+        response = self.client.delete(
+            '/api/cart/remove_from_cart/',
+            json.dumps({'product_name': self.product.product}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Корзина уже оформлена", response.json().get('error', ''))
+
+    def test_update_cart_rejected_on_inactive_cart(self):
+        import json
+
+        self.cart.is_active = False
+        self.cart.save(update_fields=['is_active'])
+
+        response = self.client.patch(
+            f'/api/cart/cart/{self.cart.id}/update/',
+            json.dumps([{'cart_item_id': self.item.id, 'quantity': 3}]),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Корзина уже оформлена", response.json().get('error', ''))
+

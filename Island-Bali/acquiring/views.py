@@ -362,7 +362,11 @@ def _apply_verified_lifepay_status(invoice, verified_status):
             reason="lifepay_webhook_failed",
             event_key=event_key,
         )
-        OrderStateService.cancel(order.id, actor_type="system", reason="LifePay сообщил об отмене/просрочке платежа.")
+        OrderStateService.cancel(
+            order.id,
+            actor_type="system",
+            reason="Платёжная система отклонила оплату 😔 Заказ отменён. Проверьте баланс или используйте другую карту.",
+        )
     # PENDING / NOT_FOUND: намеренно no-op — ждём следующего события или
     # Celery-таймаут (evaluate_payment_deadline_task/finalize_payment_window_task).
 

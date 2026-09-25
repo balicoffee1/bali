@@ -356,7 +356,16 @@ class OrdersByTimeView(generics.ListAPIView):
 
         serialized_data = self.serializer_class(self.get_queryset(), many=True).data
 
-        response_data = {"orders": serialized_data, **shift_aggregates()}
+        coffee_shop_id = self.request.query_params.get('coffee_shop_id')
+        if not coffee_shop_id and request.user and request.user.is_authenticated:
+            staff = Staff.objects.filter(users=request.user).first()
+            if staff:
+                coffee_shop_id = staff.place_of_work_id
+
+        response_data = {
+            "orders": serialized_data,
+            **shift_aggregates(coffee_shop_id=coffee_shop_id)
+        }
 
         return Response(response_data)
 
@@ -429,6 +438,8 @@ class ShiftToggleView(APIView):
             shift = Shift.objects.filter(staff=staff).order_by('-id').first()
             if not shift:
                 shift = Shift.objects.create(staff=staff, status_shift="Closed")
+            elif shift.status_shift == "Open":
+                shift.update_shift_statistics(save=False)
             serializer = ShiftSerializer(shift)
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response({"error": "Staff not found"},
@@ -460,6 +471,8 @@ class ShiftToggleView(APIView):
             if not shift:
                 # Если смен еще нет, создаем дефолтную закрытую
                 shift = Shift.objects.create(staff=staff, status_shift="Closed")
+            elif shift.status_shift == "Open":
+                shift.update_shift_statistics(save=False)
             serializer = ShiftSerializer(shift)
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response({"error": "Staff not found"},

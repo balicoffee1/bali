@@ -135,7 +135,7 @@ class Orders(models.Model):
     payment_deadline_at = models.DateTimeField(
         null=True, blank=True,
         verbose_name='Дедлайн оплаты',
-        help_text='Момент создания заказа + 90 секунд. Устанавливается один раз и не пересчитывается.',
+        help_text='Момент подтверждения заказа баристой + 120 секунд. Устанавливается при переходе в Waiting.',
     )
     payment_started_at = models.DateTimeField(
         null=True, blank=True,

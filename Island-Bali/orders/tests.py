@@ -26,6 +26,8 @@ from coffee_shop.models import Acquiring, City, CoffeeShop, CrmSystem
 from orders.models import OrderDialogAck, Orders, PaymentReconciliation, PaymentWebhookEvent
 from orders.services import OrderStateService
 from orders.state_machine import (
+    BARISTA_CONFIRMATION_TIMEOUT_SECONDS,
+    BARISTA_REMINDER_INTERVAL_SECONDS,
     FINAL_DEADLINE_SECONDS,
     GRACE_PERIOD_SECONDS,
     PAYMENT_WINDOW_SECONDS,
@@ -318,9 +320,11 @@ class PaymentDeadlineGraceBoundaryTests(OrdersTestBase):
         self.assertNotEqual(order.status_orders, Orders.CANCELED)
 
     def test_payment_window_constants_match_tz(self):
-        self.assertEqual(PAYMENT_WINDOW_SECONDS, 90)
+        self.assertEqual(BARISTA_CONFIRMATION_TIMEOUT_SECONDS, 90)
+        self.assertEqual(BARISTA_REMINDER_INTERVAL_SECONDS, 20)
+        self.assertEqual(PAYMENT_WINDOW_SECONDS, 120)
         self.assertEqual(GRACE_PERIOD_SECONDS, 30)
-        self.assertEqual(FINAL_DEADLINE_SECONDS, 120)
+        self.assertEqual(FINAL_DEADLINE_SECONDS, 150)
 
     # i) payment_started() сам проверяет payment_deadline_at (в отличие от
     # evaluate_payment_deadline/finalize_payment_window) — новая попытка
@@ -336,6 +340,84 @@ class PaymentDeadlineGraceBoundaryTests(OrdersTestBase):
         self.assertEqual(ctx.exception.code, "payment_window_closed")
         order.refresh_from_db()
         self.assertEqual(order.payment_status, Orders.NEW)
+
+
+class BaristaSlaAndConfirmationFlowTests(OrdersTestBase):
+    """Тесты SLA подтверждения бариста, напоминаний и честного окна оплаты."""
+
+    def test_barista_sla_autocancels_unconfirmed_order(self):
+        order = self.make_order(status_orders=Orders.NEW)
+        OrderStateService.evaluate_barista_confirmation_deadline(order.id)
+        order.refresh_from_db()
+        self.assertEqual(order.status_orders, Orders.CANCELED)
+        self.assertIn("кофейня не успела вовремя подтвердить", order.cancellation_reason)
+
+    def test_barista_sla_does_not_cancel_accepted_order(self):
+        order = self.make_order(status_orders=Orders.WAITING)
+        OrderStateService.evaluate_barista_confirmation_deadline(order.id)
+        order.refresh_from_db()
+        self.assertEqual(order.status_orders, Orders.WAITING)
+
+    def test_accept_sets_payment_deadline_and_schedules_tasks(self):
+        order = self.make_order(status_orders=Orders.NEW)
+        self.assertIsNone(order.payment_deadline_at)
+
+        before = timezone.now()
+        with mock.patch("orders.tasks.evaluate_payment_deadline_task.apply_async") as mock_eval, \
+             mock.patch("orders.tasks.finalize_payment_window_task.apply_async") as mock_final, \
+             mock.patch("notifications.main.send_push_notification") as mock_push, \
+             self.captureOnCommitCallbacks(execute=True):
+            OrderStateService.accept(order.id, staff_user=self.staff_user)
+
+        order.refresh_from_db()
+        self.assertEqual(order.status_orders, Orders.WAITING)
+        self.assertIsNotNone(order.payment_deadline_at)
+        self.assertTrue(order.payment_deadline_at >= before + timedelta(seconds=119))
+
+        mock_eval.assert_called_once_with(args=[order.id], countdown=120)
+        mock_final.assert_called_once_with(args=[order.id], countdown=150)
+        mock_push.assert_called_once()
+        push_args = mock_push.call_args
+        self.assertEqual(push_args.kwargs.get("event"), "order_accepted")
+        self.assertIn("Оплатите в течение 2 минут", push_args.args[2])
+
+    def test_send_barista_reminders_task_sends_friendly_push_with_name(self):
+        from orders.tasks import send_barista_reminders_task
+        self.staff_user.first_name = "Алексей"
+        self.staff_user.save()
+
+        order = self.make_order(status_orders=Orders.NEW)
+
+        with mock.patch("notifications.main.send_push_notification") as mock_push, \
+             mock.patch("orders.tasks.send_barista_reminders_task.apply_async") as mock_reschedule:
+            send_barista_reminders_task(order.id, reminder_index=1)
+
+        mock_push.assert_called_once()
+        call_args = mock_push.call_args
+        self.assertEqual(call_args.args[0], self.staff_user)
+        self.assertIn("Алексей", call_args.args[2])
+        self.assertIn("прими заказ", call_args.args[2])
+        mock_reschedule.assert_called_once_with(args=[order.id, 2], countdown=20)
+
+    def test_send_barista_reminders_stops_if_order_accepted(self):
+        from orders.tasks import send_barista_reminders_task
+        order = self.make_order(status_orders=Orders.WAITING)
+
+        with mock.patch("notifications.main.send_push_notification") as mock_push, \
+             mock.patch("orders.tasks.send_barista_reminders_task.apply_async") as mock_reschedule:
+            send_barista_reminders_task(order.id, reminder_index=1)
+
+        mock_push.assert_not_called()
+        mock_reschedule.assert_not_called()
+
+    def test_order_creation_schedules_barista_sla_and_reminders(self):
+        with mock.patch("orders.tasks.send_barista_reminders_task.apply_async") as mock_reminders, \
+             mock.patch("orders.tasks.evaluate_barista_confirmation_deadline_task.apply_async") as mock_sla, \
+             self.captureOnCommitCallbacks(execute=True):
+            order = self.make_order(status_orders=Orders.NEW)
+
+        mock_reminders.assert_called_once_with(args=[order.id, 1], countdown=20)
+        mock_sla.assert_called_once_with(args=[order.id], countdown=90)
 
 
 # ---------------------------------------------------------------------------
@@ -1087,3 +1169,110 @@ class DjangoAdminPublishesEventsTests(OrdersTestBase):
         self.assertTrue(
             AdminActivityLog.objects.filter(entity_name='Orders', entity_id=order.id).exists()
         )
+
+
+class OrderCartCheckoutIsolationTestCase(OrdersTestBase):
+    """
+    Тесты изоляции корзины и заказа при оформлении:
+    1. При создании заказа корзина переводится в is_active = False.
+    2. Повторное создание из той же корзины блокируется.
+    3. Добавление товара после заказа создаёт новую корзину и не подмешивается в старый заказ.
+    """
+
+    def setUp(self):
+        super().setUp()
+        from menu_coffee_product.models import Category, Product
+        from cart.models import CartItem, get_active_cart
+
+        self.auth(self.client, self.user)
+        self.category = Category.objects.create(coffee_shop=self.coffee_shop, name="Кофе")
+        self.product = Product.objects.create(
+            coffee_shop=self.coffee_shop,
+            category=self.category,
+            product="Капучино",
+            price_s=Decimal('150.00'),
+            price_m=Decimal('200.00'),
+            price_l=Decimal('250.00'),
+            product_type="coffee",
+            availability=True,
+        )
+        self.product2 = Product.objects.create(
+            coffee_shop=self.coffee_shop,
+            category=self.category,
+            product="Американо",
+            price_s=Decimal('120.00'),
+            price_m=Decimal('160.00'),
+            price_l=Decimal('200.00'),
+            product_type="coffee",
+            availability=True,
+        )
+
+        # Создаём позицию в активной корзине
+        self.cart_item = CartItem.objects.create(
+            cart=self.cart,
+            product=self.product,
+            amount=1,
+            size="S",
+        )
+
+    def test_checkout_deactivates_cart_and_isolates_new_items(self):
+        from cart.models import CartItem, ShoppingCart, get_active_cart
+
+        # 1. Оформляем заказ
+        response = self.client.post(
+            '/api/orders/orders/',
+            {
+                'client_comments': 'Без сахара',
+                'time_is_finish': (timezone.now() + timedelta(minutes=15)).strftime('%Y-%m-%d %H:%M:%S'),
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 201)
+        order_id = response.json()['id']
+        order = Orders.objects.get(id=order_id)
+
+        # Корзина заказа теперь неактивна
+        self.cart.refresh_from_db()
+        self.assertFalse(self.cart.is_active)
+        self.assertEqual(order.cart.id, self.cart.id)
+        self.assertEqual(order.cart.items.count(), 1)
+
+        # 2. Повторная попытка оформить заказ сразу же отклоняется (корзина уже не активна)
+        second_response = self.client.post(
+            '/api/orders/orders/',
+            {
+                'client_comments': 'Повтор',
+                'time_is_finish': (timezone.now() + timedelta(minutes=20)).strftime('%Y-%m-%d %H:%M:%S'),
+            },
+            format='json',
+        )
+        self.assertEqual(second_response.status_code, 400)
+        self.assertIn("Корзина пуста или уже оформлена", str(second_response.json()))
+
+        # 3. Пользователь добавляет новый товар после оформления заказа
+        new_cart = get_active_cart(self.user)
+        self.assertNotEqual(new_cart.id, self.cart.id)
+        self.assertTrue(new_cart.is_active)
+
+        # Добавляем товар через API
+        add_response = self.client.post(
+            f'/api/cart/add_to_cart/{self.city.name}/{self.coffee_shop.street}/',
+            {
+                'product_name': self.product2.product,
+                'quantity': 1,
+                'size': 'S',
+            },
+            format='json',
+        )
+        self.assertEqual(add_response.status_code, 200)
+
+        # 4. Проверяем: новый товар попал в НОВУЮ корзину, а заказ бариста остался неизменным!
+        new_cart.refresh_from_db()
+        self.assertEqual(new_cart.items.count(), 1)
+        self.assertEqual(new_cart.items.first().product, self.product2)
+
+        # Заказ бариста по-прежнему содержит только капучино!
+        order.refresh_from_db()
+        self.assertEqual(order.cart.items.count(), 1)
+        self.assertEqual(order.cart.items.first().product, self.product)
+

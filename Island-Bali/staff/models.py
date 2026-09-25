@@ -58,25 +58,37 @@ class Shift(models.Model):
         choices=Status, max_length=40, verbose_name="Статус смены"
     )
 
-    def update_shift_statistics(self):
+    def update_shift_statistics(self, save=True):
+        from decimal import Decimal
+        from django.db.models.functions import Coalesce
         from orders.models import Orders
 
+        shop = self.staff.place_of_work if self.staff_id else None
+        if shop:
+            closed_orders = Orders.objects.filter(
+                coffee_shop=shop,
+                status_orders=Orders.COMPLETED,
+            )
+        else:
+            closed_orders = Orders.objects.filter(
+                staff=self.staff,
+                status_orders=Orders.COMPLETED,
+            )
 
-        closed_orders = Orders.objects.filter(
-            staff=self.staff,
-            status_orders="Completed",
-            time_is_finish__range=(self.start_time, self.end_time)
+        if self.start_time:
+            closed_orders = closed_orders.filter(updated_at__gte=self.start_time)
+        if self.end_time:
+            closed_orders = closed_orders.filter(updated_at__lte=self.end_time)
+
+        stats = closed_orders.aggregate(
+            total_amount=Coalesce(models.Sum("full_price"), Decimal("0.00")),
+            total_count=models.Count("id"),
         )
-        
 
-
-        total_amount = closed_orders.aggregate(
-            total_amount=Sum('cart__items__amount') * Sum('cart__items__product__price') + Sum('cart__items__addons__price')
-        )['total_amount'] or 0
-        
-        self.amount_closed_orders = total_amount
-        self.number_orders_closed = closed_orders.count()
-        self.save()
+        self.amount_closed_orders = stats["total_amount"]
+        self.number_orders_closed = stats["total_count"]
+        if save:
+            self.save(update_fields=["amount_closed_orders", "number_orders_closed"])
 
 
     class Meta:

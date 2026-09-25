@@ -1,7 +1,7 @@
 import json
 from typing import Union
 
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from drf_yasg import openapi
@@ -27,7 +27,7 @@ from .serializers import (CheckoutSerializer, GetStatusPaymentSerializer, Notifi
                           OrdersCreateSerializer, OrdersSerializer, OrderSerializers, PaymentSerializer, CheckOrderSerializer)
 # from .validators import validate_cafe_open_or_not
 from .state_machine import OrderTransitionError
-from cart.models import get_active_cart
+from cart.models import ShoppingCart, get_active_cart
 from users.models import CustomUser
 from notifications.main import send_push_notification
 
@@ -159,30 +159,43 @@ class OrderViewSet(ModelViewSet):
         )
 
     def perform_create(self, serializer):
-        """Создание нового заказа с валидацией времени"""
-        cart = get_active_cart(self.request.user)
-        from bonus_system.services import calculate_cart_pricing
+        """Создание нового заказа с валидацией времени и атомарной деактивацией корзины."""
+        with transaction.atomic():
+            cart = (
+                ShoppingCart.objects
+                .select_for_update()
+                .filter(user=self.request.user, is_active=True)
+                .order_by("-id")
+                .first()
+            )
+            if not cart or not cart.items.exists():
+                raise ValidationError({"cart": "Корзина пуста или уже оформлена."})
 
-        # coffee_shop/city_choose раньше приходили из тела запроса и сервер им
-        # верил: клиент назначал точку исполнения произвольно, а приложение
-        # присылало ещё и захардкоженный city_choose=1. Теперь и то, и другое
-        # выводится из состава корзины, а смешанная корзина отклоняется.
-        coffee_shop, error = cart.resolve_coffee_shop()
-        if error:
-            raise ValidationError({"coffee_shop": error})
+            from bonus_system.services import calculate_cart_pricing
 
-        pricing = calculate_cart_pricing(self.request.user, cart)
-        order = serializer.save(
-            user=self.request.user,
-            cart=cart,
-            coffee_shop=coffee_shop,
-            city_choose=coffee_shop.city,
-            subtotal_price=pricing.subtotal,
-            discount_percent=pricing.discount_percent,
-            discount_amount=pricing.discount_amount,
-            full_price=pricing.total,
-            is_used_discount=pricing.discount_amount > 0,
-        )
+            # coffee_shop/city_choose раньше приходили из тела запроса и сервер им
+            # верил: клиент назначал точку исполнения произвольно, а приложение
+            # присылало ещё и захардкоженный city_choose=1. Теперь и то, и другое
+            # выводится из состава корзины, а смешанная корзина отклоняется.
+            coffee_shop, error = cart.resolve_coffee_shop()
+            if error:
+                raise ValidationError({"coffee_shop": error})
+
+            pricing = calculate_cart_pricing(self.request.user, cart)
+            order = serializer.save(
+                user=self.request.user,
+                cart=cart,
+                coffee_shop=coffee_shop,
+                city_choose=coffee_shop.city,
+                subtotal_price=pricing.subtotal,
+                discount_percent=pricing.discount_percent,
+                discount_amount=pricing.discount_amount,
+                full_price=pricing.total,
+                is_used_discount=pricing.discount_amount > 0,
+            )
+
+            cart.is_active = False
+            cart.save(update_fields=["is_active"])
 
         # M7: создание — не переход state machine, но клиенту нужно событие, иначе
         # диалог «ожидание подтверждения» не откроется без REST-поллинга.

@@ -178,7 +178,7 @@ def shop_snapshot_payload(shop_id) -> dict:
             )
             for status in (Orders.WAITING, Orders.IN_PROGRESS, Orders.COMPLETED)
         },
-        **shift_aggregates(),
+        **shift_aggregates(coffee_shop_id=shop_id),
     }
 
 
@@ -258,7 +258,7 @@ def publish_order_status_changed(snapshot: OrderRealtimeSnapshot) -> None:
                 # с дельтой — иначе после подключения они бы застыли.
                 from staff.queries import shift_aggregates
 
-                payload.update(shift_aggregates())
+                payload.update(shift_aggregates(coffee_shop_id=snapshot.coffee_shop_id))
             async_to_sync(channel_layer.group_send)(
                 group_name, {"type": ORDER_STATUS_CHANGED, "payload": payload}
             )

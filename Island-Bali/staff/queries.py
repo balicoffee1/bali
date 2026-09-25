@@ -47,10 +47,51 @@ def orders_in_shift_window(*, city_id, coffee_shop_id, sorting_time=None):
     return queryset.order_by("time_is_finish", "-created_at")
 
 
-def orders_with_status(*, city_id, coffee_shop_id, status):
-    """Колонка по статусу — то, что отдаёт POST /api/staff/orders_by_status/."""
+def _resolve_shift_window(*, coffee_shop_id=None, shift=None):
+    """
+    Возвращает (shift_start, active_shift).
+    Если передана или найдена открытая смена кофейни, берём shift.start_time.
+    Иначе, если кофейня задана, берём начало текущих суток, чтобы бариста видел
+    сегодняшние заказы.
+    Если кофейня не задана (тесты/fallback), возвращаем (None, None).
+    """
+    if shift is not None:
+        return shift.start_time, shift
+
+    if coffee_shop_id is not None:
+        from staff.models import Shift
+
+        active_shift = (
+            Shift.objects.filter(
+                staff__place_of_work_id=coffee_shop_id,
+                status_shift="Open",
+            )
+            .order_by("-start_time")
+            .first()
+        )
+        if active_shift and active_shift.start_time:
+            return active_shift.start_time, active_shift
+        from django.utils import timezone
+
+        start_of_day = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        return start_of_day, None
+
+    return None, None
+
+
+def orders_with_status(*, city_id, coffee_shop_id, status, shift_start_time=None):
+    """Колонка по статусу — то, что отдаёт POST /api/staff/orders_by_status/ и WS snapshot."""
     queryset = Orders.objects.filter(status_orders=status)
     queryset = _scoped(queryset, city_id=city_id, coffee_shop_id=coffee_shop_id)
+
+    # Завершённые заказы ограничиваем окном смены (или сегодняшним днём),
+    # чтобы список не рос бесконечно и совпадал со счётчиками смены.
+    if status == Orders.COMPLETED:
+        if shift_start_time is None and coffee_shop_id is not None:
+            shift_start_time, _ = _resolve_shift_window(coffee_shop_id=coffee_shop_id)
+        if shift_start_time is not None:
+            queryset = queryset.filter(updated_at__gte=shift_start_time)
+
     return queryset.order_by("-created_at").prefetch_related("review")
 
 
@@ -62,31 +103,79 @@ def _money(value):
     здесь, чтобы оба транспорта отдавали одно и то же и клиенту не пришлось
     разбирать два формата.
     """
-    return float(value) if value is not None else 0
+    return float(value) if value is not None else 0.0
 
 
-def shift_aggregates():
-    """Счётчики и суммы для карточки смены."""
+def shift_aggregates(*, coffee_shop_id=None, shift=None):
+    """Счётчики и суммы для карточки смены.
+
+    Считаются строго в рамках кофейни и текущей смены (или текущих суток).
+    """
+    from decimal import Decimal
+    from django.db.models.functions import Coalesce
+
+    shift_start, _ = _resolve_shift_window(coffee_shop_id=coffee_shop_id, shift=shift)
+
+    base_qs = Orders.objects.all()
+    if coffee_shop_id is not None:
+        base_qs = base_qs.filter(coffee_shop_id=coffee_shop_id)
+
+    # Waiting и In Progress — это текущие активные заказы на точке
+    waiting_qs = base_qs.filter(status_orders=Orders.WAITING)
+    in_progress_qs = base_qs.filter(status_orders=Orders.IN_PROGRESS)
+
+    # Completed и Canceled — заказы текущей смены
+    completed_qs = base_qs.filter(status_orders=Orders.COMPLETED)
+    canceled_qs = base_qs.filter(status_orders=Orders.CANCELED)
+
+    if shift_start is not None:
+        completed_qs = completed_qs.filter(updated_at__gte=shift_start)
+        canceled_qs = canceled_qs.filter(updated_at__gte=shift_start)
+
     status_counts = {
-        status: Orders.objects.filter(status_orders=status).count()
-        for status in (Orders.WAITING, Orders.IN_PROGRESS, Orders.COMPLETED, Orders.CANCELED)
+        Orders.WAITING: waiting_qs.count(),
+        Orders.IN_PROGRESS: in_progress_qs.count(),
+        Orders.COMPLETED: completed_qs.count(),
+        Orders.CANCELED: canceled_qs.count(),
     }
+
+    # Payment totals: по заказам текущей смены
+    payment_qs = base_qs
+    if shift_start is not None:
+        payment_qs = payment_qs.filter(updated_at__gte=shift_start)
+
     payment_totals = {
-        status: _money(
-            Orders.objects.filter(payment_status=status).aggregate(
-                total=models.Sum("full_price")
+        p_status: _money(
+            payment_qs.filter(payment_status=p_status).aggregate(
+                total=Coalesce(models.Sum("full_price"), Decimal("0.00"))
             )["total"]
         )
-        for status in (Orders.NEW, Orders.PENDING, Orders.PAID, Orders.FAILED)
+        for p_status in (Orders.NEW, Orders.PENDING, Orders.PAID, Orders.FAILED)
     }
+
     order_totals = {
-        status: _money(
-            Orders.objects.filter(status_orders=status).aggregate(
-                total=models.Sum("full_price")
+        Orders.WAITING: _money(
+            waiting_qs.aggregate(
+                total=Coalesce(models.Sum("full_price"), Decimal("0.00"))
             )["total"]
-        )
-        for status in (Orders.WAITING, Orders.IN_PROGRESS, Orders.COMPLETED, Orders.CANCELED)
+        ),
+        Orders.IN_PROGRESS: _money(
+            in_progress_qs.aggregate(
+                total=Coalesce(models.Sum("full_price"), Decimal("0.00"))
+            )["total"]
+        ),
+        Orders.COMPLETED: _money(
+            completed_qs.aggregate(
+                total=Coalesce(models.Sum("full_price"), Decimal("0.00"))
+            )["total"]
+        ),
+        Orders.CANCELED: _money(
+            canceled_qs.aggregate(
+                total=Coalesce(models.Sum("full_price"), Decimal("0.00"))
+            )["total"]
+        ),
     }
+
     return {
         "status_counts": status_counts,
         "payment_totals": payment_totals,

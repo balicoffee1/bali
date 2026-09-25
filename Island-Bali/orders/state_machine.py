@@ -69,12 +69,15 @@ def is_payment_transition_allowed(current_status: str, target_status: str) -> bo
 
 
 # ---------------------------------------------------------------------------
-# Payment timing policy (M1, п.7-10)
+# Order confirmation SLA (barista) & Payment timing policy
 # ---------------------------------------------------------------------------
 
-PAYMENT_WINDOW_SECONDS = 90
+BARISTA_CONFIRMATION_TIMEOUT_SECONDS = 90
+BARISTA_REMINDER_INTERVAL_SECONDS = 20
+
+PAYMENT_WINDOW_SECONDS = 120
 GRACE_PERIOD_SECONDS = 30
-FINAL_DEADLINE_SECONDS = PAYMENT_WINDOW_SECONDS + GRACE_PERIOD_SECONDS  # 120
+FINAL_DEADLINE_SECONDS = PAYMENT_WINDOW_SECONDS + GRACE_PERIOD_SECONDS  # 150
 
 # M7, шаг 4: как часто backend сам опрашивает провайдера, пока идёт оплата.
 # Раньше это делал клиент (_checkLifePayStatus в мобильном приложении) — то есть
@@ -82,7 +85,7 @@ FINAL_DEADLINE_SECONDS = PAYMENT_WINDOW_SECONDS + GRACE_PERIOD_SECONDS  # 120
 # чего мы уходим. Опрос переехал на сервер: результат всё равно применяется через
 # OrderStateService.payment_succeeded, который публикует WebSocket-событие, так
 # что клиент узнаёт об оплате тем же каналом, что и обо всём остальном.
-# 5 секунд × окно 90 секунд = не больше ~18 обращений к LifePay на заказ, и только
+# 5 секунд × окно 120 секунд = не больше ~24 обращений к LifePay на заказ, и только
 # пока оплата реально в процессе.
 PAYMENT_POLL_INTERVAL_SECONDS = 5
 

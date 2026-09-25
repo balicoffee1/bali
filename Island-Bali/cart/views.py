@@ -239,7 +239,11 @@ class ChangeQuantityView(APIView):
 
             try:
                 if cart_item_id:
-                    cart_item = CartItem.objects.get(id=cart_item_id, cart__user=user)
+                    cart_item = CartItem.objects.filter(id=cart_item_id, cart__user=user).select_related('cart').first()
+                    if not cart_item:
+                        return Response({"error": "Товар не найден в корзине пользователя"}, status=status.HTTP_404_NOT_FOUND)
+                    if not cart_item.cart.is_active:
+                        return Response({"error": "Корзина уже оформлена и не может быть изменена"}, status=status.HTTP_400_BAD_REQUEST)
                 else:
                     # Ищем позицию в корзине пользователя, а не товар в общем
                     # каталоге: имя товара уникально только внутри кофейни, и
@@ -249,7 +253,12 @@ class ChangeQuantityView(APIView):
                         product__product=product_name, cart__user=user, cart__is_active=True
                     ).first()
                     if not cart_item:
-                        raise CartItem.DoesNotExist
+                        inactive_item = CartItem.objects.filter(
+                            product__product=product_name, cart__user=user, cart__is_active=False
+                        ).first()
+                        if inactive_item:
+                            return Response({"error": "Корзина уже оформлена и не может быть изменена"}, status=status.HTTP_400_BAD_REQUEST)
+                        return Response({"error": "Товар не найден в корзине пользователя"}, status=status.HTTP_404_NOT_FOUND)
 
                 cart_item.amount = int(quantity)
                 cart_item.save()
@@ -262,8 +271,6 @@ class ChangeQuantityView(APIView):
                     "Сообщение": "Количество товара изменено",
                     "data": cart_serializer.data
                 }, status=status.HTTP_200_OK)
-            except CartItem.DoesNotExist:
-                return Response({"error": "Товар не найден в корзине пользователя"}, status=status.HTTP_404_NOT_FOUND)
             except Product.DoesNotExist:
                 return Response({"error": f"Товар '{product_name}' не найден в кофейне"}, status=status.HTTP_404_NOT_FOUND)
         else:
@@ -294,7 +301,11 @@ class RemoveFromCartView(APIView):
 
             try:
                 if cart_item_id:
-                    cart_item = CartItem.objects.get(id=cart_item_id, cart__user=user)
+                    cart_item = CartItem.objects.filter(id=cart_item_id, cart__user=user).select_related('cart').first()
+                    if not cart_item:
+                        return Response({"error": "Товар в корзине пользователя не найден"}, status=status.HTTP_404_NOT_FOUND)
+                    if not cart_item.cart.is_active:
+                        return Response({"error": "Корзина уже оформлена и не может быть изменена"}, status=status.HTTP_400_BAD_REQUEST)
                     cart_item.delete()
                 else:
                     # Ищем позицию в корзине пользователя, а не товар в общем
@@ -305,13 +316,16 @@ class RemoveFromCartView(APIView):
                         product__product=product_name, cart__user=user, cart__is_active=True
                     ).first()
                     if not cart_item:
-                        raise CartItem.DoesNotExist
+                        inactive_item = CartItem.objects.filter(
+                            product__product=product_name, cart__user=user, cart__is_active=False
+                        ).first()
+                        if inactive_item:
+                            return Response({"error": "Корзина уже оформлена и не может быть изменена"}, status=status.HTTP_400_BAD_REQUEST)
+                        return Response({"error": "Товар в корзине пользователя не найден"}, status=status.HTTP_404_NOT_FOUND)
                     cart_item.delete()
                 return Response({"message": "Товар удален из корзины"}, status=status.HTTP_204_NO_CONTENT)
             except Product.DoesNotExist:
                 return Response({"error": "Такого товара в кофейне не существует"}, status=status.HTTP_404_NOT_FOUND)
-            except CartItem.DoesNotExist:
-                return Response({"error": "Товар в корзине пользователя не найден"}, status=status.HTTP_404_NOT_FOUND)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -385,6 +399,9 @@ class UpdateCartView(APIView):
             cart = ShoppingCart.objects.get(id=cart_id, user=request.user)
         except ShoppingCart.DoesNotExist:
             return Response({"error": "Корзина не найдена"}, status=status.HTTP_404_NOT_FOUND)
+
+        if not cart.is_active:
+            return Response({"error": "Корзина уже оформлена и не может быть изменена"}, status=status.HTTP_400_BAD_REQUEST)
 
         items = request.data
 

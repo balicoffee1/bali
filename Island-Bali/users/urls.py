@@ -2,7 +2,7 @@ from django.urls import path
 
 from . import views
 from . import qr_code_view
-from users.views import ActivationView, RegisterFCMToken
+from users.views import ActivationView, RegisterFCMToken, UnregisterFCMToken
 
 app_name = "users"
 
@@ -24,5 +24,6 @@ urlpatterns = [
     
     path("qr_code/", qr_code_view.GenerateQRCodeView.as_view(), name='qr_code'),
     path("activate/", ActivationView.as_view(), name='activate'),
-    path("fcm/register/", RegisterFCMToken.as_view()),
+    path("fcm/register/", RegisterFCMToken.as_view(), name="fcm-register"),
+    path("fcm/unregister/", UnregisterFCMToken.as_view(), name="fcm-unregister"),
 ]
