@@ -345,6 +345,32 @@ class ApiClient {
     }
   }
 
+  async editOrderTime(orderId: number, newTimeToFinish: string, reason: string): Promise<Order> {
+    try {
+      const res: any = await this.request(`/orders/${orderId}/edit_order/`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          new_time_to_finish: newTimeToFinish,
+          new_comments: reason,
+        }),
+      });
+      return res.order;
+    } catch (error) {
+      this.ensureMockFallback(error);
+      const orders: Order[] = loadFromStorage('orders', mockOrders);
+      const idx = orders.findIndex(o => o.id === orderId);
+      if (idx !== -1) {
+        orders[idx].time_is_finish = newTimeToFinish;
+        orders[idx].cancellation_reason = reason;
+        orders[idx].updated_at = new Date().toISOString();
+        saveToStorage('orders', orders);
+        this.logActivity('UPDATE', 'Orders', String(orderId), `Заказ #${orderId}: время изменено на ${newTimeToFinish}`);
+        return orders[idx];
+      }
+      throw new Error('Order not found');
+    }
+  }
+
   async createOrder(payload: CreateOrderPayload): Promise<Order> {
     try {
       const res: any = await this.request('/orders/', {

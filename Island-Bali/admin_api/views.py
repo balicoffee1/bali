@@ -639,6 +639,55 @@ class AdminOrdersViewSet(viewsets.ModelViewSet):
 
         return Response({"status": "Статус заказа обновлен", "order": AdminOrderSerializer(order).data})
 
+    @action(detail=True, methods=['patch'])
+    def edit_order(self, request, pk=None):
+        """
+        Изменение времени заказа и/или комментария (причины) для отправки клиенту на подтверждение.
+        Использует логику PatchOrderSerializer / push / websocket аналогично мобильному приложению staff.
+        """
+        order = self.get_object()
+        new_time_to_finish = request.data.get('new_time_to_finish')
+        new_comments = request.data.get('new_comments') or request.data.get('reason') or ''
+
+        if not new_time_to_finish and not new_comments:
+            return Response(
+                {"error": "Укажите новое время получения или комментарий."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        from staff.serializers import PatchOrderSerializer
+        from staff.views import send_push_notification
+
+        serializer = PatchOrderSerializer(data={
+            'order_id': order.id,
+            'new_time_to_finish': new_time_to_finish,
+            'new_comments': new_comments,
+        })
+        serializer.is_valid(raise_exception=True)
+        order = serializer.update_order(order, serializer.validated_data)
+
+        send_push_notification(
+            order.user,
+            "Заказ изменён",
+            f"Заказ №{order.id} изменён",
+            order_id=order.id,
+            event="order_updated",
+        )
+
+        from .audit import log_admin_activity
+        log_admin_activity(
+            request,
+            action='UPDATE',
+            resource_type='Orders',
+            resource_id=str(order.id),
+            details=f"Заказ #{order.id}: отправлен на подтверждение клиенту (время: {new_time_to_finish}, комментарий: {new_comments})",
+        )
+
+        return Response({
+            "status": "Заказ изменен и отправлен на подтверждение",
+            "order": AdminOrderSerializer(order).data
+        })
+
 
 # -------------------------------------------------------------
 # 7. STAFF & SHIFTS

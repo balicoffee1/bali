@@ -339,6 +339,7 @@ class AdminCartItemSerializer(serializers.ModelSerializer):
     item_total = serializers.DecimalField(source='item_total_price', max_digits=10, decimal_places=2, read_only=True)
     addons_names = serializers.SerializerMethodField()
     flavors_names = serializers.SerializerMethodField()
+    temperature_type = serializers.SerializerMethodField()
 
     class Meta:
         model = CartItem
@@ -352,6 +353,13 @@ class AdminCartItemSerializer(serializers.ModelSerializer):
 
     def get_flavors_names(self, obj):
         return [flavor.name for flavor in obj.flavors.all()]
+
+    def get_temperature_type(self, obj):
+        if obj.temperature_type:
+            return obj.temperature_type
+        if obj.product and obj.product.temperature_type in ('Hot', 'Cold'):
+            return obj.product.temperature_type
+        return None
 
 
 class AdminOrderSerializer(serializers.ModelSerializer):
@@ -524,11 +532,15 @@ class AdminOrderCreateSerializer(serializers.Serializer):
         with transaction.atomic():
             cart = ShoppingCart.objects.create(user=user, is_active=False)
             for it in items_data:
+                product = it['product']
+                temp = it.get('temperature_type')
+                if not temp and product.temperature_type in ('Hot', 'Cold'):
+                    temp = product.temperature_type
                 cart_item = CartItem.objects.create(
                     cart=cart,
-                    product=it['product'],
+                    product=product,
                     size=it.get('size', 'S'),
-                    temperature_type=it.get('temperature_type') or None,
+                    temperature_type=temp or None,
                     amount=it.get('amount', 1),
                 )
                 if it.get('addons'):

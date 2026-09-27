@@ -12,9 +12,11 @@ import { Modal } from '../components/ui/Modal';
 import { Table, Column } from '../components/ui/Table';
 import {
   ShoppingBag, Search, CheckCircle2, Clock, XCircle,
-  LayoutGrid, List, User, Phone, MapPin, Coffee, AlertCircle, Plus
+  LayoutGrid, List, User, Phone, MapPin, Coffee, AlertCircle, Plus,
+  Snowflake, Flame
 } from 'lucide-react';
 import { CreateOrderModal } from '../components/orders/CreateOrderModal';
+import { EditOrderModal } from '../components/orders/EditOrderModal';
 
 export const OrdersPage: React.FC = () => {
   const { selectedShopId, addToast } = useApp();
@@ -27,6 +29,7 @@ export const OrdersPage: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [cancellationReason, setCancellationReason] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -90,8 +93,18 @@ export const OrdersPage: React.FC = () => {
     {
       header: 'Товары',
       accessor: row => (
-        <div className="max-w-xs truncate text-brand-dark-blue">
-          {row.items.map(it => `${it.product_name} (${it.size}) × ${it.amount}`).join(', ')}
+        <div className="max-w-xs text-brand-dark-blue flex items-center gap-1.5 flex-wrap">
+          {row.items.map((it, idx) => (
+            <span key={idx} className="inline-flex items-center gap-1 text-xs">
+              <span>{it.product_name} ({it.size}) × {it.amount}</span>
+              {it.temperature_type === 'Cold' && (
+                <span className="inline-flex items-center text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1 py-0.2 rounded" title="Холодный напиток">
+                  ❄️ Холодный
+                </span>
+              )}
+              {idx < row.items.length - 1 ? ',' : ''}
+            </span>
+          ))}
         </div>
       ),
     },
@@ -236,7 +249,16 @@ export const OrdersPage: React.FC = () => {
                       </div>
                       <p className="text-xs font-bold text-brand-dark truncate">{order.user_full_name}</p>
                       <div className="text-[11px] text-brand-gray-blue line-clamp-2">
-                        {order.items.map(it => `${it.product_name} (${it.size})`).join(', ')}
+                        {order.items.map((it, idx) => (
+                          <span key={idx} className="inline-flex items-center gap-1 mr-1.5">
+                            <span>{it.product_name} ({it.size})</span>
+                            {it.temperature_type === 'Cold' && (
+                              <span className="text-[9px] font-extrabold text-blue-700 bg-blue-50 border border-blue-200 px-1 py-0.2 rounded">
+                                ❄️ Холодный
+                              </span>
+                            )}
+                          </span>
+                        ))}
                       </div>
                       <div className="flex items-center justify-between pt-1 border-t border-slate-50 text-xs">
                         <span className="font-extrabold text-brand-dark">{order.full_price} ₽</span>
@@ -278,6 +300,16 @@ export const OrdersPage: React.FC = () => {
               </Button>
 
               <div className="flex items-center gap-2">
+                {selectedOrder.status_orders !== 'Canceled' && selectedOrder.status_orders !== 'Completed' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={<Clock className="w-4 h-4" />}
+                    onClick={() => setIsEditModalOpen(true)}
+                  >
+                    Изменить время
+                  </Button>
+                )}
                 {selectedOrder.status_orders === 'New' && (
                   <Button size="sm" onClick={() => handleStatusChange('Waiting')}>
                     Принять заказ
@@ -349,9 +381,23 @@ export const OrdersPage: React.FC = () => {
                 {selectedOrder.items.map(item => (
                   <div key={item.id} className="p-3.5 flex items-start justify-between">
                     <div>
-                      <p className="text-xs font-bold text-brand-dark">
-                        {item.product_name} <span className="text-brand-gray-blue font-semibold">({item.size})</span>
-                      </p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-xs font-bold text-brand-dark">
+                          {item.product_name} <span className="text-brand-gray-blue font-semibold">({item.size})</span>
+                        </p>
+                        {item.temperature_type === 'Cold' && (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-full">
+                            <Snowflake className="w-3 h-3 text-blue-500" />
+                            Холодный
+                          </span>
+                        )}
+                        {item.temperature_type === 'Hot' && (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-orange-700 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded-full">
+                            <Flame className="w-3 h-3 text-orange-500" />
+                            Горячий
+                          </span>
+                        )}
+                      </div>
                       {item.addons_names && item.addons_names.length > 0 && (
                         <p className="text-[11px] text-brand-gray-blue mt-0.5">
                           Добавки: {item.addons_names.join(', ')}
@@ -368,10 +414,12 @@ export const OrdersPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Cancellation reason if canceled */}
+            {/* Cancellation reason if canceled or time changed */}
             {selectedOrder.cancellation_reason && (
-              <div className="bg-red-50 p-3.5 rounded-r18 border border-red-200 text-xs text-brand-red">
-                <span className="font-bold">Причина отмены: </span>
+              <div className="bg-amber-50 p-3.5 rounded-r18 border border-amber-200 text-xs text-amber-900">
+                <span className="font-bold">
+                  {selectedOrder.status_orders === 'Canceled' ? 'Причина отмены: ' : 'Причина изменения времени: '}
+                </span>
                 {selectedOrder.cancellation_reason}
               </div>
             )}
@@ -420,6 +468,19 @@ export const OrdersPage: React.FC = () => {
           setSelectedOrder(newOrder);
         }}
       />
+
+      {/* Edit Order Time Modal */}
+      {selectedOrder && (
+        <EditOrderModal
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          order={selectedOrder}
+          onOrderUpdated={updatedOrder => {
+            setOrders(prev => prev.map(o => (o.id === updatedOrder.id ? updatedOrder : o)));
+            setSelectedOrder(updatedOrder);
+          }}
+        />
+      )}
     </div>
   );
 };

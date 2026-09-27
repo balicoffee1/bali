@@ -173,11 +173,15 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
     const chosenAddons = addons.filter(a => selectedAddonIds.includes(a.id));
     const chosenFlavors = flavors.filter(f => selectedFlavorIds.includes(f.id));
 
+    const resolvedTemp = (currentProduct.can_be_hot_and_cold || currentProduct.temperature_type === 'All')
+      ? selectedTemp
+      : (currentProduct.temperature_type === 'Cold' ? 'Cold' : (currentProduct.temperature_type === 'Hot' ? 'Hot' : null));
+
     const newItem: OrderBuilderItem = {
-      id: `${currentProduct.id}-${selectedSize}-${selectedTemp}-${Date.now()}`,
+      id: `${currentProduct.id}-${selectedSize}-${resolvedTemp || 'def'}-${Date.now()}`,
       product: currentProduct,
       size: selectedSize,
-      temperature_type: currentProduct.can_be_hot_and_cold || currentProduct.temperature_type === 'All' ? selectedTemp : null,
+      temperature_type: resolvedTemp,
       addons: chosenAddons,
       flavors: chosenFlavors,
       amount: itemAmount,
@@ -448,36 +452,46 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                   </div>
                 </div>
 
-                {/* Temperature choices if available */}
-                {(currentProduct.can_be_hot_and_cold || currentProduct.temperature_type === 'All') && (
+                {/* Temperature choices or fixed indicator */}
+                {currentProduct && (
                   <div>
                     <label className="block text-[11px] font-bold text-brand-gray-blue uppercase mb-1.5">Температура</label>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedTemp('Hot')}
-                        className={cn(
-                          'px-3.5 py-1.5 rounded-r10 font-bold border text-xs',
-                          selectedTemp === 'Hot'
-                            ? 'bg-brand-orange text-white border-brand-orange'
-                            : 'bg-white border-slate-200 text-brand-dark'
-                        )}
-                      >
-                        🔥 Горячий
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedTemp('Cold')}
-                        className={cn(
-                          'px-3.5 py-1.5 rounded-r10 font-bold border text-xs',
-                          selectedTemp === 'Cold'
-                            ? 'bg-brand-light-blue text-brand-dark border-brand-light-blue'
-                            : 'bg-white border-slate-200 text-brand-dark'
-                        )}
-                      >
-                        ❄️ Холодный
-                      </button>
-                    </div>
+                    {(currentProduct.can_be_hot_and_cold || currentProduct.temperature_type === 'All') ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedTemp('Hot')}
+                          className={cn(
+                            'px-3.5 py-1.5 rounded-r10 font-bold border text-xs transition-colors',
+                            selectedTemp === 'Hot'
+                              ? 'bg-brand-orange text-white border-brand-orange shadow-sm'
+                              : 'bg-white border-slate-200 text-brand-dark hover:border-slate-300'
+                          )}
+                        >
+                          🔥 Горячий
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedTemp('Cold')}
+                          className={cn(
+                            'px-3.5 py-1.5 rounded-r10 font-bold border text-xs transition-colors',
+                            selectedTemp === 'Cold'
+                              ? 'bg-brand-light-blue text-brand-dark border-brand-light-blue shadow-sm'
+                              : 'bg-white border-slate-200 text-brand-dark hover:border-slate-300'
+                          )}
+                        >
+                          ❄️ Холодный
+                        </button>
+                      </div>
+                    ) : currentProduct.temperature_type === 'Cold' ? (
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-r10 font-bold border text-xs bg-blue-50 text-blue-700 border-blue-200">
+                        ❄️ Только холодный
+                      </div>
+                    ) : currentProduct.temperature_type === 'Hot' ? (
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-r10 font-bold border text-xs bg-orange-50 text-orange-700 border-orange-200">
+                        🔥 Только горячий
+                      </div>
+                    ) : null}
                   </div>
                 )}
 
@@ -597,8 +611,13 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                           {it.size}
                         </span>
                         {it.temperature_type && (
-                          <span className="text-[10px] text-brand-gray-blue">
-                            {it.temperature_type === 'Hot' ? 'Горячий' : 'Холодный'}
+                          <span className={cn(
+                            'text-[10px] font-bold px-1.5 py-0.5 rounded-md inline-flex items-center gap-0.5',
+                            it.temperature_type === 'Cold'
+                              ? 'text-blue-700 bg-blue-50 border border-blue-200'
+                              : 'text-orange-700 bg-orange-50 border border-orange-200'
+                          )}>
+                            {it.temperature_type === 'Cold' ? '❄️ Холодный' : '🔥 Горячий'}
                           </span>
                         )}
                       </div>

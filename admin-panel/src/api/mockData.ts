@@ -370,8 +370,8 @@ export const mockOrders: Order[] = [
     created_at: '2026-08-24T17:45:00Z',
     updated_at: '2026-08-24T17:48:00Z',
     items: [
-      { id: 1, product: 1, product_name: 'Капучино', size: 'M', amount: 1, addons_names: ['Сиропы'], flavors_names: ['Соленая карамель'], item_total: 230 },
-      { id: 2, product: 4, product_name: 'Бамбл Кофе с апельсином', size: 'M', amount: 1, item_total: 260 },
+      { id: 1, product: 1, product_name: 'Капучино', size: 'M', temperature_type: 'Hot', amount: 1, addons_names: ['Сиропы'], flavors_names: ['Соленая карамель'], item_total: 230 },
+      { id: 2, product: 4, product_name: 'Бамбл Кофе с апельсином', size: 'M', temperature_type: 'Cold', amount: 1, item_total: 260 },
     ],
   },
   {
@@ -395,7 +395,7 @@ export const mockOrders: Order[] = [
     created_at: '2026-08-24T17:50:00Z',
     updated_at: '2026-08-24T17:50:00Z',
     items: [
-      { id: 3, product: 6, product_name: 'Матча Латте на кокосовом', size: 'M', amount: 1, item_total: 250 },
+      { id: 3, product: 6, product_name: 'Матча Латте на кокосовом', size: 'M', temperature_type: 'Hot', amount: 1, item_total: 250 },
     ],
   },
   {
@@ -417,7 +417,7 @@ export const mockOrders: Order[] = [
     created_at: '2026-08-24T16:30:00Z',
     updated_at: '2026-08-24T16:45:00Z',
     items: [
-      { id: 4, product: 3, product_name: 'Флэт Уайт', size: 'M', amount: 1, item_total: 220 },
+      { id: 4, product: 3, product_name: 'Флэт Уайт', size: 'M', temperature_type: 'Hot', amount: 1, item_total: 220 },
       { id: 5, product: 8, product_name: 'Круассан с миндалем', size: 'S', amount: 1, item_total: 180 },
     ],
     review_details: {
@@ -446,7 +446,7 @@ export const mockOrders: Order[] = [
     created_at: '2026-08-24T15:10:00Z',
     updated_at: '2026-08-24T15:15:00Z',
     items: [
-      { id: 6, product: 5, product_name: 'Раф Лаванда-Цитрус', size: 'M', amount: 1, item_total: 270 },
+      { id: 6, product: 5, product_name: 'Раф Лаванда-Цитрус', size: 'M', temperature_type: 'Hot', amount: 1, item_total: 270 },
     ],
   },
 ];

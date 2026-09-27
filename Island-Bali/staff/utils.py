@@ -49,6 +49,8 @@ def is_staff_for_order(user, order) -> bool:
     """
     if user is None or not getattr(user, "is_authenticated", False):
         return False
+    if getattr(user, "is_superuser", False) or getattr(user, "role", "") == "admin":
+        return True
     if order.coffee_shop_id is None:
         return False
     return Staff.objects.filter(users=user, place_of_work_id=order.coffee_shop_id).exists()

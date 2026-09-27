@@ -715,6 +715,12 @@ class OrderStateService:
             order = Orders.objects.select_for_update().get(pk=order_id)
             old_order_status, old_payment_status = order.status_orders, order.payment_status
 
+            if old_order_status == Orders.COMPLETED and new_order_status == Orders.CANCELED:
+                raise OrderTransitionError(
+                    "cannot_cancel_completed_order",
+                    f"Нельзя отменить заказ #{order.id}, так как он уже выполнен (закрыт).",
+                )
+
             update_fields = ["version", "updated_at"]
             if new_order_status:
                 order.status_orders = new_order_status

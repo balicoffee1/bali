@@ -168,6 +168,7 @@ export interface CartItem {
   product: number;
   product_name: string;
   size: 'S' | 'M' | 'L';
+  temperature_type?: 'Hot' | 'Cold' | null;
   amount: number;
   addons_names?: string[];
   flavors_names?: string[];
