@@ -102,7 +102,8 @@ class OrdersAdmin(admin.ModelAdmin):
             super().save_model(request, obj, form, change)
             return
 
-        if obj.payment_status == Orders.PENDING and 'status_orders' in changed_domain_fields:
+        current_payment_status = form.initial.get('payment_status', obj.payment_status)
+        if current_payment_status == Orders.PENDING and 'status_orders' in changed_domain_fields:
             from django.core.exceptions import ValidationError
             raise ValidationError(f'Нельзя изменить статус заказа #{obj.id}, пока он ожидает оплаты.')
 
