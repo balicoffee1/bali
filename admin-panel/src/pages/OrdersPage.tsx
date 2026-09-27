@@ -13,7 +13,7 @@ import { Table, Column } from '../components/ui/Table';
 import {
   ShoppingBag, Search, CheckCircle2, Clock, XCircle,
   LayoutGrid, List, User, Phone, MapPin, Coffee, AlertCircle, Plus,
-  Snowflake, Flame
+  Snowflake, Flame, Pencil
 } from 'lucide-react';
 import { CreateOrderModal } from '../components/orders/CreateOrderModal';
 import { EditOrderModal } from '../components/orders/EditOrderModal';
@@ -304,10 +304,10 @@ export const OrdersPage: React.FC = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    leftIcon={<Clock className="w-4 h-4" />}
+                    leftIcon={<Pencil className="w-4 h-4" />}
                     onClick={() => setIsEditModalOpen(true)}
                   >
-                    Изменить время
+                    Редактировать
                   </Button>
                 )}
                 {selectedOrder.status_orders === 'New' && (

@@ -97,7 +97,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Изменение времени заказа #${order.id}`}
+      title={`Редактирование заказа #${order.id}`}
       description="Укажите новое время готовности и причину. Клиент получит уведомление и диалог подтверждения."
     >
       <form onSubmit={handleSubmit} className="space-y-4">
