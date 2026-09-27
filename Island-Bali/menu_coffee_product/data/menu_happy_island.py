@@ -136,7 +136,7 @@ MAIN_MENU = [
     ("Кислородные коктейли", [
         ("Кислородный Коктейль",        None, 125, "cocktail", "Cold"),
     ]),
-    ("VIP чай (холодный) · Cheese Tea", [
+    ("Cheese Tea", [
         ("Cheese Tea Яблочный Пирог",      None, 285, "tea", "Cold"),
         ("Cheese Tea Пряная Малина",       None, 285, "tea", "Cold"),
         ("Cheese Tea Клубника - Персик",   None, 285, "tea", "Cold"),

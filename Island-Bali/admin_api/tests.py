@@ -913,4 +913,43 @@ class AdminOrderCreateTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('items', response.data)
 
+    def test_edit_order_time_returns_success_after_order_is_updated(self):
+        """Аудит и push не должны превращать успешную смену времени в 500."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+        from cart.models import ShoppingCart
+        from orders.models import Orders
+
+        cart = ShoppingCart.objects.create(user=self.customer)
+        order = Orders.objects.create(
+            user=self.customer,
+            city_choose=self.city,
+            coffee_shop=self.shop1,
+            cart=cart,
+        )
+        new_time = timezone.now() + timedelta(minutes=30)
+        self.auth_as(self.admin)
+
+        with patch('staff.views.send_push_notification'):
+            response = self.client.patch(
+                f'/api/admin/orders/{order.id}/edit_order/',
+                data={
+                    'new_time_to_finish': new_time.isoformat(),
+                    'new_comments': 'Большая очередь',
+                },
+                content_type='application/json',
+            )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data['order']['id'], order.id)
+        order.refresh_from_db()
+        self.assertEqual(order.updated_time, new_time)
+        self.assertEqual(order.cancellation_reason, 'Большая очередь')
+        self.assertEqual(order.status_orders, Orders.WAITING)
+        self.assertTrue(
+            AdminActivityLog.objects.filter(
+                action='UPDATE', entity_name='Orders', entity_id=str(order.id)
+            ).exists()
+        )
 

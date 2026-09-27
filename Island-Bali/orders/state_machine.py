@@ -75,6 +75,11 @@ def is_payment_transition_allowed(current_status: str, target_status: str) -> bo
 BARISTA_CONFIRMATION_TIMEOUT_SECONDS = 90
 BARISTA_REMINDER_INTERVAL_SECONDS = 20
 
+# После предложения нового времени клиенту даём отдельное, независимое от
+# первоначального SLA бариста, окно на решение. По его окончании заказ
+# отменяется, а не остаётся неопределённо заблокированным.
+TIME_CHANGE_CONFIRMATION_TIMEOUT_SECONDS = 300
+
 PAYMENT_WINDOW_SECONDS = 120
 GRACE_PERIOD_SECONDS = 30
 FINAL_DEADLINE_SECONDS = PAYMENT_WINDOW_SECONDS + GRACE_PERIOD_SECONDS  # 150

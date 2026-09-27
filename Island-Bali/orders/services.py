@@ -30,6 +30,7 @@ from .state_machine import (
     ORDER_TERMINAL_STATUSES,
     PAYMENT_POLL_INTERVAL_SECONDS,
     PAYMENT_WINDOW_SECONDS,
+    TIME_CHANGE_CONFIRMATION_TIMEOUT_SECONDS,
     OrderTransitionError,
     is_order_transition_allowed,
 )
@@ -39,10 +40,10 @@ logger = logging.getLogger("orders.state")
 
 # Presentation-поля, которые видит клиент, но которые не входят ни в одну state
 # machine: их меняет персонал/клиент, version при этом не растёт, а событие
-# отправить всё равно обязаны — иначе после отказа от polling'а клиент о них не
-# узнает вовсе (M7, раздел 2.2).
+# отправить всё равно обязаны. updated_time намеренно отсутствует: изменение
+# времени — версионируемая бизнес-операция propose_time_change().
 PRESENTATION_FIELDS = frozenset({
-    "updated_time", "cancellation_reason", "staff_comments", "client_comments", "time_is_finish",
+    "cancellation_reason", "staff_comments", "client_comments", "time_is_finish",
     "is_appreciated",
 })
 
@@ -287,6 +288,90 @@ class OrderStateService:
         return order
 
     @staticmethod
+    def propose_time_change(order_id, *, staff_user, updated_time, reason=None):
+        """Принять заказ при необходимости и запросить согласие на новое время.
+
+        Пока предложение ожидает решения, первоначальный SLA бариста уже снят:
+        NEW переводится в WAITING в той же транзакции. Оплата блокируется до
+        подтверждения конкретной ревизии клиентом.
+        """
+        with transaction.atomic():
+            order = Orders.objects.select_for_update().get(pk=order_id)
+            prev_order_status, prev_payment_status = order.status_orders, order.payment_status
+
+            if order.status_orders not in (Orders.NEW, Orders.WAITING):
+                raise OrderTransitionError(
+                    "invalid_time_change_state",
+                    "Менять время можно только у нового или ожидающего заказа.",
+                    order,
+                )
+            if order.payment_status != Orders.NEW or order.payment_started_at is not None:
+                raise OrderTransitionError(
+                    "payment_already_started",
+                    "Нельзя менять время после начала оплаты.",
+                    order,
+                )
+
+            now = timezone.now()
+            changed_fields = [
+                "updated_time", "client_confirmed", "time_change_revision",
+                "pending_time_change_revision", "time_change_confirmation_deadline_at",
+                "payment_deadline_at",
+            ]
+            order.updated_time = updated_time
+            if reason is not None:
+                order.cancellation_reason = reason
+                changed_fields.append("cancellation_reason")
+            order.client_confirmed = False
+            order.time_change_revision += 1
+            order.pending_time_change_revision = order.time_change_revision
+            order.time_change_confirmation_deadline_at = now + timedelta(
+                seconds=TIME_CHANGE_CONFIRMATION_TIMEOUT_SECONDS
+            )
+            # Если заказ уже был принят обычной кнопкой, гасим его прежнее окно
+            # оплаты. Отложенные payment-задачи увидят pending-ревизию и выйдут.
+            order.payment_deadline_at = None
+
+            if order.status_orders == Orders.NEW:
+                order.status_orders = Orders.WAITING
+                order.staff = _resolve_staff(staff_user, order.coffee_shop_id)
+                changed_fields.extend(["status_orders", "staff"])
+
+            order.version += 1
+            changed_fields.append("version")
+            _save_and_publish(order, changed_fields)
+
+            def _schedule_confirmation(target_order_id):
+                from .tasks import evaluate_time_change_confirmation_deadline_task
+
+                evaluate_time_change_confirmation_deadline_task.apply_async(
+                    args=[target_order_id], countdown=TIME_CHANGE_CONFIRMATION_TIMEOUT_SECONDS,
+                )
+                _notify_customer(
+                    target_order_id,
+                    "Подтвердите новое время",
+                    lambda current: (
+                        f"Бариста предложил новое время для заказа №{current.id}. "
+                        "Подтвердите его в приложении в течение 5 минут."
+                    ),
+                    event="time_change_requested",
+                )
+
+            transaction.on_commit(lambda order_id=order.id: _schedule_confirmation(order_id))
+
+        transaction.on_commit(
+            lambda: _log_transition(
+                order,
+                operation="propose_time_change",
+                actor_type="staff",
+                prev_order_status=prev_order_status,
+                prev_payment_status=prev_payment_status,
+                extra={"time_change_revision": order.time_change_revision},
+            )
+        )
+        return order
+
+    @staticmethod
     def cancel(order_id, *, actor_type, reason=""):
         """actor_type: 'customer' | 'staff' | 'system' (Celery timeout)."""
         with transaction.atomic():
@@ -367,21 +452,78 @@ class OrderStateService:
         return order
 
     @staticmethod
-    def client_confirmed(order_id, *, user):
-        """Клиент подтвердил заказ после изменения времени бариста. Не меняет status_orders."""
+    def client_confirmed(order_id, *, user, time_change_revision):
+        """Подтвердить конкретную ожидающую ревизию нового времени."""
+        expired = False
         with transaction.atomic():
             order = Orders.objects.select_for_update().get(pk=order_id)
             if order.user_id != user.id:
                 raise OrderTransitionError("forbidden", "Заказ принадлежит другому пользователю.", order)
-            if order.client_confirmed:
-                return order  # идемпотентно
-            prev_order_status, prev_payment_status = order.status_orders, order.payment_status
-            order.client_confirmed = True
-            order.version += 1
-            # M7: публикуем. Раньше событие здесь не отправлялось — подтверждение,
-            # сделанное на одном устройстве, не гасило диалог «время изменено» на
-            # другом, а после отказа от polling'а не погасило бы вообще нигде.
-            _save_and_publish(order, ["client_confirmed", "version"])
+            if order.status_orders in ORDER_TERMINAL_STATUSES:
+                raise OrderTransitionError("order_closed", "Заказ уже закрыт.", order)
+            if (
+                order.pending_time_change_revision is None
+                and order.client_confirmed
+                and time_change_revision == order.time_change_revision
+            ):
+                return order  # безопасный ретрай подтверждения той же ревизии
+            if order.pending_time_change_revision is None:
+                raise OrderTransitionError(
+                    "no_pending_time_change", "Нет изменения времени, ожидающего подтверждения.", order
+                )
+            if time_change_revision != order.pending_time_change_revision:
+                raise OrderTransitionError(
+                    "stale_time_change",
+                    "Это устаревшее предложение времени. Откройте актуальное.", order
+                )
+            if (
+                order.time_change_confirmation_deadline_at is not None
+                and timezone.now() > order.time_change_confirmation_deadline_at
+            ):
+                # Отменяем уже ПОСЛЕ выхода из этого atomic: исключение внутри
+                # блока откатило бы и саму отмену.
+                expired = True
+            else:
+                prev_order_status, prev_payment_status = order.status_orders, order.payment_status
+                order.client_confirmed = True
+                order.time_is_finish = order.updated_time
+                order.pending_time_change_revision = None
+                order.time_change_confirmation_deadline_at = None
+                order.payment_deadline_at = timezone.now() + timedelta(seconds=PAYMENT_WINDOW_SECONDS)
+                order.version += 1
+                _save_and_publish(order, [
+                    "client_confirmed", "time_is_finish", "pending_time_change_revision",
+                    "time_change_confirmation_deadline_at", "payment_deadline_at", "version",
+                ])
+
+                def _schedule_payment_and_push(target_order_id):
+                    from .tasks import evaluate_payment_deadline_task, finalize_payment_window_task
+
+                    evaluate_payment_deadline_task.apply_async(
+                        args=[target_order_id], countdown=PAYMENT_WINDOW_SECONDS
+                    )
+                    finalize_payment_window_task.apply_async(
+                        args=[target_order_id],
+                        countdown=PAYMENT_WINDOW_SECONDS + GRACE_PERIOD_SECONDS,
+                    )
+                    _notify_customer(
+                        target_order_id,
+                        "Новое время подтверждено",
+                        lambda current: f"Заказ №{current.id} подтверждён. Оплатите в течение 2 минут ☕️",
+                        event="time_change_confirmed",
+                    )
+
+                transaction.on_commit(lambda order_id=order.id: _schedule_payment_and_push(order_id))
+
+        if expired:
+            OrderStateService.cancel(
+                order.id,
+                actor_type="system",
+                reason="Время подтверждения нового времени заказа истекло. Заказ отменён.",
+            )
+            raise OrderTransitionError(
+                "time_change_expired", "Время подтверждения нового времени истекло.", order
+            )
 
         transaction.on_commit(
             lambda: _log_transition(
@@ -390,6 +532,25 @@ class OrderStateService:
             )
         )
         return order
+
+    @staticmethod
+    def evaluate_time_change_confirmation_deadline(order_id):
+        """Отменить заказ, если клиент не ответил на актуальную ревизию времени."""
+        with transaction.atomic():
+            order = Orders.objects.select_for_update().get(pk=order_id)
+            if (
+                order.status_orders in ORDER_TERMINAL_STATUSES
+                or order.pending_time_change_revision is None
+            ):
+                return order
+            deadline = order.time_change_confirmation_deadline_at
+            if deadline is not None and timezone.now() < deadline:
+                return order
+            return OrderStateService.cancel(
+                order.id,
+                actor_type="system",
+                reason="Клиент не подтвердил новое время заказа. Заказ отменён.",
+            )
 
     @staticmethod
     def order_created(order_id):
@@ -409,13 +570,12 @@ class OrderStateService:
     @staticmethod
     def update_presentation(order_id, *, actor_type, **fields):
         """
-        Изменение presentation-полей заказа (M7): время получения, причина/комментарии.
+        Изменение presentation-полей заказа (M7): причина/комментарии и UI-поля.
 
         Это не переход state machine — version не растёт, допустимость перехода не
-        проверяется. Но событие публикуется обязательно: на updated_time завязан
-        диалог «время изменено», и раньше он работал только потому, что клиент
-        перечитывал заказ каждые 5 секунд (staff/serializers.py писал поле голым
-        instance.save() мимо сервиса).
+        проверяется. Но событие публикуется обязательно: после отказа от polling'а
+        клиент иначе не узнает об изменении вообще. Изменение времени идёт через
+        propose_time_change(), чтобы согласие было привязано к ревизии.
 
         Неизвестные поля отвергаются, а не игнорируются молча: PRESENTATION_FIELDS —
         это ещё и граница, через которую status_orders/payment_status/version не
@@ -506,6 +666,12 @@ class OrderStateService:
                 )
             if order.payment_status == Orders.PAID:
                 raise OrderTransitionError("already_paid", "Заказ уже оплачен.", order)
+            if order.pending_time_change_revision is not None:
+                raise OrderTransitionError(
+                    "time_change_confirmation_required",
+                    "Сначала подтвердите новое время получения заказа.",
+                    order,
+                )
 
             now = timezone.now()
             if order.payment_deadline_at is not None and now > order.payment_deadline_at:
@@ -721,6 +887,12 @@ class OrderStateService:
                     f"Нельзя отменить заказ #{order.id}, так как он уже выполнен (закрыт).",
                 )
 
+            if old_payment_status == Orders.PENDING and new_order_status and new_order_status != old_order_status:
+                raise OrderTransitionError(
+                    "cannot_change_status_awaiting_payment",
+                    f"Нельзя изменить статус заказа #{order.id}, пока он ожидает оплаты.",
+                )
+
             update_fields = ["version", "updated_at"]
             if new_order_status:
                 order.status_orders = new_order_status
@@ -806,6 +978,8 @@ class OrderStateService:
 
             if order.status_orders in ORDER_TERMINAL_STATUSES or order.payment_status == Orders.PAID:
                 return order  # уже решено — no-op (в т.ч. защищает PAID от auto-cancel)
+            if order.pending_time_change_revision is not None:
+                return order  # оплата намеренно заблокирована до решения клиента
 
             if order.payment_started_at is None:
                 # Case A: оплата не была начата вовсе.
@@ -845,6 +1019,8 @@ class OrderStateService:
             order = Orders.objects.select_for_update().get(pk=order_id)
 
             if order.status_orders in ORDER_TERMINAL_STATUSES or order.payment_status == Orders.PAID:
+                return order
+            if order.pending_time_change_revision is not None:
                 return order
 
             provider_status = provider_status_checker(order)

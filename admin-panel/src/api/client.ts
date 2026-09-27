@@ -334,6 +334,9 @@ class ApiClient {
       const orders: Order[] = loadFromStorage('orders', mockOrders);
       const idx = orders.findIndex(o => o.id === orderId);
       if (idx !== -1) {
+        if (orders[idx].payment_status === 'Pending') {
+          throw new Error('Нельзя изменить статус заказа, пока он ожидает оплаты');
+        }
         orders[idx].status_orders = newStatus;
         if (cancellationReason) orders[idx].cancellation_reason = cancellationReason;
         orders[idx].updated_at = new Date().toISOString();

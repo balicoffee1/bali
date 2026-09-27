@@ -41,6 +41,13 @@ class OrdersAdmin(admin.ModelAdmin):
                 form.base_fields['city_choose'].required = False
         return form
 
+    def get_readonly_fields(self, request, obj=None):
+        readonly_fields = list(super().get_readonly_fields(request, obj))
+        if obj and obj.payment_status == Orders.PENDING:
+            if 'status_orders' not in readonly_fields:
+                readonly_fields.append('status_orders')
+        return readonly_fields
+
     # Доменные поля заказа: менять их обычным obj.save() из админки нельзя.
     DOMAIN_FIELDS = ('status_orders', 'payment_status')
 
@@ -94,6 +101,10 @@ class OrdersAdmin(admin.ModelAdmin):
         if not changed_domain_fields:
             super().save_model(request, obj, form, change)
             return
+
+        if obj.payment_status == Orders.PENDING and 'status_orders' in changed_domain_fields:
+            from django.core.exceptions import ValidationError
+            raise ValidationError(f'Нельзя изменить статус заказа #{obj.id}, пока он ожидает оплаты.')
 
         # Остальные поля формы сохраняем обычным путём, доменным временно
         # возвращаем прежние значения — иначе они уехали бы в БД мимо сервиса,

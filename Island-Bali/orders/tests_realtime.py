@@ -29,6 +29,7 @@ from channels.db import database_sync_to_async
 from channels.testing import WebsocketCommunicator
 from django.db import transaction
 from django.test import SimpleTestCase, TestCase, TransactionTestCase, override_settings
+from django.utils import timezone
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
 from cart.models import CartItem, ShoppingCart
@@ -323,7 +324,9 @@ class PublishSemanticsTests(RealtimeFixtureMixin, TestCase):
         self.order = self.make_order()
 
     def test_accept_commit_publishes_exactly_one_event(self):
-        with mock.patch("orders.services.publish_order_status_changed") as mocked:
+        with mock.patch("orders.tasks.evaluate_payment_deadline_task.apply_async"), \
+             mock.patch("orders.tasks.finalize_payment_window_task.apply_async"), \
+             mock.patch("orders.services.publish_order_status_changed") as mocked:
             with self.captureOnCommitCallbacks(execute=True):
                 OrderStateService.accept(self.order.id, staff_user=None)
         self.assertEqual(mocked.call_count, 1)
@@ -559,11 +562,9 @@ class EventSeqTests(RealtimeFixtureMixin, TestCase):
 
     def test_presentation_change_bumps_event_seq_but_not_version(self):
         """Ключевое различие двух счётчиков — иначе клиент выбросил бы это событие."""
-        from django.utils import timezone
-
         with self.captureOnCommitCallbacks(execute=True):
             OrderStateService.update_presentation(
-                self.order.id, actor_type="staff", updated_time=timezone.now() + timedelta(minutes=5)
+                self.order.id, actor_type="staff", staff_comments="Новая заметка"
             )
         self.order.refresh_from_db()
         self.assertEqual(self.order.event_seq, 1)
@@ -594,26 +595,54 @@ class MissingPublicationTests(RealtimeFixtureMixin, TestCase):
         self.assertEqual(snapshot.event_seq, 1)
 
     def test_client_confirmed_publishes(self):
-        with mock.patch("orders.services.publish_order_status_changed") as mocked:
+        self.order.status_orders = Orders.WAITING
+        self.order.updated_time = timezone.now() + timedelta(minutes=5)
+        self.order.time_change_revision = 1
+        self.order.pending_time_change_revision = 1
+        self.order.save()
+        with mock.patch("orders.tasks.evaluate_payment_deadline_task.apply_async"), \
+             mock.patch("orders.tasks.finalize_payment_window_task.apply_async"), \
+             mock.patch("orders.services.publish_order_status_changed") as mocked:
             with self.captureOnCommitCallbacks(execute=True):
-                OrderStateService.client_confirmed(self.order.id, user=self.customer)
+                OrderStateService.client_confirmed(
+                    self.order.id, user=self.customer, time_change_revision=1
+                )
         self.assertEqual(mocked.call_count, 1)
 
-    def test_client_confirmed_twice_publishes_once(self):
-        with mock.patch("orders.services.publish_order_status_changed") as mocked:
+    def test_new_time_change_resets_confirmation_and_publishes(self):
+        self.order.status_orders = Orders.WAITING
+        self.order.client_confirmed = True
+        self.order.updated_time = timezone.now() + timedelta(minutes=5)
+        self.order.time_change_revision = 1
+        self.order.save()
+
+        with mock.patch(
+            "orders.tasks.evaluate_time_change_confirmation_deadline_task.apply_async"
+        ) as scheduled, mock.patch("orders.services.publish_order_status_changed") as mocked:
             with self.captureOnCommitCallbacks(execute=True):
-                OrderStateService.client_confirmed(self.order.id, user=self.customer)
-                OrderStateService.client_confirmed(self.order.id, user=self.customer)
+                OrderStateService.propose_time_change(
+                    self.order.id,
+                    staff_user=self.staff_user,
+                    updated_time=timezone.now() + timedelta(minutes=10),
+                    reason="Занята кофемашина",
+                )
+
+        self.order.refresh_from_db()
+        self.assertFalse(self.order.client_confirmed)
+        self.assertEqual(self.order.pending_time_change_revision, 2)
         self.assertEqual(mocked.call_count, 1)
+        scheduled.assert_called_once()
 
-    def test_updated_time_publishes(self):
-        from django.utils import timezone
-
+    def test_time_change_publishes(self):
         new_time = timezone.now() + timedelta(minutes=7)
-        with mock.patch("orders.services.publish_order_status_changed") as mocked:
+        with mock.patch(
+            "orders.tasks.evaluate_time_change_confirmation_deadline_task.apply_async"
+        ), mock.patch("orders.services.publish_order_status_changed") as mocked:
             with self.captureOnCommitCallbacks(execute=True):
-                OrderStateService.update_presentation(
-                    self.order.id, actor_type="staff", updated_time=new_time
+                OrderStateService.propose_time_change(
+                    self.order.id,
+                    staff_user=self.staff_user,
+                    updated_time=new_time,
                 )
         self.assertEqual(mocked.call_count, 1)
         self.order.refresh_from_db()
@@ -630,17 +659,15 @@ class MissingPublicationTests(RealtimeFixtureMixin, TestCase):
 
     def test_update_presentation_is_idempotent(self):
         """Запись того же значения — не изменение, значит и не событие."""
-        from django.utils import timezone
-
-        new_time = timezone.now() + timedelta(minutes=7)
+        new_comment = "Новая заметка"
         with self.captureOnCommitCallbacks(execute=True):
             OrderStateService.update_presentation(
-                self.order.id, actor_type="staff", updated_time=new_time
+                self.order.id, actor_type="staff", staff_comments=new_comment
             )
         with mock.patch("orders.services.publish_order_status_changed") as mocked:
             with self.captureOnCommitCallbacks(execute=True):
                 OrderStateService.update_presentation(
-                    self.order.id, actor_type="staff", updated_time=new_time
+                    self.order.id, actor_type="staff", staff_comments=new_comment
                 )
         self.assertEqual(mocked.call_count, 0)
 
@@ -650,6 +677,7 @@ class MissingPublicationTests(RealtimeFixtureMixin, TestCase):
             ("status_orders", Orders.COMPLETED),
             ("payment_status", Orders.PAID),
             ("version", 99),
+            ("updated_time", timezone.now() + timedelta(minutes=5)),
         ):
             with self.subTest(field=field):
                 with self.assertRaises(OrderTransitionError) as ctx:
@@ -672,7 +700,9 @@ class MissingPublicationTests(RealtimeFixtureMixin, TestCase):
         from staff.serializers import PatchOrderSerializer
 
         new_time = timezone.now() + timedelta(minutes=9)
-        with mock.patch("orders.services.publish_order_status_changed") as mocked:
+        with mock.patch(
+            "orders.tasks.evaluate_time_change_confirmation_deadline_task.apply_async"
+        ), mock.patch("orders.services.publish_order_status_changed") as mocked:
             with self.captureOnCommitCallbacks(execute=True):
                 PatchOrderSerializer().update_order(
                     self.order, {"new_time_to_finish": new_time, "new_comments": "занят"}
@@ -1311,4 +1341,3 @@ class ShiftAggregatesScopedTests(RealtimeFixtureMixin, TestCase):
             .values_list("id", flat=True)
         )
         self.assertEqual(completed_ids, [in_shift_order.id])
-

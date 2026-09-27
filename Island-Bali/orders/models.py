@@ -89,6 +89,17 @@ class Orders(models.Model):
     client_confirmed = models.BooleanField(
         default=False, verbose_name='Клиент подтвердил заказ'
     )
+    # Версия предложения нового времени. Одного client_confirmed недостаточно:
+    # согласие на прошлое предложение не является согласием на следующее.
+    time_change_revision = models.PositiveIntegerField(
+        default=0, verbose_name='Версия изменения времени'
+    )
+    pending_time_change_revision = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name='Ожидающая подтверждения версия времени'
+    )
+    time_change_confirmation_deadline_at = models.DateTimeField(
+        null=True, blank=True, verbose_name='Дедлайн подтверждения изменения времени'
+    )
     
     is_appreciated = models.BooleanField(
         default=False, verbose_name='Клиент оценил заказ'

@@ -71,7 +71,7 @@ class PatchOrderSerializer(serializers.Serializer):
         help_text="Дата обновления заказа",
         label="Updated At"
     )
-    def update_order(self, instance, validated_data):
+    def update_order(self, instance, validated_data, *, staff_user=None):
         """
         M7: updated_time/cancellation_reason больше не пишутся голым instance.save().
 
@@ -102,7 +102,17 @@ class PatchOrderSerializer(serializers.Serializer):
         if local_fields:
             instance.save(update_fields=local_fields)
 
-        if presentation:
+        if 'updated_time' in presentation:
+            # Предложение времени — бизнес-операция, а не обычное
+            # presentation-обновление: оно принимает NEW-заказ, блокирует
+            # оплату и ждёт ответа клиента по конкретной ревизии.
+            instance = OrderStateService.propose_time_change(
+                instance.pk,
+                staff_user=staff_user,
+                updated_time=presentation.pop('updated_time'),
+                reason=presentation.pop('cancellation_reason', None),
+            )
+        elif presentation:
             instance = OrderStateService.update_presentation(
                 instance.pk, actor_type="staff", **presentation
             )

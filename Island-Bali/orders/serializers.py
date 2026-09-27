@@ -142,6 +142,8 @@ CUSTOMER_ORDER_FIELDS = [
     "payment_status", "receipt_photo", "created_at", "updated_at", "updated_time", "issued",
     "full_price", "subtotal_price", "discount_percent", "discount_amount",
     "cancellation_reason", "client_confirmed", "is_appreciated",
+    "time_change_revision", "pending_time_change_revision",
+    "time_change_confirmation_deadline_at",
     "city_choose_name", "coffee_shop_name", "is_updated",
     "is_used_discount", "is_testing", "version", "event_seq", "acknowledged_dialogs",
 ]

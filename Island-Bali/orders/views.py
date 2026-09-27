@@ -335,7 +335,17 @@ class OrderViewSet(ModelViewSet):
         from orders.services import OrderStateService
 
         try:
-            OrderStateService.client_confirmed(order.id, user=request.user)
+            time_change_revision = int(request.data.get("time_change_revision"))
+        except (TypeError, ValueError):
+            return Response(
+                {"error": "Укажите номер предложения времени (time_change_revision)."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            OrderStateService.client_confirmed(
+                order.id, user=request.user, time_change_revision=time_change_revision
+            )
         except OrderTransitionError as exc:
             return _transition_error_response(exc)
         return Response({'status': 'Заказ подтвержден клиентом'})

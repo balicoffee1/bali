@@ -49,6 +49,14 @@ export const OrdersPage: React.FC = () => {
 
   const handleStatusChange = async (newStatus: OrderStatus, reason?: string) => {
     if (!selectedOrder) return;
+    if (selectedOrder.payment_status === 'Pending') {
+      addToast({
+        type: 'error',
+        title: 'Изменение статуса невозможно',
+        message: 'Нельзя изменить статус заказа, пока он ожидает оплаты.',
+      });
+      return;
+    }
     try {
       const updated = await api.updateOrderStatus(selectedOrder.id, newStatus, reason);
       setOrders(prev => prev.map(o => (o.id === updated.id ? updated : o)));
@@ -60,11 +68,15 @@ export const OrdersPage: React.FC = () => {
         title: 'Статус заказа обновлен',
         message: `Заказ #${updated.id} переведен в статус "${ORDER_STATUS_LABELS[newStatus] || newStatus}"`,
       });
-    } catch {
+    } catch (err: any) {
+      const errorMessage =
+        err?.response?.data?.message ||
+        err?.message ||
+        'Не удалось обновить статус заказа';
       addToast({
         type: 'error',
         title: 'Ошибка',
-        message: 'Не удалось обновить статус заказа',
+        message: errorMessage,
       });
     }
   };
@@ -281,7 +293,9 @@ export const OrdersPage: React.FC = () => {
       )}
 
       {/* Order Detail Drawer */}
-      {selectedOrder && (
+      {selectedOrder && (() => {
+        const isAwaitingPayment = selectedOrder.payment_status === 'Pending';
+        return (
         <Drawer
           isOpen={!!selectedOrder}
           onClose={() => setSelectedOrder(null)}
@@ -294,7 +308,8 @@ export const OrdersPage: React.FC = () => {
                 size="sm"
                 leftIcon={<XCircle className="w-4 h-4" />}
                 onClick={() => setIsCancelModalOpen(true)}
-                disabled={selectedOrder.status_orders === 'Canceled' || selectedOrder.status_orders === 'Completed'}
+                disabled={selectedOrder.status_orders === 'Canceled' || selectedOrder.status_orders === 'Completed' || isAwaitingPayment}
+                title={isAwaitingPayment ? 'Нельзя отменить заказ, пока он ожидает оплаты' : undefined}
               >
                 Отменить заказ
               </Button>
@@ -311,17 +326,35 @@ export const OrdersPage: React.FC = () => {
                   </Button>
                 )}
                 {selectedOrder.status_orders === 'New' && (
-                  <Button size="sm" onClick={() => handleStatusChange('Waiting')}>
+                  <Button
+                    size="sm"
+                    onClick={() => handleStatusChange('Waiting')}
+                    disabled={isAwaitingPayment}
+                    title={isAwaitingPayment ? 'Нельзя изменить статус: заказ ожидает оплаты' : undefined}
+                  >
                     Принять заказ
                   </Button>
                 )}
                 {selectedOrder.status_orders === 'Waiting' && (
-                  <Button size="sm" variant="dark" onClick={() => handleStatusChange('In Progress')}>
+                  <Button
+                    size="sm"
+                    variant="dark"
+                    onClick={() => handleStatusChange('In Progress')}
+                    disabled={isAwaitingPayment}
+                    title={isAwaitingPayment ? 'Нельзя перевести в работу: заказ ожидает оплаты' : undefined}
+                  >
                     В работу
                   </Button>
                 )}
                 {selectedOrder.status_orders === 'In Progress' && (
-                  <Button size="sm" variant="primary" leftIcon={<CheckCircle2 className="w-4 h-4" />} onClick={() => handleStatusChange('Completed')}>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    leftIcon={<CheckCircle2 className="w-4 h-4" />}
+                    onClick={() => handleStatusChange('Completed')}
+                    disabled={isAwaitingPayment}
+                    title={isAwaitingPayment ? 'Нельзя завершить заказ: заказ ожидает оплаты' : undefined}
+                  >
                     Завершить заказ
                   </Button>
                 )}
@@ -350,6 +383,17 @@ export const OrdersPage: React.FC = () => {
                 <p className="text-lg font-extrabold text-brand-dark mt-0.5">{selectedOrder.full_price} ₽</p>
               </div>
             </div>
+
+            {/* Awaiting payment banner */}
+            {isAwaitingPayment && (
+              <div className="flex items-center gap-2.5 p-3.5 bg-amber-50 border border-amber-200 rounded-r18 text-amber-900 text-xs">
+                <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                <div>
+                  <span className="font-bold">Заказ ожидает оплаты.</span>{' '}
+                  <span className="text-amber-800">Изменение статуса заказа недоступно до завершения оплаты клиентом.</span>
+                </div>
+              </div>
+            )}
 
             {/* Customer info */}
             <div className="bg-white border border-slate-100 rounded-r18 p-4 space-y-2">
@@ -425,7 +469,8 @@ export const OrdersPage: React.FC = () => {
             )}
           </div>
         </Drawer>
-      )}
+        );
+      })()}
 
       {/* Cancellation Modal */}
       <Modal

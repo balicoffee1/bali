@@ -612,6 +612,14 @@ class AdminOrdersViewSet(viewsets.ModelViewSet):
 
         if not new_status and not new_payment_status:
             return Response({"error": "Укажите status_orders и/или payment_status"}, status=400)
+        if order.payment_status == Orders.PENDING and new_status and new_status != order.status_orders:
+            return Response(
+                {
+                    "error": "cannot_change_status_awaiting_payment",
+                    "message": f"Нельзя изменить статус заказа #{order.id}, пока он ожидает оплаты.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         if new_status == Orders.CANCELED and not cancellation_reason.strip():
             return Response({"error": "Для отмены укажите причину."}, status=status.HTTP_400_BAD_REQUEST)
         if not reason or not reason.strip():
@@ -664,7 +672,11 @@ class AdminOrdersViewSet(viewsets.ModelViewSet):
             'new_comments': new_comments,
         })
         serializer.is_valid(raise_exception=True)
-        order = serializer.update_order(order, serializer.validated_data)
+        # Передаём инициатора в сервис: при переводе NEW -> WAITING он
+        # корректно привяжет Staff-запись администратора к заказу.
+        order = serializer.update_order(
+            order, serializer.validated_data, staff_user=request.user
+        )
 
         send_push_notification(
             order.user,
@@ -678,9 +690,9 @@ class AdminOrdersViewSet(viewsets.ModelViewSet):
         log_admin_activity(
             request,
             action='UPDATE',
-            resource_type='Orders',
-            resource_id=str(order.id),
-            details=f"Заказ #{order.id}: отправлен на подтверждение клиенту (время: {new_time_to_finish}, комментарий: {new_comments})",
+            entity_name='Orders',
+            entity_id=str(order.id),
+            summary=f"Заказ #{order.id}: отправлен на подтверждение клиенту (время: {new_time_to_finish}, комментарий: {new_comments})",
         )
 
         return Response({
@@ -897,4 +909,3 @@ class AdminKnowledgeArticleViewSet(viewsets.ModelViewSet):
             summary=f"Удалена статья базы знаний: {title}",
             request=self.request
         )
-

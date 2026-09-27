@@ -110,6 +110,14 @@ def evaluate_barista_confirmation_deadline_task(order_id):
         logger.warning("evaluate_barista_confirmation_deadline_task: order %s не найден", order_id)
 
 
+@shared_task
+def evaluate_time_change_confirmation_deadline_task(order_id):
+    try:
+        OrderStateService.evaluate_time_change_confirmation_deadline(order_id)
+    except Orders.DoesNotExist:
+        logger.warning("evaluate_time_change_confirmation_deadline_task: order %s не найден", order_id)
+
+
 def _lifepay_status_checker(order) -> ProviderPaymentStatus:
     invoice = get_latest_invoice(order)
     if invoice is None:

@@ -31,6 +31,7 @@ from orders.state_machine import (
     FINAL_DEADLINE_SECONDS,
     GRACE_PERIOD_SECONDS,
     PAYMENT_WINDOW_SECONDS,
+    TIME_CHANGE_CONFIRMATION_TIMEOUT_SECONDS,
     OrderTransitionError,
     is_order_transition_allowed,
     is_payment_transition_allowed,
@@ -419,6 +420,41 @@ class BaristaSlaAndConfirmationFlowTests(OrdersTestBase):
         mock_reminders.assert_called_once_with(args=[order.id, 1], countdown=20)
         mock_sla.assert_called_once_with(args=[order.id], countdown=90)
 
+    def test_time_change_accepts_new_order_and_replaces_barista_sla(self):
+        order = self.make_order(status_orders=Orders.NEW)
+        new_time = timezone.now() + timedelta(minutes=15)
+
+        with mock.patch(
+            "orders.tasks.evaluate_time_change_confirmation_deadline_task.apply_async"
+        ) as mock_deadline, self.captureOnCommitCallbacks(execute=True):
+            OrderStateService.propose_time_change(
+                order.id,
+                staff_user=self.staff_user,
+                updated_time=new_time,
+                reason="Нужна дополнительная подготовка",
+            )
+
+        order.refresh_from_db()
+        self.assertEqual(order.status_orders, Orders.WAITING)
+        self.assertEqual(order.pending_time_change_revision, 1)
+        self.assertIsNone(order.payment_deadline_at)
+        self.assertFalse(order.client_confirmed)
+        self.assertTrue(
+            order.time_change_confirmation_deadline_at >=
+            timezone.now() + timedelta(seconds=TIME_CHANGE_CONFIRMATION_TIMEOUT_SECONDS - 1)
+        )
+        mock_deadline.assert_called_once_with(args=[order.id], countdown=300)
+
+    def test_payment_is_blocked_while_time_change_is_pending(self):
+        order = self.make_order(
+            status_orders=Orders.WAITING,
+            pending_time_change_revision=1,
+            time_change_revision=1,
+        )
+        with self.assertRaises(OrderTransitionError) as error:
+            OrderStateService.payment_started(order.id, provider="lifepay")
+        self.assertEqual(error.exception.code, "time_change_confirmation_required")
+
 
 # ---------------------------------------------------------------------------
 # 3. Идемпотентность webhook-событий
@@ -600,6 +636,17 @@ class OrderAuthorizationRegressionTests(OrdersTestBase):
         self.assertFalse(
             OrderDialogAck.objects.filter(order=order, dialog_key=OrderDialogAck.CANCELED).exists()
         )
+
+    def test_admin_override_disallowed_when_payment_pending(self):
+        order = self.make_order(status_orders=Orders.WAITING, payment_status=Orders.PENDING)
+        with self.assertRaises(OrderTransitionError) as ctx:
+            OrderStateService.admin_override(
+                order.id,
+                admin_user=self.staff_user,
+                new_order_status=Orders.IN_PROGRESS,
+                reason="Attempt to move to in progress while pending",
+            )
+        self.assertEqual(ctx.exception.code, "cannot_change_status_awaiting_payment")
 
     def test_client_confirmation_ownership_enforced(self):
         order = self.make_order(status_orders=Orders.WAITING)
@@ -1132,6 +1179,17 @@ class DjangoAdminPublishesEventsTests(OrdersTestBase):
         order.refresh_from_db()
         self.assertEqual(order.payment_status, Orders.PENDING)
 
+    def test_admin_form_makes_status_orders_readonly_when_payment_pending(self):
+        order = self.make_order(status_orders=Orders.WAITING, payment_status=Orders.PENDING)
+        readonly = self.admin.get_readonly_fields(self.request, order)
+        self.assertIn("status_orders", readonly)
+
+    def test_admin_save_model_rejects_status_change_when_payment_pending(self):
+        from django.core.exceptions import ValidationError
+        order = self.make_order(status_orders=Orders.WAITING, payment_status=Orders.PENDING)
+        with self.assertRaises(ValidationError):
+            self._save_via_admin(order, status_orders=Orders.IN_PROGRESS)
+
     def test_both_fields_change_publishes_single_event(self):
         """Ровно тот сценарий из отчёта: «Ожидание» + «ожидание оплаты» разом."""
         order = self.make_order(status_orders=Orders.NEW, payment_status=Orders.NEW)
@@ -1295,4 +1353,3 @@ class OrderCartCheckoutIsolationTestCase(OrdersTestBase):
         order.refresh_from_db()
         self.assertEqual(order.cart.items.count(), 1)
         self.assertEqual(order.cart.items.first().product, self.product)
-

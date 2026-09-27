@@ -178,7 +178,9 @@ class PendingOrdersAcceptView(APIView):
                 # payment_status (только время/комментарии/UI-флаги) — вне
                 # инварианта единой точки мутации бизнес-статуса (M1 п.1),
                 # поэтому остаётся как есть.
-                serializer.update_order(order, serializer.validated_data)
+                order = serializer.update_order(
+                    order, serializer.validated_data, staff_user=request.user
+                )
 
                 serializer = PendingOrdersAcceptSerializer(order)
                 send_push_notification(
